@@ -14,8 +14,12 @@ app.use(bodyParser.json());
 
 // Webhook endpoint
 app.post('/webhook', (req, res) => {
+  // ตอบกลับทันทีด้วย 200
+  res.sendStatus(200);
+
+  // แล้วค่อยประมวลผล event
   Promise.all(req.body.events.map(handleEvent))
-    .then((result) => res.json(result));
+    .catch((err) => console.error(err));
 });
 
 function handleEvent(event) {

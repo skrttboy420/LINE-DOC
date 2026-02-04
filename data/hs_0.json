@@ -1,0 +1,626 @@
+[
+  {
+    "hsCode": "7013.99",
+    "en": "GLASS POT",
+    "th": "หม้อแก้ว",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7321.19.90",
+    "en": "Stove for Grilling",
+    "th": "เตาย่าง",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "4202.29",
+    "en": "bag",
+    "th": "กระเป๋าถือ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8483.3090",
+    "en": "Linear sliding guide rail",
+    "th": "รางสไลด์เชิงเส้น",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8482.10",
+    "en": "Bearing unit",
+    "th": "ตลับลูกปืน",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "7013.4900",
+    "en": "ceramic cup set",
+    "th": "ชุดถ้วยเซรามิค",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8546.90",
+    "en": "Terminal",
+    "th": "หางปลา/ขั้วต่อสาย",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8483.90.90",
+    "en": "Pulley",
+    "th": "พูเล่",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8433.19",
+    "en": "lawn mower",
+    "th": "เครื่องตัดหญ้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8505.11",
+    "en": "Round magnet",
+    "th": "แม่เหล็กทรงกลม",
+    "fe": "",
+    "no": "",
+    "stat": "ยกเว้นอากร"
+  },
+  {
+    "hsCode": "3926.90",
+    "en": "Saddle Type Tie Mount",
+    "th": "แป้นสกรูยึดเคเบิ้ลไทร์",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3923.29",
+    "en": "Plastic Bags",
+    "th": "ซองพลาสติก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3206.49.90",
+    "en": "Pigment Powder",
+    "th": "ผงสีน้ำ",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8414.59",
+    "en": "Cooling Fan",
+    "th": "พัดลมระบายความร้อน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8528.52",
+    "en": "Monitor Display",
+    "th": "จอมอนิเตอร์",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "7323.99",
+    "en": "stainless steel tray",
+    "th": "ถาด",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3926.90",
+    "en": "PET Expandable Braided Sleeve",
+    "th": "สายถักหุ้มสายไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3919.10",
+    "en": "TAPE",
+    "th": "เทป 2 หน้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8536.90",
+    "en": "Junction Box / Terminal block",
+    "th": "กล่องต่อสายไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3926.90",
+    "en": "selfie stick",
+    "th": "ไม้เซลฟี่",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9405.99",
+    "en": "lamps",
+    "th": "โคมไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8532.29",
+    "en": "Capacitor",
+    "th": "คาปาซิเตอร์",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8541.10",
+    "en": "Diode",
+    "th": "ไดโอด",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8504.90",
+    "en": "power supply",
+    "th": "ตัวจ่ายไฟ",
+    "fe": "",
+    "no": "",
+    "stat": "ยกเว้นอากร"
+  },
+  {
+    "hsCode": "9617.00",
+    "en": "VACUUM FLASK",
+    "th": "กระติกสูญญากาศ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9505.10",
+    "en": "Keychain",
+    "th": "พวงกุญแจ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9403.20.90",
+    "en": "Table Legs (Parts) / MINIFIX",
+    "th": "ขาโต๊ะ / มินิฟิก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8504.31.13",
+    "en": "Power Converter Module",
+    "th": "โมดูลแปลงไฟ",
+    "fe": "5",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8714.99.94",
+    "en": "Brake disc / Chain guide",
+    "th": "จานเบรก / รองโซ่",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9004.90.50",
+    "en": "Goggles",
+    "th": "แว่นกันลม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "6209.90",
+    "en": "Children's clothing",
+    "th": "เสื้อผ้าเด็ก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9603.30",
+    "en": "paintbrush",
+    "th": "พู่กัน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8543.70",
+    "en": "Signal Processor",
+    "th": "อุปกรณ์ประมวลผลสัญญาณ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "4819.30.00",
+    "en": "paper bags",
+    "th": "ซองกระดาษ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9403.10",
+    "en": "Office chair / Tables",
+    "th": "เก้าอี้สำนักงาน / โต๊ะ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8516.29.00",
+    "en": "heating cabinet",
+    "th": "เครื่องทำความร้อน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "5701.90.99",
+    "en": "Carpets",
+    "th": "พรม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8302.10",
+    "en": "HINGS",
+    "th": "บานพับ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3919.90.99",
+    "en": "PTFE ADHESIVE TAPE",
+    "th": "เทปผ้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7308.90.99",
+    "en": "heavy-duty rack",
+    "th": "ชั้นวางสินค้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7314.19.90",
+    "en": "Liquid Filter Strainer",
+    "th": "กระชอนกรองของเหลว",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8414.80.90",
+    "en": "airpump",
+    "th": "ปั้มอ๊อกซิเจน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3920.20.91",
+    "en": "PLASTIC FILM",
+    "th": "ฟิล์มหด",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8413.50.90",
+    "en": "Plastic diaphragm pump",
+    "th": "ปั๊มไดอะแฟรมพลาสติก",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "9025.80",
+    "en": "precision thermo",
+    "th": "เครื่องวัดความชื้น",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "6306.40.90",
+    "en": "picnic mat",
+    "th": "เสื่อปิกนิก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "6815.99",
+    "en": "VOLCANIC STONE",
+    "th": "หินภูเขาไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8501.10.99",
+    "en": "servo motor",
+    "th": "เซอร์โวมอเตอร์",
+    "fe": "5",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7307.22.90",
+    "en": "CONNECTOR",
+    "th": "หัวเสียบสายลม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "2811.22.90",
+    "en": "Silica Gel",
+    "th": "สารดูดความชื้น",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "6505.00.90",
+    "en": "hat",
+    "th": "หมวก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8471.70.90",
+    "en": "Solid State Drive",
+    "th": "SSD",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8432.80.90",
+    "en": "Manure Cleaning Machine",
+    "th": "เครื่องเก็บมูลวัว",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7117.90.99",
+    "en": "Jewelry Accessories",
+    "th": "อะไหล่เครื่องประดับ",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8418.50.19",
+    "en": "display case",
+    "th": "ตู้โชว์สินค้า",
+    "fe": "5",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3924.90.90",
+    "en": "plastic tray",
+    "th": "ถาดพลาสติก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8443.91",
+    "en": "PRINTING MACHINE PARTS",
+    "th": "อะไหล่เครื่องพิมพ์",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8308.10.00",
+    "en": "Keychain / TPU",
+    "th": "พวงกุญแจ TPU",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8481.90.90",
+    "en": "CONNECTOR",
+    "th": "ข้อต่อท่อ",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "9032.10.00",
+    "en": "Thermostat",
+    "th": "เครื่องควบคุม",
+    "fe": "",
+    "no": "",
+    "stat": "5"
+  },
+  {
+    "hsCode": "8510.90.00",
+    "en": "Brofa blade",
+    "th": "ใบมีดสำหรับปัตตาเลี่ยน",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8423.30.90",
+    "en": "Factory scales",
+    "th": "เครื่องชั่งโรงงาน",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "9616.20",
+    "en": "makeup sponge / powder puff",
+    "th": "ฟองน้ำแต่งหน้า / พัฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "7010.90.40",
+    "en": "Dropper Bottle",
+    "th": "ขวดดรอปเปอร์",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3916.90.91",
+    "en": "3D PRINTER FILAMENT",
+    "th": "เส้นพลาสติกสำหรับเครื่องพิมพ์ 3 มิติ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8419.89.13",
+    "en": "hot air blower",
+    "th": "เครื่องเป่าลมร้อน",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "5806.39.99",
+    "en": "ribbon",
+    "th": "ริบบิ้นตกแต่ง",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9619.00.92",
+    "en": "Sanitary towels",
+    "th": "ผ้าอนามัย (แพ็ด)",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "6302.60",
+    "en": "TOWELS",
+    "th": "ผ้าเช็ดตัว",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8482.99",
+    "en": "bearing cover",
+    "th": "ตัวกันฝุ่นลูกปืน",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "4202.19.90",
+    "en": "Flight case",
+    "th": "กล่องกันกระแทก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8485.20",
+    "en": "Plastic injection machine",
+    "th": "เครื่องพิมพ์พลาสติก",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8481.80.14",
+    "en": "NEEDLE VALVE",
+    "th": "วาล์วควบคุมการไหล",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8521.90.91",
+    "en": "Video Recorder",
+    "th": "กล่องบันทึกภาพ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9608.10.10",
+    "en": "pen",
+    "th": "ปากกา",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8428.33.90",
+    "en": "Conveyor",
+    "th": "สายพานคอนเวเยอ",
+    "fe": "0",
+    "no": "",
+    "stat": "5"
+  },
+  {
+    "hsCode": "8472.90.60",
+    "en": "Bill Counter",
+    "th": "เครื่องนับธนบัตร",
+    "fe": "",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "3302.90.00",
+    "en": "MIXTURE OF ODORIFEROUS",
+    "th": "ส่วนผสมของสารที่มีกลิ่นหอม",
+    "fe": "0",
+    "no": "",
+    "stat": "3"
+  }
+]

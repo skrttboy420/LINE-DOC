@@ -1,0 +1,818 @@
+[
+  {
+    "hsCode": "481930",
+    "en": "paperbags",
+    "th": "ซองกระดาษ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "854370",
+    "en": "Signal Processor",
+    "th": "อุปกรณ์ประมวณผลสัญญาณ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9603.3",
+    "en": "paintbrush",
+    "th": "พู่กัน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "62099000",
+    "en": "Children's clothing",
+    "th": "เสื้อผ้าเด็ก",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "9004.905",
+    "en": "Goggles",
+    "th": "แว่นกันลม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "87149994",
+    "en": "",
+    "th": "อะไหล่ จักรยาน / มอไซค์",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85043113",
+    "en": "Power Converter Moduler",
+    "th": "โมดูลแปลงไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "MINIFIX",
+    "th": "มินิฟิก (ส่วนประกอบเฟอร์นิเจอร์)",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Table Legs (Parts)",
+    "th": "ขาโต๊ะ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "BRACKET",
+    "th": "เดือยหู 3 รูฉาก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "57019099",
+    "en": "Carpets",
+    "th": "พรม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "73089099",
+    "en": "heavy-duty rack",
+    "th": "ชั้นวางสินค้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39199099",
+    "en": "PTFE ADHESIVE TAPE",
+    "th": "เทปผ้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8302.1",
+    "en": "HINGS",
+    "th": "บานพับ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8414.809",
+    "en": "airpump",
+    "th": "ปั้มอ๊อกซิเจน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39202091",
+    "en": "PLASTIC FILM",
+    "th": "ฟิล์มหด",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3926.9099",
+    "en": "folding bucket",
+    "th": "ถังน้ำพับเก็บได้",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "3921.9",
+    "en": "Plastic sheets",
+    "th": "แผ่นรองนอน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "6306.409",
+    "en": "",
+    "th": "เสื่อปิกนิก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "6306.299",
+    "en": "Tarpaulin",
+    "th": "ผ้าใบกันน้ำ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "73219090",
+    "en": "cookers",
+    "th": "เตาย่าง / กระทะ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39249090",
+    "en": "PLASTIC SPOONS",
+    "th": "ช้อนตวง / เครื่องครัว",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "6815.99",
+    "en": "Volcanic rock",
+    "th": "หินภูเขาไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85011099",
+    "en": "servo motor",
+    "th": "เซอร์โวมอเตอร์",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "2811229",
+    "en": "Silica Gel",
+    "th": "สารดูดความชื้น",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "854690",
+    "en": "CONNECTOR",
+    "th": "หางปลา",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "28112290",
+    "en": "Silica Gel",
+    "th": "สารดูดความชื้น",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84717090",
+    "en": "Solid State Drive",
+    "th": "อุปกรณ์จัดเก็บข้อมูล",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84328090",
+    "en": "Manure Cleaning Machine",
+    "th": "เครื่องเก็บมูลวัว",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84833090",
+    "en": "Bushing",
+    "th": "บุชชิ่ง - ปลอกตลับลูกปืน",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "73089099",
+    "en": "heavy-duty rack",
+    "th": "ชั้นวางสินค้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "71179099",
+    "en": "Jewelry Accessories",
+    "th": "อะไหล่เครื่องประดับ",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "PLASTIC JAR",
+    "th": "กระปุกพลาสติก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "Heatsink",
+    "th": "ฮีตซิงก์ระบายความร้อน",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84185019",
+    "en": "display case",
+    "th": "ตู้โชว์สินค้า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "plastic tray",
+    "th": "ถาดพลาสติก",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39249090",
+    "en": "plastic tray",
+    "th": "เขียง",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "39249090",
+    "en": "PLASTIC BEVERAGE DISPENSER",
+    "th": "อุปกรณ์จ่ายน้ำ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39249090",
+    "en": "Squeeze Watering Bottle",
+    "th": "กระบอกรดน้ำ ปากแหลม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "843850",
+    "en": "Meat slicer",
+    "th": "เครื่องหั่นเนื้อ",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "844391",
+    "en": "",
+    "th": "แกนกำหนดตำแหน่ง (อะไหล่เครื่องพิมพ์)",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "901730",
+    "en": "CALLIPERS",
+    "th": "แคลลิเปอร์",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "",
+    "en": "CO SENSOR",
+    "th": "อุปกรณ์เครื่องวัด CO",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9403.99",
+    "en": "",
+    "th": "ส่วนประกอบเฟอร์นิเจอร์",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "48115949",
+    "en": "PAPER TAPE",
+    "th": "เทปกระดาษ",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "630222",
+    "en": "BED SHEET",
+    "th": "ผ้าปูที่นอน",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "96190092",
+    "en": "Sanitary towels (pads)",
+    "th": "ผ้าอนามัย (แพ็ด) / ผ้าอ้อม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84198913",
+    "en": "hot air blower",
+    "th": "เครื่องเป่าลมร้อน / ไดเป่า",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84561190",
+    "en": "Machine Laser",
+    "th": "เครื่องเลเซอร์",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "83022090",
+    "en": "WHEEL",
+    "th": "ล้อ(ส่วนประกอบเฟอร์นิเจอร์)",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85369099",
+    "en": "HUB USB",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "820551",
+    "en": "BOTTLE OPENER",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85469000",
+    "en": "VINYL WIRE END CAPS",
+    "th": "ปลอกหุ้มหางปลา",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "85441900",
+    "en": "AUTOMOBILE CABLE",
+    "th": "",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "84431300",
+    "en": "LABELING MACHINE",
+    "th": "",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84839099",
+    "en": "ROLLER COATING CERAMIC",
+    "th": "",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "39233090",
+    "en": "SILICONE BOTTLE",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": "90"
+  },
+  {
+    "hsCode": "70099200",
+    "en": "MIRROR",
+    "th": "กระจกเงา (ไม่มีขอบ)",
+    "fe": "30",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "3923.29.90",
+    "en": "FOIL ZIPLOCK BAG",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "8504.21.19",
+    "en": "Power Distribution Block",
+    "th": "ตัวจ่ายไฟ",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "8504.21.19",
+    "en": "small busbar",
+    "th": "ตัวจ่ายไฟ",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "8510.90.00.",
+    "en": "Brofa blade",
+    "th": "ใบมีดสำหรับปัตตาเลี่ยนต",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "73239990",
+    "en": "STAINLESS CHOPSTICKS",
+    "th": "ตะเกียบ",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "84819090",
+    "en": "Tube fitting",
+    "th": "ข้อต่อท่อ",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "4009.229",
+    "en": "Faucet hose 50cm",
+    "th": "สายยางก๊อกน้ำ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "3924.909",
+    "en": "Silicone drain cover",
+    "th": "แผ่นซิลิโคนปิดท่อระบายน้ำ",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "39232990",
+    "en": "seal bag 100",
+    "th": "ถุงพลาสติก",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "Plastic Storage Box",
+    "th": "กล่องใส่อุปกรณ์",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "82055900",
+    "en": "Hand Tools",
+    "th": "เครื่องมือช่าง",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85366990",
+    "en": "Switch",
+    "th": "สวิตช์ไฟ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "Plastic Organizer",
+    "th": "กล่องจัดระเบียบ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "82075000",
+    "en": "Drill Bit",
+    "th": "ดอกสว่าน",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "73239390",
+    "en": "Stainless Cup",
+    "th": "แก้วสแตนเลส",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39232990",
+    "en": "Plastic Pouch",
+    "th": "ถุงพลาสติก",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "95069930",
+    "en": "Shuttlecock",
+    "th": "ลูกแบดมินตัน",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "83081000",
+    "en": "Metal Brooch",
+    "th": "เข็มกลัดโลหะ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "Card Holder",
+    "th": "ซองใส่การ์ด",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "PVC Card",
+    "th": "การ์ด PVC",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "63052000",
+    "en": "Drawstring Bag",
+    "th": "ถุงหูรูด",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84212319",
+    "en": "Oil Filter",
+    "th": "ไส้กรองน้ำมัน",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "42029290",
+    "en": "Handbag",
+    "th": "กระเป๋าถือ",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "42022220",
+    "en": "Fabric Handbag",
+    "th": "กระเป๋าผ้า",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "85015390",
+    "en": "Motor Spindle Kit",
+    "th": "",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84798950",
+    "en": "Vacuum Cleaner Kit",
+    "th": "",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "82059000",
+    "en": "Trowel Accessories",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "82055900",
+    "en": "Trowel",
+    "th": "",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "84799090",
+    "en": "Saw Blade",
+    "th": "",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "90132000",
+    "en": "Laser Module",
+    "th": "",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Aluminium Handle",
+    "th": "มือจับตู้",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Clothes Hanging Bar Holder",
+    "th": "หัวรับราวแขวนเสื้อ",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Clothes Hanging Bar",
+    "th": "ราวแขวนเสื้อ",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "90309090",
+    "en": "Sensor Accessories",
+    "th": "อะไหล่เครื่องเซ็นเซอร์",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84819090",
+    "en": "Electric Actuator Butterfly Valve",
+    "th": "วาล์วไฟฟ้าปีกผีเสื้อ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84798220",
+    "en": "Static Mixer",
+    "th": "ท่อผสมแบบคงที่",
+    "fe": "5",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85364990",
+    "en": "Solid State Relay",
+    "th": "โซลิดสเตตรีเลย์",
+    "fe": "10",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85311010",
+    "en": "Burglar Alarm",
+    "th": "เครื่องสัญญาณแจ้งโจรกรรม",
+    "fe": "10",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "Phone Holder",
+    "th": "ที่วางโทรศัพท์มือถือ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "940310",
+    "en": "2x2 Hanging with Wheel",
+    "th": "ขาแขวนจอล้อเลื่อน 2x2",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "38101000",
+    "en": "Welding Wire",
+    "th": "ลวดเชื่อม",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85169090",
+    "en": "LED Cable",
+    "th": "อะไหล่เครื่องเชื่อมสายไฟเบอร์",
+    "fe": "10",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85169090",
+    "en": "LCD for CW A4",
+    "th": "อะไหล่เครื่องเชื่อมสายไฟเบอร์",
+    "fe": "10",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85169090",
+    "en": "Spare Part LCD 4.3in",
+    "th": "อะไหล่เครื่องเชื่อมสายไฟเบอร์",
+    "fe": "10",
+    "no": "",
+    "stat": ""
+  }
+]

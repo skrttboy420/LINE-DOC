@@ -1,0 +1,802 @@
+  [
+  {
+    "hsCode": "482010",
+    "en": "Diary book",
+    "th": "สมุดไดอารี่",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "9023000",
+    "en": "MODELS FOR EDUCATION",
+    "th": "แบบจำลอง (ใช้ในศึกษา)",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (LIQUID COOLING KIT)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (ชุดระบายความร้อนด้วยน้ำ)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (COOLING KIT)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (ชุดระบายความร้อน)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (CPU COOLING KIT)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (ที่ระบายความร้อน CPU)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (CPU BLOCK)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (บลอค CPU)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (RAM COOLING KIT)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (ชุดระบายความร้อนแรม)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733090",
+    "en": "COMPUTER PARTS (BOTTLE)",
+    "th": "ส่วนประกอบคอมพิวเตอร์ (ขวดใส่น้ำหล่อเย็น)",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "90279000",
+    "en": "CO Sensor for Gas Analysis",
+    "th": "อุปกรณ์เครื่องวัด CO",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269093",
+    "en": "Ring Sizer",
+    "th": "สายวัดแหวน",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85469000",
+    "en": "Ring Copper Terminal",
+    "th": "หางปลาทองแดงแบบกลม",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "73239990",
+    "en": "pants hangers / socks hanger",
+    "th": "",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "82075000",
+    "en": "Endmill hispeed",
+    "th": "ดอกกัดไฮสปีด",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "94017990",
+    "en": "Stool",
+    "th": "เก้าอี้สตูล",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Adjustable Laptop Stand 360 Degree Rotating",
+    "th": "ขาตั้งสำหรับ Notebook หมุนได้ 360 องศา",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "73083090",
+    "en": "Folding Gate",
+    "th": "ประตูโฟลดดิ้งเกท",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "82071900",
+    "en": "grade A core bit 4\"",
+    "th": "กระบอกคอริ่ง ขนาด 4 นิ้ว",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85372029",
+    "en": "Board Touch Screen",
+    "th": "บอร์ดซ่อมจอ",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "6505009",
+    "en": "Folden Hat",
+    "th": "หมวกกันแดด",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "GLITTER POWDER",
+    "th": "ผงกากเพชร",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "WATCH WINDER",
+    "th": "กล่องนาฬิกา",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85369099",
+    "en": "Terminal connector",
+    "th": "ตัวต่อคอนเน็คเตอร์",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85369099",
+    "en": "Terminal jumpers",
+    "th": "จั๊มเปอร์เทอร์มินอล",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "95069100",
+    "en": "yoga mats",
+    "th": "เสื่อโยคะ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "84439910",
+    "en": "Blue printhead cleaner",
+    "th": "น้ำยาล้างหัวพิมพ์สีฟ้า",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "90278990",
+    "en": "Metal analyzer",
+    "th": "เครื่องวิเคราะห์โลหะ",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "821420",
+    "en": "nail tools",
+    "th": "เครื่องมือใช้สำหรับตกแต่งเล็บ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85122099",
+    "en": "Rear Bumper Reflector Lamps",
+    "th": "โคมไฟทับทิม",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "950510",
+    "en": "Plastic Christmas Tree",
+    "th": "ต้นคริสมาสต์ (พลาสติก)",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "62114390",
+    "en": "APRON",
+    "th": "ผ้ากันเปื้อน",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "84833090",
+    "en": "Block Slide bearing",
+    "th": "ลูกปืนรางเลื่อน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "85366939",
+    "en": "Proximity Switch",
+    "th": "สวิตท์ควบคุมแรงดัน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "85371099",
+    "en": "IND. BOARD",
+    "th": "บอร์ดควบคุม",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85371099",
+    "en": "Temp.Control",
+    "th": "ตัวปรับอุณหภูมิเตาหลอม",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "BASE SENSOR WITH COVER",
+    "th": "ฐานเซนเซอร์พร้อมฝาปิด",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "84811019",
+    "en": "Solenoid valve",
+    "th": "ตัวควบคุมปริมาณลมผ่านในท่อ",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "87168010",
+    "en": "Hand lift manual",
+    "th": "รถเข็นลากของ",
+    "fe": "0",
+    "no": "40",
+    "stat": ""
+  },
+  {
+    "hsCode": "85366939",
+    "en": "Push button for Industrial Crane",
+    "th": "ปุ่มกดเครน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "85442011",
+    "en": "Patch cord cable",
+    "th": "สายแพทคอร์ด",
+    "fe": "5",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "820750",
+    "en": "end mill carbide",
+    "th": "ดอกสว่านคาร์ไบด์",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "830810",
+    "en": "metal brooch",
+    "th": "เข็มกลัดโลหะ",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "420100",
+    "en": "PET COLLAR",
+    "th": "ปลอกคอสัตว์เลี้ยง",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "84314990",
+    "en": "Vibratory roller",
+    "th": "ลูกกลิ้งสั่นสะเทือน",
+    "fe": "0",
+    "no": "3",
+    "stat": ""
+  },
+  {
+    "hsCode": "701962",
+    "en": "Fiberglass Fire Blanket",
+    "th": "ผ้าห่มดับเพลิงไฟเบอร์กลาส",
+    "fe": "0",
+    "no": "3",
+    "stat": ""
+  },
+  {
+    "hsCode": "84807190",
+    "en": "Ladle mould",
+    "th": "แม่พิมพ์",
+    "fe": "0",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "650691",
+    "en": "Shower cap",
+    "th": "หมวกคลุมผม",
+    "fe": "0",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "843061",
+    "en": "PLATE COMPACTOR",
+    "th": "เครื่องตบดิน",
+    "fe": "0",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "84791020",
+    "en": "POWER TROWEL",
+    "th": "เครื่องปั่นหน้าปูน",
+    "fe": "0",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "84791020",
+    "en": "CONCRETE ROAD CUTTER",
+    "th": "เครื่องกรีดถนน",
+    "fe": "0",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "87168090",
+    "en": "PALLET TRUCK",
+    "th": "แฮนด์ลิฟท์",
+    "fe": "0",
+    "no": "40",
+    "stat": ""
+  },
+  {
+    "hsCode": "84799090",
+    "en": "BLADE FOR DMR1000",
+    "th": "ใบปั่นหน้าปูน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84799090",
+    "en": "TRAY FOR DMR1000",
+    "th": "ถาดขัดหน้าปูน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "84799090",
+    "en": "CUT SAW BLADE",
+    "th": "ใบกรีดถนน",
+    "fe": "0",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "grip for Phone",
+    "th": "ด้ามจับมือถือ",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "Aluminium Handle",
+    "th": "มือจับตู้",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "clothes hanging bar Aluminium",
+    "th": "ราวแขวนเสื้อ",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269032",
+    "en": "Emergency urine bag",
+    "th": "ถุงปัสสาวะฉุกเฉิน",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "95069100",
+    "en": "hand griper",
+    "th": "ที่บีบมือ",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "94037090",
+    "en": "Wall shelves",
+    "th": "ที่วางของติดผนัง",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "84312090",
+    "en": "Electronic Throttle For Forklift",
+    "th": "คันเร่งอิเล็กทรอนิกส์สำหรับรถโฟล์คลิฟท์",
+    "fe": "0",
+    "no": "3",
+    "stat": ""
+  },
+  {
+    "hsCode": "84717090",
+    "en": "Solid State Drive // SSD",
+    "th": "อุปกรณ์จัดเก็บข้อมูล",
+    "fe": "",
+    "no": "0",
+    "stat": ""
+  },
+  {
+    "hsCode": "5608.11",
+    "en": "Fish traps",
+    "th": "กับดักปลา",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "96039040",
+    "en": "cleaning brush",
+    "th": "แปรงขัดทำความสะอาด",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "63014090",
+    "en": "BLANKETS",
+    "th": "ผ้าห่ม",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "70133700",
+    "en": "Glass",
+    "th": "แก้วน้ำ",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "82149000",
+    "en": "Knife",
+    "th": "มีด",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85183090",
+    "en": "earphones",
+    "th": "หูฟัง",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "42029290",
+    "en": "MOOVE Cooler Bag",
+    "th": "มูฟ ถุงเก็บความเย็น",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9617",
+    "en": "Stainless steel bottle",
+    "th": "กระบอกสแตนเลส",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85131090",
+    "en": "Velvet lantern",
+    "th": "โคมผ้า (ไม่มีไฟ)",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "95059000",
+    "en": "Dancing drum",
+    "th": "กลองสิงโต",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "95059000",
+    "en": "Dancing lion",
+    "th": "หัวสิงโตสำหรับเชิด",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "84672100",
+    "en": "diamond core drill",
+    "th": "เครื่องคอริ่ง",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "39069020",
+    "en": "UV Resin",
+    "th": "ยูวีเรซิ่น",
+    "fe": "0",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "94039990",
+    "en": "frame stretched bars",
+    "th": "อะไหล่ประกอบเฟรม",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "85219091",
+    "en": "Video Recorder",
+    "th": "กล่องบันทึกภาพ",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "83061000",
+    "en": "trophy",
+    "th": "ถ้วยรางวัล",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "63024000",
+    "en": "Table cloth",
+    "th": "ผ้าปูโต๊ะ",
+    "fe": "",
+    "no": "30",
+    "stat": ""
+  },
+  {
+    "hsCode": "33029000",
+    "en": "Scented sachet",
+    "th": "ซองหอม",
+    "fe": "",
+    "no": "3",
+    "stat": ""
+  },
+  {
+    "hsCode": "401019000",
+    "en": "Timing Belt",
+    "th": "สายพานไทม์มิ่ง",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "84213990",
+    "en": "Air Filter",
+    "th": "ตัวกรองฝุ่น",
+    "fe": "",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "84212311",
+    "en": "Oil filters",
+    "th": "กรองน้ำมัน",
+    "fe": "",
+    "no": "5",
+    "stat": ""
+  },
+  {
+    "hsCode": "87168010",
+    "en": "CARTS",
+    "th": "รถเข็น",
+    "fe": "",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "95069100",
+    "en": "foam rollers",
+    "th": "โฟมโรลเลอร์",
+    "fe": "0",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "33074990",
+    "en": "DEODORIZING BALL",
+    "th": "ลูกบอลระงับกลิ่น",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "94017990",
+    "en": "OFFICE CHAIR",
+    "th": "เก้าอี้สำนักงาน",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "73219090",
+    "en": "GAS BURNER STAND",
+    "th": "ฐานรองหัวเตาแก๊ส",
+    "fe": "0",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "96039090",
+    "en": "SCRUB BRUSH",
+    "th": "แปรงขัดอเนกประสงค์",
+    "fe": "",
+    "no": "10",
+    "stat": ""
+  },
+  {
+    "hsCode": "85162900",
+    "en": "HEATING CABINET",
+    "th": "เครื่องทำความร้อน",
+    "fe": "",
+    "no": "20",
+    "stat": ""
+  },
+  {
+    "hsCode": "73239390",
+    "en": "WIND SHIELD",
+    "th": "ชุดชิวหน้า",
+    "fe": "5%",
+    "no": "10%",
+    "stat": ""
+  },
+  {
+    "hsCode": "87149199",
+    "en": "HAND GUARD",
+    "th": "การ์ดแฮนด์",
+    "fe": "",
+    "no": "10%",
+    "stat": ""
+  },
+  {
+    "hsCode": "40082900",
+    "en": "FENDER",
+    "th": "บังโคลน",
+    "fe": "",
+    "no": "5%",
+    "stat": ""
+  },
+  {
+    "hsCode": "94032090",
+    "en": "HYDRAULIC TABLE",
+    "th": "โต๊ะไฮดรอลิค",
+    "fe": "",
+    "no": "20%",
+    "stat": ""
+  },
+  {
+    "hsCode": "48182000",
+    "en": "TISSUE PAPER",
+    "th": "กระดาษเช็ดอเนกประสงค์",
+    "fe": "",
+    "no": "10%",
+    "stat": ""
+  },
+  {
+    "hsCode": "630710",
+    "en": "MULTIPURPOSE CLOTH",
+    "th": "ผ้าเช็ดอเนกประสงค์",
+    "fe": "",
+    "no": "30%",
+    "stat": ""
+  },
+  {
+    "hsCode": "33074910",
+    "en": "AIR FRESHENER GEL",
+    "th": "เจลปรับอากาศ",
+    "fe": "",
+    "no": "20%",
+    "stat": ""
+  },
+  {
+    "hsCode": "63079",
+    "en": "MASK",
+    "th": "หน้ากากกรองฝุ่น",
+    "fe": "",
+    "no": "10%",
+    "stat": ""
+  },
+  {
+    "hsCode": "39269099",
+    "en": "TISSUE BOX",
+    "th": "กล่องเก็บของอเนกประสงค์",
+    "fe": "",
+    "no": "10%",
+    "stat": ""
+  },
+  {
+    "hsCode": "84733",
+    "en": "PHONE STAND",
+    "th": "ขาตั้งโทรศัพท์",
+    "fe": "",
+    "no": "0%",
+    "stat": ""
+  },
+  {
+    "hsCode": "96039090",
+    "en": "DUSTING BRUSH",
+    "th": "แปรงปัดฝุ่น",
+    "fe": "",
+    "no": "10%",
+    "stat": ""
+  }
+  ]

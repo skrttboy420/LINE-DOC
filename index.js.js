@@ -10,8 +10,8 @@ const config = {
 const client = new Client(config);
 const app = express();
 
-app.use(bodyParser.json());
 app.use(middleware(config));
+app.use(bodyParser.json());
 
 // Webhook endpoint
 app.post('/webhook', (req, res) => {

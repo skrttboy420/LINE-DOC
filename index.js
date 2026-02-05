@@ -5,6 +5,15 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const { Client, middleware } = require('@line/bot-sdk');
 const axios = require("axios");
+const { createClient } = require("@supabase/supabase-js");
+
+// ------------------------------------------------------
+// ⭐ SUPABASE INIT
+// ------------------------------------------------------
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
 // ------------------------------------------------------
 // ⭐ LOAD JSON DATA
@@ -22,8 +31,8 @@ const hsData = [...hs1, ...hs2, ...hs3, ...hs4, ...hs5, ...hs6];
 // ⭐ LINE BOT CONFIG
 // ------------------------------------------------------
 const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN || 'YOUR_TOKEN',
-  channelSecret: process.env.CHANNEL_SECRET || 'YOUR_SECRET'
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.CHANNEL_SECRET
 };
 
 const client = new Client(config);
@@ -48,15 +57,13 @@ function searchHS(keyword) {
 // ------------------------------------------------------
 // ⭐ AI RESPONSE FUNCTION (GROQ)
 // ------------------------------------------------------
-async function askGroq(prompt) {
+async function askGroq(messages) {
   try {
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "user", content: prompt }
-        ]
+        messages: messages
       },
       {
         headers: {
@@ -70,8 +77,37 @@ async function askGroq(prompt) {
 
   } catch (err) {
     console.error("Groq ERROR:", err.response?.data || err.message);
-    return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้ แต่ข้อมูลจากฐานข้อมูลยังใช้งานได้ตามปกติครับ";
+    return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้";
   }
+}
+
+// ------------------------------------------------------
+// ⭐ SAVE MESSAGE TO SUPABASE
+// ------------------------------------------------------
+async function saveMessage(userId, role, content) {
+  await supabase.from("conversation_history").insert({
+    user_id: userId,
+    role: role,
+    content: content
+  });
+}
+
+// ------------------------------------------------------
+// ⭐ LOAD USER HISTORY
+// ------------------------------------------------------
+async function loadHistory(userId) {
+  const { data } = await supabase
+    .from("conversation_history")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  if (!data) return [];
+
+  return data.map(row => ({
+    role: row.role,
+    content: row.content
+  }));
 }
 
 // ------------------------------------------------------
@@ -95,6 +131,7 @@ async function handleEvent(event) {
 
   const text = event.message.text;
   const sourceType = event.source.type;
+  const userId = event.source.userId;
 
   // กลุ่มต้องแท็กก่อน
   if (sourceType === 'group' || sourceType === 'room') {
@@ -104,13 +141,18 @@ async function handleEvent(event) {
   }
 
   const keyword = text.replace('@DOC BOT', '').trim();
-  const result = searchHS(keyword);
 
-  // ถ้ามีข้อมูลใน JSON → ใช้ item
-  // ถ้าไม่มี → item = null
+  // ⭐ บันทึกข้อความผู้ใช้ลง Supabase
+  await saveMessage(userId, "user", keyword);
+
+  // ⭐ โหลดประวัติการคุยทั้งหมด
+  const history = await loadHistory(userId);
+
+  // ⭐ ค้นหาใน JSON
+  const result = searchHS(keyword);
   let item = result.length > 0 ? result[0] : null;
 
-  // ⭐ PART 1 — JSON DATA (ถ้ามี)
+  // ⭐ JSON PART
   let jsonPart = "📦 ไม่พบข้อมูลในฐานข้อมูล (JSON)";
 
   if (item) {
@@ -123,19 +165,16 @@ TH: ${item.th}
 FE: ${item.fe || "-"}`;
   }
 
-  // ⭐ PART 2 — AI ANALYSIS (คิดพิกัดใหม่ทุกครั้ง)
+  // ⭐ AI PROMPT
   let prompt = "";
 
   if (item) {
-    // กรณีมีข้อมูลใน JSON
     prompt = `
 คุณคือผู้เชี่ยวชาญด้านศุลกากรไทย ทำหน้าที่วิเคราะห์สินค้าและจัดพิกัดศุลกากรอย่างถูกต้อง
 
 ให้คุณทำ 2 ส่วน:
 1) สรุปข้อมูลจากฐานข้อมูล (อย่าแก้ไข)
 2) วิเคราะห์พิกัดใหม่ตามหลักเกณฑ์ศุลกากรไทย โดยใช้ความรู้ของคุณเอง แม้ข้อมูลในฐานข้อมูลจะไม่ครบก็ตาม
-
-รูปแบบคำตอบ:
 
 📦 ข้อมูลจากฐานข้อมูล
 – TH: ${item.th}
@@ -150,20 +189,13 @@ FE: ${item.fe || "-"}`;
 – ออกใบกำกับภาษีได้หรือไม่:
 – ออกใบขนสินค้าได้หรือไม่:
 – ข้อควรระวัง:
-
-ข้อมูลสินค้าเพื่อวิเคราะห์:
-TH: ${item.th}
-EN: ${item.en}
 `;
   } else {
-    // กรณีไม่พบใน JSON
     prompt = `
 คุณคือผู้เชี่ยวชาญด้านศุลกากรไทย ทำหน้าที่วิเคราะห์สินค้าและจัดพิกัดศุลกากรอย่างถูกต้อง
 
 ให้คุณวิเคราะห์พิกัดศุลกากรจากข้อความนี้:
 "${keyword}"
-
-รูปแบบคำตอบ:
 
 🤖 ข้อมูลที่ AI วิเคราะห์
 – HS CODE ที่ AI คิดว่าใช่:
@@ -174,8 +206,16 @@ EN: ${item.en}
 `;
   }
 
-  const aiPart = await askGroq(prompt);
+  // ⭐ เพิ่ม prompt ลงใน history
+  const messages = [...history, { role: "user", content: prompt }];
 
+  // ⭐ ส่งให้ AI
+  const aiPart = await askGroq(messages);
+
+  // ⭐ บันทึกคำตอบ AI ลง Supabase
+  await saveMessage(userId, "assistant", aiPart);
+
+  // ⭐ ส่งกลับ LINE
   const replyText = `${jsonPart}\n\n${aiPart}`;
 
   return client.replyMessage(event.replyToken, {
@@ -191,5 +231,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`LINE bot is running on port ${PORT}`);
 });
-
-// force deploy 5

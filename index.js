@@ -57,11 +57,13 @@ function handleEvent(event) {
     replyText = 'ไม่พบข้อมูลที่ค้นหา';
   } else {
     replyText = result.slice(0, 5).map(item =>
-`📦 HS CODE: ${item.hsCode}
+`──────────────
+📦 HS CODE: ${item.hsCode}
 🇬🇧 EN: ${item.en}
 🇹🇭 TH: ${item.th}
 💰 อากร: ${item.no || "-"}
-📊 FE: ${item.fe || "-"}`
+📊 FE: ${item.fe || "-"}
+──────────────`
 ).join('\n');
   }
 

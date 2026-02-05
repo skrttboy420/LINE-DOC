@@ -4,14 +4,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const { Client, middleware } = require('@line/bot-sdk');
-const OpenAI = require("openai");
-
-// ------------------------------------------------------
-// ⭐ CONNECT TO OPENAI
-// ------------------------------------------------------
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const axios = require("axios");
 
 // ------------------------------------------------------
 // ⭐ LOAD JSON DATA
@@ -51,7 +44,7 @@ function searchHS(keyword) {
 }
 
 // ------------------------------------------------------
-// ⭐ AI RESPONSE FUNCTION
+// ⭐ AI RESPONSE FUNCTION (GEMINI)
 // ------------------------------------------------------
 async function generateAIResponse(item) {
   const prompt = `
@@ -88,12 +81,23 @@ FE: ${item.fe}
 และตอบให้เป็นภาษาที่เข้าใจง่าย เหมือนที่ปรึกษาศุลกากรตัวจริง
 `;
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }]
-  });
+  try {
+    const response = await axios.post(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+      {
+        contents: [{ parts: [{ text: prompt }] }]
+      },
+      {
+        params: { key: process.env.GEMINI_API_KEY }
+      }
+    );
 
-  return response.choices[0].message.content;
+    return response.data.candidates[0].content.parts[0].text;
+
+  } catch (err) {
+    console.error("AI ERROR:", err.response?.data || err.message);
+    return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้ (อาจเกิดจาก quota หรือ network) แต่ข้อมูลจากฐานข้อมูลยังใช้งานได้ตามปกติครับ";
+  }
 }
 
 // ------------------------------------------------------
@@ -111,7 +115,6 @@ app.post('/webhook', (req, res) => {
 // ------------------------------------------------------
 async function handleEvent(event) {
 
-  // ไม่ใช่ข้อความ → ไม่ตอบ
   if (event.type !== 'message' || event.message.type !== 'text') {
     return Promise.resolve(null);
   }
@@ -119,17 +122,14 @@ async function handleEvent(event) {
   const text = event.message.text;
   const sourceType = event.source.type;
 
-  // ถ้าอยู่ในกลุ่ม ต้องแท็กก่อน
+  // กลุ่มต้องแท็กก่อน
   if (sourceType === 'group' || sourceType === 'room') {
     if (!text.startsWith('@DOC BOT')) {
       return Promise.resolve(null);
     }
   }
 
-  // ตัดชื่อบอทออก เหลือคำค้น
   const keyword = text.replace('@DOC BOT', '').trim();
-
-  // ค้นหาใน JSON
   const result = searchHS(keyword);
 
   if (result.length === 0) {
@@ -141,9 +141,7 @@ async function handleEvent(event) {
 
   const item = result[0];
 
-  // ------------------------------------------------------
-  // ⭐ PART 1: JSON DATA
-  // ------------------------------------------------------
+  // ⭐ PART 1 — JSON DATA
   const jsonPart =
 `📦 ข้อมูลจากฐานข้อมูล (JSON)
 HS CODE: ${item.hsCode}
@@ -152,15 +150,11 @@ TH: ${item.th}
 อากร: ${item.no || "-"}
 FE: ${item.fe || "-"}`;
 
-  // ------------------------------------------------------
-  // ⭐ PART 2: AI ANALYSIS
-  // ------------------------------------------------------
+  // ⭐ PART 2 — AI ANALYSIS
   const aiPart = await generateAIResponse(item);
 
-  // รวมสองส่วนเข้าด้วยกัน
   const replyText = `${jsonPart}\n\n${aiPart}`;
 
-  // ส่งกลับไปที่ LINE
   return client.replyMessage(event.replyToken, {
     type: 'text',
     text: replyText

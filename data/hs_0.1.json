@@ -1,0 +1,186 @@
+[
+  {
+    "hsCode": "7013.99",
+    "en": "GLASS POT",
+    "th": "หม้อแก้ว",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "7321.19.90",
+    "en": "STOVE FOR GRILLING",
+    "th": "เตาย่าง",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "4202.29",
+    "en": "MASTARD BAG",
+    "th": "กระเป๋าถือ",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8483.3090",
+    "en": "LINEAR SLIDING GUIDE RAIL",
+    "th": "รางสไลด์เชิงเส้น",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8482.10",
+    "en": "BEARING UNIT",
+    "th": "ตลับลูกปืน",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "7013.4900",
+    "en": "CERAMIC CUP SET",
+    "th": "ชุดถ้วยเซรามิค",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8546.90",
+    "en": "TERMINAL",
+    "th": "หางปลา",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8483.90.90",
+    "en": "PULLEY",
+    "th": "พูเล่",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8433.19",
+    "en": "LAWN MOWER",
+    "th": "เครื่องตัดหญ้า",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8505.11",
+    "en": "ROUND MAGNET",
+    "th": "แม่เหล็กทรงกลม",
+    "fe": "0",
+    "no": "",
+    "stat": "ยกเว้นอากร"
+  },
+  {
+    "hsCode": "3923.29",
+    "en": "PLASTIC BAGS",
+    "th": "ซองพลาสติก",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "3206.49.90",
+    "en": "PIGMENT POWDER",
+    "th": "ผงสีน้ำ",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8414.59",
+    "en": "COOLING FAN",
+    "th": "พัดลมระบายความร้อน",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8528.52",
+    "en": "MONITOR DISPLAY",
+    "th": "จอมอนิเตอร์เครื่อง CNC",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "7323.99",
+    "en": "STAINLESS STEEL TRAY",
+    "th": "ถาด",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8536.90",
+    "en": "TERMINAL BLOCK",
+    "th": "กล่องต่อสายไฟ",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "3919.10",
+    "en": "DOUBLE SIDE TAPE",
+    "th": "เทป 2 หน้า",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8532.29",
+    "en": "CAPACITOR",
+    "th": "คาปาซิเตอร์",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8541.10",
+    "en": "DIODE",
+    "th": "ไดโอด",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8504.31.13",
+    "en": "POWER CONVERTER MODULE",
+    "th": "โมดูลแปลงไฟ",
+    "fe": "5",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "8714.99.94",
+    "en": "BRAKE DISC",
+    "th": "จานเบรก",
+    "fe": "0",
+    "no": "",
+    "stat": ""
+  },
+  {
+    "hsCode": "9603.30",
+    "en": "PAINTBRUSH",
+    "th": "พู่กัน",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  },
+  {
+    "hsCode": "8543.70",
+    "en": "SIGNAL PROCESSOR",
+    "th": "อุปกรณ์ประมวลผลสัญญาณ",
+    "fe": "0",
+    "no": "",
+    "stat": "0"
+  }
+]

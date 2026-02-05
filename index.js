@@ -57,12 +57,12 @@ function handleEvent(event) {
     replyText = 'ไม่พบข้อมูลที่ค้นหา';
   } else {
     replyText = result.slice(0, 5).map(item =>
-      `${item.hsCode}
-       ${item.en}
-       ${item.th}
-       อากร: ${item.no || "-"}
-       FE: ${item.fe || "-"}`
-    ).join('\n\n');
+`📦 HS CODE: ${item.hsCode}
+🇬🇧 EN: ${item.en}
+🇹🇭 TH: ${item.th}
+💰 อากร: ${item.no || "-"}
+📊 FE: ${item.fe || "-"}`
+).join('\n');
   }
 
   return client.replyMessage(event.replyToken, {

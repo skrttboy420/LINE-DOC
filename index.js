@@ -92,10 +92,13 @@ FE: ${item.fe}
       }
     );
 
-    return response.data.candidates[0].content.parts[0].text;
+    console.log("Gemini raw response:", response.data);
+
+    return response.data.candidates?.[0]?.content?.parts?.[0]?.text || 
+           "⚠️ AI ไม่ได้ส่งข้อความกลับมา";
 
   } catch (err) {
-    console.error("AI ERROR:", err.response?.data || err.message);
+    console.error("Gemini ERROR:", err.response?.data || err.message);
     return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้ (อาจเกิดจาก quota หรือ network) แต่ข้อมูลจากฐานข้อมูลยังใช้งานได้ตามปกติครับ";
   }
 }
@@ -169,4 +172,4 @@ app.listen(PORT, () => {
   console.log(`LINE bot is running on port ${PORT}`);
 });
 
-// test deploy
+// force deploy 2

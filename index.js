@@ -38,8 +38,24 @@ const config = {
 const client = new Client(config);
 const app = express();
 
-app.use(middleware(config));
 app.use(bodyParser.json());
+
+// ------------------------------------------------------
+// ⭐ FIX: ADD GET /webhook TO PREVENT SIGNATURE ERROR
+// ------------------------------------------------------
+app.get('/webhook', (req, res) => {
+  res.send("OK");
+});
+
+// ------------------------------------------------------
+// ⭐ POST WEBHOOK (REAL BOT EVENTS)
+// ------------------------------------------------------
+app.post('/webhook', middleware(config), (req, res) => {
+  res.sendStatus(200);
+
+  Promise.all(req.body.events.map(handleEvent))
+    .catch((err) => console.error(err));
+});
 
 // ------------------------------------------------------
 // ⭐ SEARCH FUNCTION (MULTI-HS)
@@ -131,16 +147,6 @@ async function saveOverride(userId, keyword, hsCode) {
     correct_hs: hsCode
   });
 }
-
-// ------------------------------------------------------
-// ⭐ WEBHOOK ENDPOINT
-// ------------------------------------------------------
-app.post('/webhook', (req, res) => {
-  res.sendStatus(200);
-
-  Promise.all(req.body.events.map(handleEvent))
-    .catch((err) => console.error(err));
-});
 
 // ------------------------------------------------------
 // ⭐ MAIN EVENT HANDLER

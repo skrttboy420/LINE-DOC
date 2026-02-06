@@ -41,14 +41,14 @@ const app = express();
 app.use(bodyParser.json());
 
 // ------------------------------------------------------
-// ⭐ FIX: ADD GET /webhook TO PREVENT SIGNATURE ERROR
+// ⭐ FIX: GET /webhook (NO SIGNATURE REQUIRED)
 // ------------------------------------------------------
 app.get('/webhook', (req, res) => {
   res.send("OK");
 });
 
 // ------------------------------------------------------
-// ⭐ POST WEBHOOK (REAL BOT EVENTS)
+// ⭐ POST /webhook (REAL EVENTS)
 // ------------------------------------------------------
 app.post('/webhook', middleware(config), (req, res) => {
   res.sendStatus(200);
@@ -58,7 +58,7 @@ app.post('/webhook', middleware(config), (req, res) => {
 });
 
 // ------------------------------------------------------
-// ⭐ SEARCH FUNCTION (MULTI-HS)
+// ⭐ SEARCH FUNCTION
 // ------------------------------------------------------
 function searchHS(keyword) {
   keyword = keyword.toLowerCase();
@@ -71,7 +71,7 @@ function searchHS(keyword) {
 }
 
 // ------------------------------------------------------
-// ⭐ AI RESPONSE FUNCTION (GROQ)
+// ⭐ AI RESPONSE FUNCTION
 // ------------------------------------------------------
 async function askGroq(messages) {
   try {
@@ -98,7 +98,7 @@ async function askGroq(messages) {
 }
 
 // ------------------------------------------------------
-// ⭐ SAVE MESSAGE TO SUPABASE
+// ⭐ SAVE MESSAGE
 // ------------------------------------------------------
 async function saveMessage(userId, role, content) {
   await supabase.from("conversation_history").insert({
@@ -109,7 +109,7 @@ async function saveMessage(userId, role, content) {
 }
 
 // ------------------------------------------------------
-// ⭐ LOAD USER HISTORY
+// ⭐ LOAD HISTORY
 // ------------------------------------------------------
 async function loadHistory(userId) {
   const { data } = await supabase
@@ -161,7 +161,6 @@ async function handleEvent(event) {
   const sourceType = event.source.type;
   const userId = event.source.userId;
 
-  // กลุ่มต้องแท็กก่อน
   if (sourceType === 'group' || sourceType === 'room') {
     if (!text.startsWith('@DOC BOT')) {
       return Promise.resolve(null);
@@ -170,15 +169,10 @@ async function handleEvent(event) {
 
   const keyword = text.replace('@DOC BOT', '').trim();
 
-  // ⭐ บันทึกข้อความผู้ใช้ลง Supabase
   await saveMessage(userId, "user", keyword);
 
-  // ⭐ โหลดประวัติการคุยทั้งหมด
   const history = await loadHistory(userId);
 
-  // ------------------------------------------------------
-  // ⭐ CHECK IF USER IS SAVING OVERRIDE
-  // ------------------------------------------------------
   const hsMatch = keyword.match(/\b\d{6}\b/);
   if (hsMatch) {
     const hsCode = hsMatch[0];
@@ -197,9 +191,6 @@ async function handleEvent(event) {
     }
   }
 
-  // ------------------------------------------------------
-  // ⭐ SEARCH JSON + APPLY OVERRIDE
-  // ------------------------------------------------------
   let results = searchHS(keyword);
 
   const override = await getOverride(keyword);
@@ -213,9 +204,6 @@ async function handleEvent(event) {
     });
   }
 
-  // ------------------------------------------------------
-  // ⭐ JSON PART (MULTI-HS)
-  // ------------------------------------------------------
   let jsonPart = "📦 ไม่พบข้อมูลในฐานข้อมูล (JSON)";
 
   if (results.length > 0) {
@@ -232,9 +220,6 @@ async function handleEvent(event) {
 ${listText}`;
   }
 
-  // ------------------------------------------------------
-  // ⭐ AI PROMPT (MULTI-HS + ASK BACK)
-  // ------------------------------------------------------
   let prompt = "";
 
   if (results.length > 0) {
@@ -243,36 +228,18 @@ ${listText}`;
     }).join('\n');
 
     prompt = `
-คุณคือผู้เชี่ยวชาญด้านศุลกากรไทย และเป็น AI ที่สามารถสนทนาโต้ตอบเหมือนมนุษย์ได้อย่างเป็นธรรมชาติ
-
-ตอนนี้ผู้ใช้พิมพ์ว่า: "${keyword}"
-
-นี่คือรายการพิกัดที่ค้นพบจากฐานข้อมูล (JSON):
+คุณคือผู้เชี่ยวชาญด้านศุลกากรไทย...
 
 ${listForAI}
-
-ให้คุณทำสิ่งต่อไปนี้:
-
-1) สรุปตัวเลือกทั้งหมดแบบเข้าใจง่าย
-2) อธิบายแต่ละพิกัดสั้น ๆ ว่าเหมาะกับสินค้าลักษณะไหน
-3) ถ้าข้อมูลยังไม่พอ ให้ถามกลับ เช่น:
-   – เป็นหมวกทั่วไป / หมวกกันแดด / หมวกคลุมผม หรือแบบอื่น?
-4) ถ้าผู้ใช้ตอบแล้ว ให้เลือกพิกัดที่เหมาะสมที่สุด
-5) อธิบายเหตุผล + ข้อควรระวัง
-6) คุยแบบเป็นธรรมชาติ ไม่แข็ง ไม่เป็นหุ่นยนต์
 `;
   }
 
-  // ⭐ เพิ่ม prompt ลงใน history
   const messages = [...history, { role: "user", content: prompt }];
 
-  // ⭐ ส่งให้ AI
   const aiPart = await askGroq(messages);
 
-  // ⭐ บันทึกคำตอบ AI ลง Supabase
   await saveMessage(userId, "assistant", aiPart);
 
-  // ⭐ ส่งกลับ LINE
   const replyText = `${jsonPart}\n\n${aiPart}`;
 
   return client.replyMessage(event.replyToken, {

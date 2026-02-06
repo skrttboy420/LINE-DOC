@@ -51,10 +51,11 @@ app.get('/webhook', (req, res) => {
 // ⭐ POST /webhook (REAL EVENTS)
 // ------------------------------------------------------
 app.post('/webhook', middleware(config), (req, res) => {
+  console.log("POST /webhook RECEIVED:", JSON.stringify(req.body, null, 2));
   res.sendStatus(200);
 
   Promise.all(req.body.events.map(handleEvent))
-    .catch((err) => console.error(err));
+    .catch((err) => console.error("HANDLE EVENT ERROR:", err));
 });
 
 // ------------------------------------------------------
@@ -101,12 +102,17 @@ async function askGroq(messages) {
 // ⭐ SAVE MESSAGE
 // ------------------------------------------------------
 async function saveMessage(userId, role, content) {
-  await supabase.from("conversation_history").insert({
+  const { error } = await supabase.from("conversation_history").insert({
     user_id: userId,
     role: role,
     content: content
   });
+
+  if (error) {
+    console.error("SUPABASE INSERT ERROR:", error);
+  }
 }
+
 
 // ------------------------------------------------------
 // ⭐ LOAD HISTORY

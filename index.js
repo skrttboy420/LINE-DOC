@@ -38,14 +38,14 @@ const client = new Client(config);
 const app = express();
 
 // ------------------------------------------------------
-// ⭐ FIX: GET /webhook (NO SIGNATURE REQUIRED)
+// ⭐ FIX: GET /webhook
 // ------------------------------------------------------
 app.get('/webhook', (req, res) => {
   res.send("OK");
 });
 
 // ------------------------------------------------------
-// ⭐ POST /webhook (REAL EVENTS)
+// ⭐ POST /webhook
 // ------------------------------------------------------
 app.post('/webhook', middleware(config), (req, res) => {
   console.log("POST /webhook RECEIVED:", JSON.stringify(req.body, null, 2));
@@ -176,7 +176,7 @@ async function handleEvent(event) {
   const history = await loadHistory(userId);
 
   // ------------------------------------------------------
-  // ⭐ OVERRIDE LOGIC (ฉลาดขึ้น)
+  // ⭐ OVERRIDE LOGIC
   // ------------------------------------------------------
   const hsMatch = keyword.match(/\b\d{6}\b/);
   if (hsMatch) {
@@ -214,8 +214,8 @@ async function handleEvent(event) {
   }
 
   // ------------------------------------------------------
-  // ⭐ JSON SUMMARY (แบบสวย)
-  // ------------------------------------------------------
+  // ⭐ JSON SUMMARY (Enterprise Style)
+// ------------------------------------------------------
   let jsonPart = "📦 ไม่พบข้อมูลในฐานข้อมูล (JSON)";
   let listForAI = "ไม่พบข้อมูลในฐาน JSON";
 
@@ -224,27 +224,28 @@ async function handleEvent(event) {
     const sliced = results.slice(0, MAX_RESULTS);
 
     listForAI = sliced.map((item, index) => {
-      return `
-${index + 1})
+      return (
+`【${index + 1}】
 HS: ${item.hsCode}
 TH: ${item.th}
 EN: ${item.en}
 อากร: ${item.no} %
 FE: ${item.fe} %
-`;
-    }).join('\n');
+
+────────────────────
+`
+      );
+    }).join('');
 
     jsonPart =
-`📦 พบพิกัดที่เกี่ยวข้องกับ "${keyword}" ทั้งหมด:
+`📦 ผลการค้นหา (JSON)
 
-${sliced.map((item, index) => {
-  return `${index + 1}) ${item.hsCode} – ${item.th} – อากร: ${item.no} – FE: ${item.fe}`;
-}).join('\n')}`;
+${listForAI}`;
   }
 
   // ------------------------------------------------------
-  // ⭐ AI PROMPT (รวม prompt ใหม่ของคุณ)
-  // ------------------------------------------------------
+  // ⭐ AI PROMPT (Enterprise Style)
+// ------------------------------------------------------
   let prompt = "";
 
   if (results.length > 0) {
@@ -258,12 +259,15 @@ ${sliced.map((item, index) => {
 📦 ข้อมูลจากฐานข้อมูล
 ${listForAI}
 
-🤖 ข้อมูลที่ AI วิเคราะห์เพิ่มเติม
-– HS CODE ที่ AI คิดว่าใช่:
-– เหตุผล:
-– ออกใบกำกับภาษีได้หรือไม่:
-– ออกใบขนสินค้าได้หรือไม่:
-– ข้อควรระวัง:
+🤖 วิเคราะห์โดย AI (AI Analysis)
+【AI-1】
+HS CODE ที่ AI คิดว่าใช่:
+เหตุผล:
+ออกใบกำกับภาษีได้หรือไม่:
+ออกใบขนสินค้าได้หรือไม่:
+ข้อควรระวัง:
+
+────────────────────
 `;
   } else {
     prompt = `
@@ -272,12 +276,15 @@ ${listForAI}
 ให้คุณวิเคราะห์พิกัดศุลกากรจากข้อความนี้:
 "${keyword}"
 
-🤖 ข้อมูลที่ AI วิเคราะห์
-– HS CODE ที่ AI คิดว่าใช่:
-– เหตุผล:
-– ออกใบกำกับภาษีได้หรือไม่:
-– ออกใบขนสินค้าได้หรือไม่:
-– ข้อควรระวัง:
+🤖 วิเคราะห์โดย AI (AI Analysis)
+【AI-1】
+HS CODE ที่ AI คิดว่าใช่:
+เหตุผล:
+ออกใบกำกับภาษีได้หรือไม่:
+ออกใบขนสินค้าได้หรือไม่:
+ข้อควรระวัง:
+
+────────────────────
 `;
   }
 
@@ -286,7 +293,12 @@ ${listForAI}
 
   await saveMessage(userId, "assistant", aiPart);
 
-  const replyText = `${jsonPart}\n\n${aiPart}`;
+  const replyText =
+`${jsonPart}
+
+🤖 วิเคราะห์โดย AI (AI Analysis)
+${aiPart}
+`;
 
   return client.replyMessage(event.replyToken, {
     type: 'text',

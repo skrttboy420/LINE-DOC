@@ -2,7 +2,6 @@
 // ⭐ IMPORT MODULES
 // ------------------------------------------------------
 const express = require('express');
-const bodyParser = require('body-parser');
 const { Client, middleware } = require('@line/bot-sdk');
 const axios = require("axios");
 const { createClient } = require("@supabase/supabase-js");
@@ -38,7 +37,8 @@ const config = {
 const client = new Client(config);
 const app = express();
 
-app.use(bodyParser.json());
+// ❌ ตัด bodyParser ทิ้งไปเลย ไม่ต้องใช้
+// app.use(bodyParser.json());
 
 // ------------------------------------------------------
 // ⭐ FIX: GET /webhook (NO SIGNATURE REQUIRED)
@@ -112,7 +112,6 @@ async function saveMessage(userId, role, content) {
     console.error("SUPABASE INSERT ERROR:", error);
   }
 }
-
 
 // ------------------------------------------------------
 // ⭐ LOAD HISTORY

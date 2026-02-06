@@ -178,7 +178,7 @@ async function handleEvent(event) {
   // ------------------------------------------------------
   // ⭐ OVERRIDE LOGIC
   // ------------------------------------------------------
-  const hsMatch = keyword.match(/\b\d{6}\b/);
+  const hsMatch = keyword.match(/\b\d{6,8}\b/);
   if (hsMatch) {
     const hsCode = hsMatch[0];
 

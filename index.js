@@ -487,7 +487,6 @@ async function handleEvent(event) {
         type: "text",
         text: `พบหลายรายการ กรุณาเลือกหมายเลข:\n\n${list}`
       });
-    }
 
     await setState(userId, "edit_select_field", { item: found[0] });
 

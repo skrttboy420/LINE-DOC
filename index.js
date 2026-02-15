@@ -314,7 +314,9 @@ async function handleEvent(event) {
   // --------------------------------------------------
   // ⭐ โหลด state ปัจจุบัน
   // --------------------------------------------------
-  const state = await getState(userId);
+  let state = await getState(userId);
+  state = await getState(userId);
+
 
   // --------------------------------------------------
   // ⭐ FLOW ADD — เริ่มเพิ่มสินค้า
@@ -322,6 +324,7 @@ async function handleEvent(event) {
   // --------------------------------------------------
   if (!state && (keyword.includes("เพิ่มสินค้า") || keyword.toLowerCase().includes("add"))) {
     await setState(userId, "add_step_1", { row: {} });
+    state = await getState(userId);
     return client.replyMessage(event.replyToken, {
       type: "text",
       text: "เพิ่มสินค้าใหม่\n\n1/6) กรุณาส่งชื่อไทยของสินค้า"
@@ -336,6 +339,7 @@ async function handleEvent(event) {
     row.th = keyword;
 
     await setState(userId, "add_step_2", { row });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -351,6 +355,7 @@ async function handleEvent(event) {
     row.en = keyword;
 
     await setState(userId, "add_step_3", { row });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -374,6 +379,7 @@ async function handleEvent(event) {
     row.hs_code = hs;
 
     await setState(userId, "add_step_4", { row });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -389,6 +395,7 @@ async function handleEvent(event) {
     row.no = keyword || "-";
 
     await setState(userId, "add_step_5", { row });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -404,6 +411,7 @@ async function handleEvent(event) {
     row.fe = keyword || "-";
 
     await setState(userId, "add_step_6", { row });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -485,6 +493,7 @@ async function handleEvent(event) {
         .join("\n");
 
       await setState(userId, "edit_select_item", { list: found });
+      state = await getState(userId);
 
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -493,6 +502,7 @@ async function handleEvent(event) {
     }
 
     await setState(userId, "edit_select_field", { item: found[0] });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -557,6 +567,7 @@ async function handleEvent(event) {
     }
 
     await setState(userId, "edit_input_value", { item, field });
+    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",

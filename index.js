@@ -301,30 +301,24 @@ async function loadHistory(userId) {
 }
 
 // ------------------------------------------------------
-// ⭐ MAIN EVENT HANDLER
+// ⭐ MAIN EVENT HANDLER (เวอร์ชันเคลียร์ + เสถียร)
 // ------------------------------------------------------
 async function handleEvent(event) {
-
   if (event.type !== 'message' || event.message.type !== 'text') return;
 
   const text = event.message.text;
   const userId = event.source.userId;
   const keyword = text.replace('@DOC BOT', '').trim();
 
-  // --------------------------------------------------
-  // ⭐ โหลด state ปัจจุบัน
-  // --------------------------------------------------
-  let state = await getState(userId);
-  state = await getState(userId);
-
+  // โหลด state ปัจจุบันจาก Supabase
+  const state = await getState(userId);
 
   // --------------------------------------------------
   // ⭐ FLOW ADD — เริ่มเพิ่มสินค้า
-  // trigger: "เพิ่มสินค้า"
+  // trigger: "เพิ่มสินค้า", "add"
   // --------------------------------------------------
   if (!state && (keyword.includes("เพิ่มสินค้า") || keyword.toLowerCase().includes("add"))) {
     await setState(userId, "add_step_1", { row: {} });
-    state = await getState(userId);
     return client.replyMessage(event.replyToken, {
       type: "text",
       text: "เพิ่มสินค้าใหม่\n\n1/6) กรุณาส่งชื่อไทยของสินค้า"
@@ -339,7 +333,6 @@ async function handleEvent(event) {
     row.th = keyword;
 
     await setState(userId, "add_step_2", { row });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -355,7 +348,6 @@ async function handleEvent(event) {
     row.en = keyword;
 
     await setState(userId, "add_step_3", { row });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -379,7 +371,6 @@ async function handleEvent(event) {
     row.hs_code = hs;
 
     await setState(userId, "add_step_4", { row });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -395,7 +386,6 @@ async function handleEvent(event) {
     row.no = keyword || "-";
 
     await setState(userId, "add_step_5", { row });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -411,7 +401,6 @@ async function handleEvent(event) {
     row.fe = keyword || "-";
 
     await setState(userId, "add_step_6", { row });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -427,13 +416,13 @@ async function handleEvent(event) {
     row.note = keyword || "-";
 
     const insertRow = {
-  hs_code: row.hs_code,
-  th: row.th,
-  en: row.en,
-  fe: row.fe || "-",
-  no: row.no || "-",
-  note: row.note || "-",
-  stat: "-"   // ⭐ เพิ่มค่า default ให้ stat
+      hs_code: row.hs_code,
+      th: row.th,
+      en: row.en,
+      fe: row.fe || "-",
+      no: row.no || "-",
+      note: row.note || "-",
+      stat: "-"
     };
 
     const ok = await addNewHSRow(insertRow);
@@ -493,7 +482,6 @@ async function handleEvent(event) {
         .join("\n");
 
       await setState(userId, "edit_select_item", { list: found });
-      state = await getState(userId);
 
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -502,7 +490,6 @@ async function handleEvent(event) {
     }
 
     await setState(userId, "edit_select_field", { item: found[0] });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -567,7 +554,6 @@ async function handleEvent(event) {
     }
 
     await setState(userId, "edit_input_value", { item, field });
-    state = await getState(userId);
 
     return client.replyMessage(event.replyToken, {
       type: "text",
@@ -603,31 +589,36 @@ async function handleEvent(event) {
     });
   }
 
+  // --------------------------------------------------
+  // ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
 // --------------------------------------------------
-// ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
-// --------------------------------------------------
-if (!state) {
+  if (!state) {
 
-  const isAddCommand =
-    keyword.startsWith("เพิ่มสินค้า") ||
-    keyword.toLowerCase().startsWith("add");
+    const isAddCommand =
+      keyword.startsWith("เพิ่มสินค้า") ||
+      keyword.toLowerCase().startsWith("add");
 
-  const isEditCommand =
-    keyword.startsWith("แก้สินค้า") ||
-    keyword.startsWith("แก้พิกัด") ||
-    keyword.startsWith("แก้ ") ||
-    keyword.toLowerCase().startsWith("edit");
+    const isEditCommand =
+      keyword.startsWith("แก้สินค้า") ||
+      keyword.startsWith("แก้พิกัด") ||
+      keyword.startsWith("แก้ ") ||
+      keyword.toLowerCase().startsWith("edit");
 
-  if (!isAddCommand && !isEditCommand) {
+    // ถ้าไม่ใช่คำสั่งเพิ่ม/แก้ → ค้นหาได้
+    if (!isAddCommand && !isEditCommand) {
 
-    const riskInfo = analyzeRisk(keyword);
-    const results = await searchHS(keyword);
+      const riskInfo = analyzeRisk(keyword);
+      const results = await searchHS(keyword);
 
-    if (results.length > 0) {
-      const flex = buildHSFlex(results, riskInfo, keyword);
-      return client.replyMessage(event.replyToken, flex);
+      if (results.length > 0) {
+        const flex = buildHSFlex(results, riskInfo, keyword);
+        return client.replyMessage(event.replyToken, flex);
+      }
     }
   }
+
+  // ถ้าไม่เข้า flow ไหนเลย → ปล่อยไปให้ AI ตอบ (ถ้าแกจะใช้ต่อ)
+  // ตรงนี้แกจะต่อ askGroq + history ก็ได้
 }
 
   const systemPrompt = `

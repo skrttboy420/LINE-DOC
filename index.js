@@ -1,35 +1,37 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const { Client } = require('@line/bot-sdk');
+const { Client, middleware } = require('@line/bot-sdk');
 
 const config = {
-  channelAccessToken: 'YOUR_CHANNEL_ACCESS_TOKEN',
-  channelSecret: 'YOUR_CHANNEL_SECRET'
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.CHANNEL_SECRET
 };
 
 const client = new Client(config);
 const app = express();
 
 app.use(bodyParser.json());
+app.post('/webhook', middleware(config), async (req, res) => {
+  try {
+    const events = req.body.events;
 
-// Webhook endpoint
-app.post('/webhook', (req, res) => {
-  Promise.all(req.body.events.map(handleEvent))
-    .then((result) => res.json(result));
+    for (const event of events) {
+      if (event.type === 'message' && event.message.type === 'text') {
+        await client.replyMessage(event.replyToken, {
+          type: 'text',
+          text: `คุณพิมพ์ว่า: ${event.message.text}`
+        });
+      }
+    }
+
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Webhook Error:', err);
+    res.status(500).end();
+  }
 });
 
-function handleEvent(event) {
-  if (event.type !== 'message' || event.message.type !== 'text') {
-    return Promise.resolve(null);
-  }
-
-  const replyText = `คุณส่งมา: ${event.message.text}`;
-  return client.replyMessage(event.replyToken, {
-    type: 'text',
-    text: replyText
-  });
-}
-
-app.listen(3000, () => {
-  console.log('LINE bot is running on port 3000');
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`LINE bot running on port ${PORT}`);
 });

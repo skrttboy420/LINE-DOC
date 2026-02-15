@@ -593,26 +593,10 @@ async function handleEvent(event) {
   }
 
 // --------------------------------------------------
-// ⭐ ถ้าไม่มี state / ไม่เข้า Flow C / Flow Add → ไปโหมดค้นหา + AI
-// --------------------------------------------------
-
-// ป้องกัน search ตัดหน้า Flow ADD / EDIT
-const isAddCommand =
-  keyword.startsWith("เพิ่มสินค้า") ||
-  keyword.toLowerCase().startsWith("add");
-
-const isEditCommand =
-  keyword.startsWith("แก้สินค้า") ||
-  keyword.startsWith("แก้พิกัด") ||
-  keyword.startsWith("แก้ ") ||
-  keyword.toLowerCase().startsWith("edit");
-
-// --------------------------------------------------
 // ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
 // --------------------------------------------------
 if (!state) {
 
-  // ป้องกันไม่ให้คำสั่งเพิ่ม/แก้สินค้าโดนค้นหาตัดหน้า
   const isAddCommand =
     keyword.startsWith("เพิ่มสินค้า") ||
     keyword.toLowerCase().startsWith("add");
@@ -623,7 +607,6 @@ if (!state) {
     keyword.startsWith("แก้ ") ||
     keyword.toLowerCase().startsWith("edit");
 
-  // ถ้าไม่ใช่คำสั่งเพิ่ม/แก้ → ค้นหาได้
   if (!isAddCommand && !isEditCommand) {
 
     const riskInfo = analyzeRisk(keyword);

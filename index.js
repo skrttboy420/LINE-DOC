@@ -721,6 +721,8 @@ async function handleEvent(event) {
     type: "text",
     text: finalText
   });
+  }
+
 }
 // ------------------------------------------------------
 // ⭐ START SERVER

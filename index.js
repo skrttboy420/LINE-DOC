@@ -591,7 +591,7 @@ async function handleEvent(event) {
 
   // --------------------------------------------------
   // ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
-// --------------------------------------------------
+  // --------------------------------------------------
   if (!state) {
 
     const isAddCommand =
@@ -615,7 +615,6 @@ async function handleEvent(event) {
         return client.replyMessage(event.replyToken, flex);
       }
     }
-  }
 
   // ถ้าไม่เข้า flow ไหนเลย → ปล่อยไปให้ AI ตอบ (ถ้าแกจะใช้ต่อ)
   // ตรงนี้แกจะต่อ askGroq + history ก็ได้
@@ -722,6 +721,8 @@ async function handleEvent(event) {
     type: "text",
     text: finalText
   });
+}
+
 }
 // ------------------------------------------------------
 // ⭐ START SERVER

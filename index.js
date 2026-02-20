@@ -313,6 +313,8 @@ async function handleEvent(event) {
   // โหลด state ปัจจุบันจาก Supabase
   const state = await getState(userId);
 
+  // ⭐ ประกาศ riskInfo
+  const riskInfo = analyzeRisk(keyword);
   // --------------------------------------------------
   // ⭐ FLOW ADD — เริ่มเพิ่มสินค้า
   // trigger: "เพิ่มสินค้า", "add"
@@ -606,8 +608,6 @@ async function handleEvent(event) {
 
     // ถ้าไม่ใช่คำสั่งเพิ่ม/แก้ → ค้นหาได้
     if (!isAddCommand && !isEditCommand) {
-
-      const riskInfo = analyzeRisk(keyword);
       const results = await searchHS(keyword);
 
       if (results.length > 0) {

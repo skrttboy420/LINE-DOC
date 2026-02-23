@@ -293,8 +293,14 @@ async function handleEvent(event) {
   const riskInfo = analyzeRisk(keyword);
   
   // --------------------------------------------------
-  // ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
-  // --------------------------------------------------
+// ⭐ SEARCH MODE
+// --------------------------------------------------
+const results = await searchHS(keyword);
+
+if (results.length > 0) {
+  const flex = buildHSFlex(results, riskInfo, keyword);
+  return client.replyMessage(event.replyToken, flex);
+}
 
     const systemPrompt = `
 กำหนดให้คุณเป็น "เพื่อนร่วมงานสายลุยด่านศุลกากร" ที่เชี่ยวชาญและชำนาญการด้านการนำเข้า–ส่งออก

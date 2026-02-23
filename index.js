@@ -228,6 +228,48 @@ function buildHSFlex(results, riskInfo, keyword) {
   };
 }
 
+function buildNotFoundFlex(keyword) {
+  return {
+    type: "flex",
+    altText: "ไม่พบข้อมูลในฐานข้อมูล",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "ไม่พบข้อมูลในฐาน HS CODE",
+            weight: "bold",
+            size: "md",
+            wrap: true
+          },
+          {
+            type: "text",
+            text: `คำค้น: ${keyword}`,
+            size: "sm",
+            color: "#666666",
+            wrap: true,
+            margin: "md"
+          },
+          {
+            type: "button",
+            action: {
+              type: "message",
+              label: "ให้ AI วิเคราะห์แทน",
+              text: `AI:${keyword}`
+            },
+            style: "primary",
+            color: "#3366FF",
+            margin: "lg"
+          }
+        ]
+      }
+    }
+  };
+}
+
 // ------------------------------------------------------
 // ⭐ AI RESPONSE FUNCTION
 // ------------------------------------------------------
@@ -279,29 +321,46 @@ async function loadHistory(userId) {
 }
 
 // ------------------------------------------------------
-// ⭐ MAIN EVENT HANDLER (เวอร์ชันเคลียร์ + เสถียร)
+// ⭐ MAIN EVENT HANDLER (เวอร์ชันสมบูรณ์ + ปุ่ม AI)
 // ------------------------------------------------------
 async function handleEvent(event) {
   if (event.type !== 'message' || event.message.type !== 'text') return;
 
   const text = event.message.text;
   const userId = event.source.userId;
+
+  // ------------------------------------------------------
+  // ⭐ ถ้าผู้ใช้กดปุ่ม "ให้ AI วิเคราะห์แทน"
+  // ------------------------------------------------------
+  if (text.startsWith("AI:")) {
+    const realKeyword = text.replace("AI:", "").trim();
+    return runAI(event, realKeyword);
+  }
+
   const keyword = text.replace('@DOC BOT', '').trim();
-
- 
-  // ⭐ ประกาศ riskInfo
   const riskInfo = analyzeRisk(keyword);
-  
-  // --------------------------------------------------
-// ⭐ SEARCH MODE
-// --------------------------------------------------
-const results = await searchHS(keyword);
 
-if (results.length > 0) {
-  const flex = buildHSFlex(results, riskInfo, keyword);
-  return client.replyMessage(event.replyToken, flex);
+  // ------------------------------------------------------
+  // ⭐ SEARCH MODE
+  // ------------------------------------------------------
+  const results = await searchHS(keyword);
+
+  if (results.length > 0) {
+    const flex = buildHSFlex(results, riskInfo, keyword);
+    return client.replyMessage(event.replyToken, flex);
+  }
+
+  // ------------------------------------------------------
+  // ⭐ ไม่เจอในฐานข้อมูล → ส่ง Flex พร้อมปุ่มให้ AI วิเคราะห์
+  // ------------------------------------------------------
+  const notFoundFlex = buildNotFoundFlex(keyword);
+  return client.replyMessage(event.replyToken, notFoundFlex);
 }
 
+async function runAI(event, keyword) {
+  const userId = event.source.userId;
+  const riskInfo = analyzeRisk(keyword);
+  
     const systemPrompt = `
 กำหนดให้คุณเป็น "เพื่อนร่วมงานสายลุยด่านศุลกากร" ที่เชี่ยวชาญและชำนาญการด้านการนำเข้า–ส่งออก
 โดยเฉพาะการวิเคราะห์พิกัดศุลกากรไทย (HS CODE) ตามโครงสร้างพิกัดของกรมศุลกากรไทย

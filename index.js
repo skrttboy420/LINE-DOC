@@ -358,9 +358,11 @@ async function handleEvent(event) {
 }
 
 async function runAI(event, keyword) {
+  console.log("🔍 runAI called with:", keyword);  // ← ใส่ตรงนี้
+
   const userId = event.source.userId;
   const riskInfo = analyzeRisk(keyword);
-  
+
     const systemPrompt = `
 กำหนดให้คุณเป็น "เพื่อนร่วมงานสายลุยด่านศุลกากร" ที่เชี่ยวชาญและชำนาญการด้านการนำเข้า–ส่งออก
 โดยเฉพาะการวิเคราะห์พิกัดศุลกากรไทย (HS CODE) ตามโครงสร้างพิกัดของกรมศุลกากรไทย

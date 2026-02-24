@@ -1,32 +1,38 @@
-// ------------------------------------------------------
-// ⭐ IMPORT MODULES
-// ------------------------------------------------------
-require('dotenv').config();
-const express = require('express');
-const { Client, middleware } = require('@line/bot-sdk');
-const axios = require("axios");
+// ============================================================
+// LINE BOT — HS CODE ASSISTANT
+// ============================================================
+require("dotenv").config();
+const express     = require("express");
+const { Client, middleware } = require("@line/bot-sdk");
+const axios       = require("axios");
 const { createClient } = require("@supabase/supabase-js");
 
-// ------------------------------------------------------
-// ⭐ SUPABASE INIT
-// ------------------------------------------------------
+// ============================================================
+// INIT
+// ============================================================
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
 );
 
-// ------------------------------------------------------
-// ⭐ STATE MACHINE (เก็บใน Supabase)
-// ------------------------------------------------------
+const lineConfig = {
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
+  channelSecret:      process.env.CHANNEL_SECRET,
+};
+
+const lineClient = new Client(lineConfig);
+const app        = express();
+
+// ============================================================
+// STATE MACHINE  (Supabase: conversation_state)
+// ============================================================
 async function setState(userId, state, data = {}) {
-  await supabase
-    .from("conversation_state")
-    .upsert({
-      user_id: userId,
-      state,
-      data,
-      updated_at: new Date()
-    });
+  await supabase.from("conversation_state").upsert({
+    user_id: userId,
+    state,
+    data,
+    updated_at: new Date().toISOString(),
+  });
 }
 
 async function getState(userId) {
@@ -35,7 +41,6 @@ async function getState(userId) {
     .select("*")
     .eq("user_id", userId)
     .single();
-
   return data || null;
 }
 
@@ -46,688 +51,576 @@ async function clearState(userId) {
     .eq("user_id", userId);
 }
 
-// ------------------------------------------------------
-// ⭐ LINE BOT CONFIG
-// ------------------------------------------------------
-const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-  channelSecret: process.env.CHANNEL_SECRET
-};
-
-const client = new Client(config);
-const app = express();
-
-// ------------------------------------------------------
-// ⭐ GET /webhook
-// ------------------------------------------------------
-app.get('/webhook', (req, res) => {
-  res.send("OK");
-});
-
-// ------------------------------------------------------
-// ⭐ POST /webhook
-// ------------------------------------------------------
-app.post('/webhook', middleware(config), (req, res) => {
-  res.sendStatus(200);
-  Promise.all(req.body.events.map(handleEvent))
-    .catch((err) => console.error("HANDLE EVENT ERROR:", err));
-});
-
-// ------------------------------------------------------
-// ⭐ หลังจาก webhook แล้วค่อยใช้ express.json()
-// ------------------------------------------------------
-app.use(express.json());
-
-// ------------------------------------------------------
-// ⭐ RISK SCANNER
-// ------------------------------------------------------
-const RISK_KEYWORDS = [
-  { keyword: "LED", reason: "สินค้าเกี่ยวกับแสงสว่าง/อิเล็กทรอนิกส์ มักถูกสุ่มตรวจ", level: "สูง" },
-  { keyword: "เลเซอร์", reason: "เลเซอร์เป็นสินค้าควบคุมหลายประเภท", level: "สูง" },
-  { keyword: "laser", reason: "เลเซอร์เป็นสินค้าควบคุมหลายประเภท", level: "สูง" },
-  { keyword: "wireless", reason: "อุปกรณ์ไร้สายอาจเกี่ยวข้องกับ กสทช./มาตรฐานสัญญาณ", level: "กลาง" },
-  { keyword: "bluetooth", reason: "อุปกรณ์ไร้สายอาจเกี่ยวข้องกับ กสทช./มาตรฐานสัญญาณ", level: "กลาง" },
-  { keyword: "battery", reason: "แบตเตอรี่เป็นสินค้าที่มักถูกตรวจเรื่องความปลอดภัย", level: "กลาง" },
-  { keyword: "แบตเตอรี่", reason: "แบตเตอรี่เป็นสินค้าที่มักถูกตรวจเรื่องความปลอดภัย", level: "กลาง" },
-  { keyword: "เครื่องมือแพทย์", reason: "เข้าข่ายสินค้าควบคุม อย./ใบอนุญาตเฉพาะ", level: "สูง" },
-  { keyword: "medical", reason: "เข้าข่ายสินค้าควบคุม อย./ใบอนุญาตเฉพาะ", level: "สูง" },
-  { keyword: "ของเล่น", reason: "ของเล่นเด็กมักเกี่ยวข้องกับมาตรฐานความปลอดภัย", level: "กลาง" },
-  { keyword: "toy", reason: "ของเล่นเด็กมักเกี่ยวข้องกับมาตรฐานความปลอดภัย", level: "กลาง" },
-  { keyword: "ไฟฟ้า", reason: "สินค้าไฟฟ้ามักเกี่ยวข้องกับ มอก. และความปลอดภัย", level: "กลาง" },
-  { keyword: "electrical", reason: "สินค้าไฟฟ้ามักเกี่ยวข้องกับมาตรฐานความปลอดภัย", level: "กลาง" }
-];
-
-function analyzeRisk(text) {
-  const upper = text.toUpperCase();
-  const lower = text.toLowerCase();
-
-  const hits = [];
-
-  for (const rule of RISK_KEYWORDS) {
-    const kw = rule.keyword;
-    const inUpper = upper.includes(kw.toUpperCase());
-    const inLower = lower.includes(kw.toLowerCase());
-    if (inUpper || inLower) hits.push(rule);
-  }
-
-  if (hits.length === 0) {
-    return {
-      level: "ต่ำ",
-      message: "✅ ไม่พบคำที่เข้าข่ายความเสี่ยงชัดเจนจากชื่อสินค้า"
-    };
-  }
-
-  let finalLevel = "ต่ำ";
-  if (hits.some(h => h.level === "สูง")) finalLevel = "สูง";
-  else if (hits.some(h => h.level === "กลาง")) finalLevel = "กลาง";
-
-  const reasons = hits.map(h => `• พบคำว่า "${h.keyword}" → ${h.reason}`).join("\n");
-
-  return {
-    level: finalLevel,
-    message:
-      (finalLevel === "สูง" ? "🚨 พบความเสี่ยงสูงจากชื่อสินค้า\n" :
-       finalLevel === "กลาง" ? "⚠️ พบความเสี่ยงปานกลางจากชื่อสินค้า\n" :
-       "✅ ความเสี่ยงต่ำจากชื่อสินค้า\n") +
-      reasons
-  };
-}
-
-// ------------------------------------------------------
-// ⭐ SEARCH FROM DATABASE
-// ------------------------------------------------------
+// ============================================================
+// SUPABASE — HS CODE HELPERS
+// ============================================================
 async function searchHS(keyword) {
   const { data, error } = await supabase
     .from("hs_codes")
     .select("*")
     .or(`th.ilike.%${keyword}%,en.ilike.%${keyword}%,hs_code.ilike.%${keyword}%`)
     .limit(20);
-
-  if (error) return [];
-  return data;
-}
-
-// ------------------------------------------------------
-// ⭐ UPDATE / ADD (ใช้ใน Flow C / Flow Add)
-// ------------------------------------------------------
-async function updateHSByName(name, newHS) {
-  const { data, error } = await supabase
-    .from("hs_codes")
-    .update({ hs_code: newHS })
-    .ilike("th", `%${name}%`);
-
-  if (error) return { success: false, count: 0 };
-  return { success: true, count: data?.length || 0 };
+  if (error) { console.error("searchHS error:", error); return []; }
+  return data || [];
 }
 
 async function addNewHSRow(row) {
-  const { error } = await supabase
-    .from("hs_codes")
-    .insert(row);
-
+  const { error } = await supabase.from("hs_codes").insert(row);
+  if (error) console.error("addNewHSRow error:", error);
   return !error;
 }
 
-// ------------------------------------------------------
-// ⭐ FLEX MESSAGE BUILDER (COMPACT VERSION)
-// ------------------------------------------------------
+// ============================================================
+// CONVERSATION HISTORY  (Supabase: conversation_history)
+// ============================================================
+async function saveMessage(userId, role, content) {
+  await supabase.from("conversation_history").insert({ user_id: userId, role, content });
+}
+
+async function loadHistory(userId, limit = 10) {
+  const { data } = await supabase
+    .from("conversation_history")
+    .select("role, content")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  return (data || []).reverse();
+}
+
+// ============================================================
+// RISK SCANNER
+// ============================================================
+const RISK_KEYWORDS = [
+  { keyword: "LED",         reason: "สินค้าเกี่ยวกับแสงสว่าง/อิเล็กทรอนิกส์ มักถูกสุ่มตรวจ", level: "สูง" },
+  { keyword: "เลเซอร์",     reason: "เลเซอร์เป็นสินค้าควบคุมหลายประเภท",                   level: "สูง" },
+  { keyword: "laser",       reason: "เลเซอร์เป็นสินค้าควบคุมหลายประเภท",                   level: "สูง" },
+  { keyword: "wireless",    reason: "อุปกรณ์ไร้สายอาจเกี่ยวข้องกับ กสทช./มาตรฐานสัญญาณ",  level: "กลาง" },
+  { keyword: "bluetooth",   reason: "อุปกรณ์ไร้สายอาจเกี่ยวข้องกับ กสทช./มาตรฐานสัญญาณ",  level: "กลาง" },
+  { keyword: "battery",     reason: "แบตเตอรี่เป็นสินค้าที่มักถูกตรวจเรื่องความปลอดภัย",   level: "กลาง" },
+  { keyword: "แบตเตอรี่",   reason: "แบตเตอรี่เป็นสินค้าที่มักถูกตรวจเรื่องความปลอดภัย",   level: "กลาง" },
+  { keyword: "เครื่องมือแพทย์", reason: "เข้าข่ายสินค้าควบคุม อย./ใบอนุญาตเฉพาะ",          level: "สูง" },
+  { keyword: "medical",     reason: "เข้าข่ายสินค้าควบคุม อย./ใบอนุญาตเฉพาะ",             level: "สูง" },
+  { keyword: "ของเล่น",     reason: "ของเล่นเด็กมักเกี่ยวข้องกับมาตรฐานความปลอดภัย",      level: "กลาง" },
+  { keyword: "toy",         reason: "ของเล่นเด็กมักเกี่ยวข้องกับมาตรฐานความปลอดภัย",      level: "กลาง" },
+  { keyword: "ไฟฟ้า",       reason: "สินค้าไฟฟ้ามักเกี่ยวข้องกับ มอก. และความปลอดภัย",    level: "กลาง" },
+  { keyword: "electrical",  reason: "สินค้าไฟฟ้ามักเกี่ยวข้องกับมาตรฐานความปลอดภัย",      level: "กลาง" },
+];
+
+function analyzeRisk(text) {
+  const hits = RISK_KEYWORDS.filter(r =>
+    text.toUpperCase().includes(r.keyword.toUpperCase())
+  );
+
+  if (hits.length === 0) {
+    return { level: "ต่ำ", message: "✅ ไม่พบคำที่เข้าข่ายความเสี่ยงชัดเจนจากชื่อสินค้า" };
+  }
+
+  const finalLevel = hits.some(h => h.level === "สูง") ? "สูง"
+                   : hits.some(h => h.level === "กลาง") ? "กลาง"
+                   : "ต่ำ";
+
+  const icon = finalLevel === "สูง" ? "🚨" : finalLevel === "กลาง" ? "⚠️" : "✅";
+  const reasons = hits.map(h => `• พบ "${h.keyword}" → ${h.reason}`).join("\n");
+
+  return {
+    level: finalLevel,
+    message: `${icon} ความเสี่ยงจากชื่อสินค้า: ${finalLevel}\n${reasons}`,
+  };
+}
+
+// ============================================================
+// FLEX MESSAGE BUILDERS
+// ============================================================
+
+/** แสดงผลการค้นหาจาก DB */
 function buildHSFlex(results, riskInfo, keyword) {
-  // จำกัดผลลัพธ์แค่ 2 รายการ เพื่อลด payload
-  const topResults = results.slice(0, 2);
+  const top = results.slice(0, 3);
 
   const headerBubble = {
     type: "bubble",
-    size: "mega",
+    size: "kilo",
     body: {
       type: "box",
       layout: "vertical",
+      backgroundColor: "#1A1A2E",
+      paddingAll: "16px",
       contents: [
+        { type: "text", text: "🔍 HS CODE", weight: "bold", size: "md", color: "#E0E0FF" },
+        { type: "text", text: `คำค้น: ${keyword}`, size: "xs", color: "#AAAACC", margin: "sm", wrap: true },
         {
           type: "text",
-          text: "HS CODE",
-          weight: "bold",
-          size: "md"
-        },
-        {
-          type: "text",
-          text: `คำค้น: ${keyword}`,
+          text: `ความเสี่ยง: ${riskInfo.level === "สูง" ? "🚨 สูง" : riskInfo.level === "กลาง" ? "⚠️ กลาง" : "✅ ต่ำ"}`,
           size: "xs",
-          wrap: true,
+          color: riskInfo.level === "สูง" ? "#FF6B6B" : riskInfo.level === "กลาง" ? "#FFD93D" : "#6BCB77",
           margin: "sm",
-          color: "#666666"
         },
-        {
-          type: "text",
-          text: `ความเสี่ยง: ${riskInfo.level}`,
-          size: "xs",
-          wrap: true,
-          margin: "sm",
-          color: "#444444"
-        }
-      ]
-    }
+      ],
+    },
   };
 
-  const itemBubbles = topResults.map((item, i) => ({
+  const itemBubbles = top.map((item, i) => ({
     type: "bubble",
-    size: "mega",
+    size: "kilo",
     body: {
       type: "box",
       layout: "vertical",
-      paddingAll: "12px",
+      paddingAll: "14px",
+      backgroundColor: "#16213E",
       contents: [
         {
           type: "text",
-          text: `#${i + 1} HS: ${item.hs_code || "-"}`,
+          text: `#${i + 1}  ${item.hs_code || "-"}`,
           weight: "bold",
           size: "sm",
-          wrap: true
-        },
-        {
-          type: "text",
-          text: `TH: ${item.th || "-"}`,
-          size: "sm",
-          wrap: true
-        },
-        {
-          type: "text",
-          text: `EN: ${item.en || "-"}`,
-          size: "xs",
+          color: "#E0E0FF",
           wrap: true,
-          color: "#666666"
-        }
-      ]
-    }
+        },
+        { type: "separator", margin: "sm", color: "#2A2A4A" },
+        {
+          type: "box", layout: "vertical", margin: "sm", spacing: "xs",
+          contents: [
+            { type: "text", text: `🇹🇭 ${item.th || "-"}`,  size: "sm", color: "#CCCCEE", wrap: true },
+            { type: "text", text: `🌐 ${item.en || "-"}`,  size: "xs", color: "#9999BB", wrap: true },
+            ...(item.no && item.no !== "-" ? [{ type: "text", text: `📋 NO: ${item.no}`, size: "xs", color: "#9999BB" }] : []),
+            ...(item.fe && item.fe !== "-" ? [{ type: "text", text: `🤝 FE: ${item.fe}`, size: "xs", color: "#9999BB" }] : []),
+            ...(item.note && item.note !== "-" ? [{ type: "text", text: `📝 ${item.note}`, size: "xxs", color: "#777799", wrap: true }] : []),
+          ],
+        },
+      ],
+    },
   }));
 
   return {
     type: "flex",
-    altText: "ผลการค้นหา HS CODE",
+    altText: `ผลการค้นหา HS CODE: ${keyword}`,
     contents: {
       type: "carousel",
-      contents: [headerBubble, ...itemBubbles]
-    }
+      contents: [headerBubble, ...itemBubbles],
+    },
   };
 }
 
-// ------------------------------------------------------
-// ⭐ AI RESPONSE FUNCTION
-// ------------------------------------------------------
+/** แสดงเมื่อไม่พบข้อมูลใน DB → มีปุ่ม "ให้ AI วิเคราะห์" */
+function buildNoResultFlex(keyword, riskInfo) {
+  return {
+    type: "flex",
+    altText: `ไม่พบ "${keyword}" ในฐานข้อมูล`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#1A1A2E",
+        paddingAll: "16px",
+        contents: [
+          { type: "text", text: "❓ ไม่พบข้อมูลในฐาน HS CODE", weight: "bold", size: "sm", color: "#E0E0FF", wrap: true },
+          { type: "text", text: `คำค้น: ${keyword}`, size: "xs", color: "#AAAACC", margin: "sm", wrap: true },
+          { type: "separator", margin: "md", color: "#2A2A4A" },
+          {
+            type: "text",
+            text: riskInfo.level === "สูง" ? "🚨 ความเสี่ยงสูง — ควรให้ AI ตรวจสอบ"
+                : riskInfo.level === "กลาง" ? "⚠️ ความเสี่ยงปานกลาง"
+                : "✅ ความเสี่ยงต่ำ",
+            size: "xs",
+            color: riskInfo.level === "สูง" ? "#FF6B6B" : riskInfo.level === "กลาง" ? "#FFD93D" : "#6BCB77",
+            margin: "sm",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        backgroundColor: "#16213E",
+        contents: [{
+          type: "button",
+          style: "primary",
+          color: "#4361EE",
+          height: "sm",
+          action: {
+            type: "message",
+            label: "🤖 ให้ AI วิเคราะห์แทน",
+            text: `Al:${keyword}`,
+          },
+        }],
+      },
+    },
+  };
+}
+
+// ============================================================
+// GROQ AI
+// ============================================================
+const AI_SYSTEM_PROMPT = `
+กำหนดให้คุณเป็น "เพื่อนร่วมงานสายลุยด่านศุลกากร" ที่เชี่ยวชาญด้านการนำเข้า–ส่งออก
+โดยเฉพาะการวิเคราะห์พิกัดศุลกากรไทย (HS CODE) ตามโครงสร้างพิกัดกรมศุลกากรไทย อิงจาก HS 2022 (HH22)
+
+บริบทงาน:
+- นำเข้าสินค้าจากจีนเข้าไทย (ทางเรือ รถ เครื่องบิน)
+- อ้างอิงพิกัดและอัตราอากรตามกรมศุลกากรไทย
+- คำนึงถึงสิทธิพิเศษ FORM E, ACFTA และข้อห้าม/ข้อจำกัด
+- พิจารณาว่าสินค้า "ติดกรม" หรือไม่ (อย., มอก., กสทช., กรมโรงงาน ฯลฯ)
+- มุมมอง "บริษัทเฟรทสนิทเจ้าหน้าที่" — เลี่ยงความเสี่ยงอย่างชาญฉลาด ไม่ชี้นำผิดกฎหมาย
+
+บุคลิก: เพื่อนร่วมงานกวนๆ พูดตรง มีมุก แต่ต้องมีสาระและชัดเจน โฟกัสที่ลดความเสี่ยงและจัดการเอกสาร
+
+เมื่อได้รับชื่อสินค้า ให้ตอบตาม Template ด้านล่างนี้เท่านั้น:
+
+📦 สินค้า:
+- ชื่อไทย: [ชื่อไทยที่แนะนำสำหรับใบขน]
+- ชื่ออังกฤษ: [ชื่ออังกฤษที่แนะนำ]
+
+📘 พิกัดศุลกากรที่แนะนำ:
+- HS CODE: [รหัส HS หรือ "ต้องตรวจสอบเพิ่มเติม"]
+- คำอธิบายพิกัด: [อธิบายสั้นๆ]
+
+💰 อัตราอากร:
+- อากรขาเข้า (STAT 000): [% หรือ "ต้องตรวจสอบ"]
+- สิทธิ FORM E / FTA: [ใช้ได้/ใช้ไม่ได้/มีโอกาส + เหตุผล]
+- หมายเหตุ: [เงื่อนไขพิเศษ ถ้ามี]
+
+🚨 ความเสี่ยง & ติดกรม:
+- ระดับความเสี่ยง: ต่ำ / กลาง / สูง
+- หน่วยงานที่อาจเกี่ยวข้อง: [อย., มอก., กสทช., ฯลฯ หรือ "ไม่พบชัดเจน"]
+- ใบอนุญาต/มาตรฐาน: [ถ้ามี]
+- ข้อควรระวัง: [คำเตือนสั้นๆ]
+
+🧩 ทางเลือก/เล่ห์เหลี่ยมเชิงเทคนิค:
+- วิธีเขียนชื่อสินค้าในใบขนให้เนียน: [ตัวอย่าง]
+- พิกัดทางเลือก: [HS + เหตุผล หรือ "ไม่มี"]
+
+📎 หมายเหตุ: การประเมินนี้เป็นแนวทางเบื้องต้นเท่านั้น การตัดสินใจสุดท้ายขึ้นกับด่านและเจ้าหน้าที่
+`.trim();
+
 async function askGroq(messages) {
   try {
     const response = await axios.post(
       "https://api.groq.com/openai/v1/chat/completions",
       {
         model: "llama-3.3-70b-versatile",
-        messages
+        messages,
+        max_tokens: 1500,
+        temperature: 0.7,
       },
       {
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
-        }
+          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        timeout: 30000, // 30 วิ timeout
       }
     );
-
     return response.data.choices[0].message.content;
-
   } catch (err) {
-    return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้";
+    console.error("Groq API error:", err?.response?.data || err.message);
+    return "⚠️ ระบบ AI ไม่สามารถวิเคราะห์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง";
   }
 }
 
-// ------------------------------------------------------
-// ⭐ SAVE / LOAD HISTORY
-// ------------------------------------------------------
-async function saveMessage(userId, role, content) {
-  await supabase.from("conversation_history").insert({
-    user_id: userId,
-    role,
-    content
+// ============================================================
+// AI ANALYSIS HANDLER
+// ============================================================
+async function handleAIAnalysis(event, productName, userId) {
+  const riskInfo  = analyzeRisk(productName);
+  const history   = await loadHistory(userId);
+  const userPrompt = `ชื่อสินค้าที่ต้องการวิเคราะห์: "${productName}"\nตอบตาม Template ที่กำหนดเท่านั้น`;
+
+  const messages = [
+    { role: "system", content: AI_SYSTEM_PROMPT },
+    ...history,
+    { role: "user", content: userPrompt },
+  ];
+
+  // บันทึก user message ก่อนส่ง AI
+  await saveMessage(userId, "user", userPrompt);
+
+  const aiReply = await askGroq(messages);
+
+  // บันทึก assistant reply
+  await saveMessage(userId, "assistant", aiReply);
+
+  const finalText = `${riskInfo.message}\n\n🧠 การวิเคราะห์โดยผู้ช่วยศุลกากร AI:\n\n${aiReply}`;
+
+  return lineClient.replyMessage(event.replyToken, {
+    type: "text",
+    text: finalText.slice(0, 5000), // LINE limit 5000 chars
   });
 }
 
-async function loadHistory(userId) {
-  const { data } = await supabase
-    .from("conversation_history")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: true });
-
-  return data?.map(row => ({
-    role: row.role,
-    content: row.content
-  })) || [];
-}
-
-// ------------------------------------------------------
-// ⭐ MAIN EVENT HANDLER (เวอร์ชันเคลียร์ + เสถียร)
-// ------------------------------------------------------
+// ============================================================
+// MAIN EVENT HANDLER
+// ============================================================
 async function handleEvent(event) {
-  if (event.type !== 'message' || event.message.type !== 'text') return;
+  if (event.type !== "message" || event.message.type !== "text") return;
 
-  const text = event.message.text;
-  const userId = event.source.userId;
-  const keyword = text.replace('@DOC BOT', '').trim();
+  const rawText  = event.message.text;
+  const userId   = event.source.userId;
+  const keyword  = rawText.replace(/^@DOC BOT\s*/i, "").trim();
 
-  // โหลด state ปัจจุบันจาก Supabase
+  // ── โหลด State ──────────────────────────────────────────
   const state = await getState(userId);
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — เริ่มเพิ่มสินค้า
-  // trigger: "เพิ่มสินค้า", "add"
-  // --------------------------------------------------
-  if (!state && (keyword.includes("เพิ่มสินค้า") || keyword.toLowerCase().includes("add"))) {
+  // ============================================================
+  // [0] AI TRIGGER จากปุ่ม "ให้ AI วิเคราะห์แทน"
+  //     หรือพิมพ์ขึ้นต้นด้วย Al: / AI:
+  // ============================================================
+  if (/^(Al|AI):/i.test(keyword)) {
+    const productName = keyword.replace(/^(Al|AI):\s*/i, "").trim();
+    return handleAIAnalysis(event, productName, userId);
+  }
+
+  // ============================================================
+  // [1] FLOW ADD — เริ่ม
+  // ============================================================
+  if (!state && (keyword.startsWith("เพิ่มสินค้า") || keyword.toLowerCase().startsWith("add"))) {
     await setState(userId, "add_step_1", { row: {} });
-    return client.replyMessage(event.replyToken, {
+    return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: "เพิ่มสินค้าใหม่\n\n1/6) กรุณาส่งชื่อไทยของสินค้า"
+      text: "📦 เพิ่มสินค้าใหม่ (1/6)\n\nกรุณาส่งชื่อ ไทย ของสินค้า",
     });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 1: ชื่อไทย
-  // --------------------------------------------------
+  // ADD step 1 → ชื่อไทย
   if (state?.state === "add_step_1") {
-    const row = state.data.row || {};
-    row.th = keyword;
-
+    const row = { ...state.data.row, th: keyword };
     await setState(userId, "add_step_2", { row });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "2/6) กรุณาส่งชื่ออังกฤษของสินค้า"
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (2/6) กรุณาส่งชื่อ อังกฤษ ของสินค้า" });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 2: ชื่ออังกฤษ
-  // --------------------------------------------------
+  // ADD step 2 → ชื่ออังกฤษ
   if (state?.state === "add_step_2") {
-    const row = state.data.row || {};
-    row.en = keyword;
-
+    const row = { ...state.data.row, en: keyword };
     await setState(userId, "add_step_3", { row });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "3/6) กรุณาส่ง HS CODE (6 หรือ 8 หลัก)"
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (3/6) กรุณาส่ง HS CODE (6 หรือ 8 หลัก)" });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 3: HS CODE
-  // --------------------------------------------------
+  // ADD step 3 → HS CODE
   if (state?.state === "add_step_3") {
     const hs = keyword.replace(/\s/g, "");
     if (!/^\d{6,8}$/.test(hs)) {
-      return client.replyMessage(event.replyToken, {
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: "รูปแบบ HS CODE ไม่ถูกต้อง กรุณาส่งเป็นตัวเลข 6 หรือ 8 หลัก"
+        text: "❌ รูปแบบ HS CODE ไม่ถูกต้อง\nกรุณาส่งเป็นตัวเลข 6 หรือ 8 หลัก เช่น 850610",
       });
     }
-
-    const row = state.data.row || {};
-    row.hs_code = hs;
-
+    const row = { ...state.data.row, hs_code: hs };
     await setState(userId, "add_step_4", { row });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "4/6) กรุณาส่งค่า NO (อัตราอากรปกติ) เช่น 5%, 10% หรือ - ถ้าไม่ทราบ"
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (4/6) อัตราอากร NO (ปกติ) เช่น 5%, 10% หรือ - ถ้าไม่ทราบ" });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 4: NO
-  // --------------------------------------------------
+  // ADD step 4 → NO
   if (state?.state === "add_step_4") {
-    const row = state.data.row || {};
-    row.no = keyword || "-";
-
+    const row = { ...state.data.row, no: keyword || "-" };
     await setState(userId, "add_step_5", { row });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "5/6) กรุณาส่งค่า FE (อัตราอากรสิทธิพิเศษ/FTA) หรือ - ถ้าไม่ทราบ"
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (5/6) อัตราอากร FE (FTA/สิทธิพิเศษ) หรือ - ถ้าไม่ทราบ" });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 5: FE
-  // --------------------------------------------------
+  // ADD step 5 → FE
   if (state?.state === "add_step_5") {
-    const row = state.data.row || {};
-    row.fe = keyword || "-";
-
+    const row = { ...state.data.row, fe: keyword || "-" };
     await setState(userId, "add_step_6", { row });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: "6/6) หมายเหตุเพิ่มเติม (ถ้าไม่มีให้พิมพ์ -)"
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (6/6) หมายเหตุเพิ่มเติม (พิมพ์ - ถ้าไม่มี)" });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW ADD — step 6: หมายเหตุ + insert
-  // --------------------------------------------------
+  // ADD step 6 → หมายเหตุ + INSERT
   if (state?.state === "add_step_6") {
-    const row = state.data.row || {};
-    row.note = keyword || "-";
-
-    const insertRow = {
+    const row    = state.data.row;
+    const newRow = {
       hs_code: row.hs_code,
-      th: row.th,
-      en: row.en,
-      fe: row.fe || "-",
-      no: row.no || "-",
-      note: row.note || "-",
-      stat: "-"
+      th:      row.th,
+      en:      row.en,
+      no:      row.no || "-",
+      fe:      row.fe || "-",
+      note:    keyword || "-",
+      stat:    "-",
     };
 
-    const ok = await addNewHSRow(insertRow);
+    const ok = await addNewHSRow(newRow);
     await clearState(userId);
 
-    if (!ok) {
-      return client.replyMessage(event.replyToken, {
-        type: "text",
-        text: "⚠️ เพิ่มสินค้าไม่สำเร็จ"
-      });
-    }
-
-    return client.replyMessage(event.replyToken, {
+    return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text:
-        `✅ เพิ่มสินค้าใหม่เรียบร้อย\n` +
-        `ชื่อไทย: ${insertRow.th}\n` +
-        `ชื่ออังกฤษ: ${insertRow.en}\n` +
-        `HS: ${insertRow.hs_code}\n` +
-        `NO: ${insertRow.no}\n` +
-        `FE: ${insertRow.fe}\n` +
-        `หมายเหตุ: ${insertRow.note}`
+      text: ok
+        ? `✅ เพิ่มสินค้าใหม่เรียบร้อย!\n\n📋 สรุป:\n• ชื่อไทย: ${newRow.th}\n• ชื่ออังกฤษ: ${newRow.en}\n• HS CODE: ${newRow.hs_code}\n• NO: ${newRow.no}\n• FE: ${newRow.fe}\n• หมายเหตุ: ${newRow.note}`
+        : "⚠️ เพิ่มสินค้าไม่สำเร็จ กรุณาลองใหม่",
     });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW C — แก้สินค้า (trigger)
-//  trigger: "แก้สินค้า xxx", "แก้ xxx", "แก้พิกัด xxx"
-// --------------------------------------------------
-  if (!state && (keyword.startsWith("แก้สินค้า") || keyword.startsWith("แก้พิกัด") || keyword.startsWith("แก้ "))) {
-
+  // ============================================================
+  // [2] FLOW EDIT — เริ่ม
+  // ============================================================
+  if (!state && /^(แก้สินค้า|แก้พิกัด|แก้\s)/.test(keyword)) {
     const searchKey = keyword
-      .replace("แก้สินค้า", "")
-      .replace("แก้พิกัด", "")
-      .replace("แก้", "")
+      .replace(/^(แก้สินค้า|แก้พิกัด|แก้\s)/, "")
       .trim();
 
     if (!searchKey) {
-      return client.replyMessage(event.replyToken, {
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: "กรุณาระบุชื่อสินค้าที่ต้องการแก้ เช่น: แก้สินค้า ไฟฉาย LED"
+        text: "กรุณาระบุชื่อสินค้า เช่น: แก้สินค้า ไฟฉาย LED",
       });
     }
 
     const found = await searchHS(searchKey);
 
     if (found.length === 0) {
-      return client.replyMessage(event.replyToken, {
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: `ไม่พบสินค้า "${searchKey}"`
+        text: `❌ ไม่พบสินค้า "${searchKey}" ในฐานข้อมูล`,
       });
     }
 
-    if (found.length > 1) {
-      const list = found
-        .map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`)
-        .join("\n");
-
-      await setState(userId, "edit_select_item", { list: found });
-
-      return client.replyMessage(event.replyToken, {
+    if (found.length === 1) {
+      await setState(userId, "edit_select_field", { item: found[0] });
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: `พบหลายรายการ กรุณาเลือกหมายเลข:\n\n${list}`
+        text: buildEditMenu(found[0]),
       });
-  }
+    }
 
-    await setState(userId, "edit_select_field", { item: found[0] });
-
-    return client.replyMessage(event.replyToken, {
+    // หลายรายการ
+    const list = found.map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`).join("\n");
+    await setState(userId, "edit_select_item", { list: found });
+    return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `ต้องการแก้หัวข้อไหนของ "${found[0].th}"?\n1) ชื่อไทย\n2) ชื่ออังกฤษ\n3) HS CODE\n4) FE\n5) NO`
+      text: `พบ ${found.length} รายการ กรุณาเลือกหมายเลข:\n\n${list}`,
     });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW C — state: edit_select_item (เลือกสินค้า)
-// --------------------------------------------------
+  // EDIT → เลือกรายการ
   if (state?.state === "edit_select_item") {
-
     const index = parseInt(keyword);
-
     if (isNaN(index) || index < 1 || index > state.data.list.length) {
-      return client.replyMessage(event.replyToken, {
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: "กรุณาเลือกหมายเลขให้ถูกต้อง"
+        text: `กรุณาเลือกหมายเลข 1–${state.data.list.length}`,
       });
     }
-
     const selected = state.data.list[index - 1];
-
     await setState(userId, "edit_select_field", { item: selected });
-
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: `ต้องการแก้หัวข้อไหนของ "${selected.th}"?\n1) ชื่อไทย\n2) ชื่ออังกฤษ\n3) HS CODE\n4) FE\n5) NO`
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: buildEditMenu(selected) });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW C — state: edit_select_field (เลือก field)
-// --------------------------------------------------
+  // EDIT → เลือก field
   if (state?.state === "edit_select_field") {
-
-    const item = state.data.item;
-
-    const mapField = {
-      "1": "th",
-      "2": "en",
-      "3": "hs_code",
+    const FIELD_MAP = {
+      "1": "th", "ชื่อไทย": "th",
+      "2": "en", "ชื่ออังกฤษ": "en",
+      "3": "hs_code", "hs": "hs_code", "hs code": "hs_code",
       "4": "fe",
       "5": "no",
-      "ชื่อไทย": "th",
-      "ชื่ออังกฤษ": "en",
-      "hs": "hs_code",
-      "hs code": "hs_code",
-      "hs code ": "hs_code",
-      "fe": "fe",
-      "no": "no"
+      "6": "note", "หมายเหตุ": "note",
     };
-
-    const key = keyword.toLowerCase().trim();
-    const field = mapField[key];
+    const field = FIELD_MAP[keyword.toLowerCase().trim()];
 
     if (!field) {
-      return client.replyMessage(event.replyToken, {
+      return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: "กรุณาเลือกหัวข้อให้ถูกต้อง (1-5)"
+        text: "กรุณาเลือกหัวข้อให้ถูกต้อง (พิมพ์ 1–6)",
       });
     }
 
-    await setState(userId, "edit_input_value", { item, field });
-
-    return client.replyMessage(event.replyToken, {
+    await setState(userId, "edit_input_value", { item: state.data.item, field });
+    return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `กรุณาส่งค่าที่ต้องการแก้ไขใหม่สำหรับ "${field}"`
+      text: `✏️ กรุณาส่งค่าใหม่สำหรับ "${field}" ของ "${state.data.item.th}"`,
     });
   }
 
-  // --------------------------------------------------
-  // ⭐ FLOW C — state: edit_input_value (ใส่ค่าใหม่ + update)
-// --------------------------------------------------
+  // EDIT → อัปเดต
   if (state?.state === "edit_input_value") {
-
     const { item, field } = state.data;
-    const newValue = keyword;
-
     const { error } = await supabase
       .from("hs_codes")
-      .update({ [field]: newValue })
+      .update({ [field]: keyword })
       .eq("id", item.id);
 
     await clearState(userId);
 
-    if (error) {
-      return client.replyMessage(event.replyToken, {
-        type: "text",
-        text: "⚠️ แก้ไขไม่สำเร็จ"
-      });
-    }
-
-    return client.replyMessage(event.replyToken, {
+    return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `✅ แก้ไข "${item.th}"\nฟิลด์: ${field}\nเป็น: ${newValue}\nเรียบร้อยแล้ว`
+      text: error
+        ? "⚠️ แก้ไขไม่สำเร็จ"
+        : `✅ แก้ไขสำเร็จ!\n📦 ${item.th}\n🔧 ${field} → ${keyword}`,
     });
   }
 
-  // --------------------------------------------------
-  // ⭐ SEARCH MODE (ทำงานเฉพาะตอนที่ไม่มี state เท่านั้น)
-  // --------------------------------------------------
+  // ============================================================
+  // [3] SEARCH MODE (ไม่มี state, ไม่ใช่คำสั่งพิเศษ)
+  // ============================================================
   if (!state) {
+    const isAddCmd  = /^(เพิ่มสินค้า|add\s)/i.test(keyword);
+    const isEditCmd = /^(แก้สินค้า|แก้พิกัด|แก้\s)/i.test(keyword);
 
-    const isAddCommand =
-      keyword.startsWith("เพิ่มสินค้า") ||
-      keyword.toLowerCase().startsWith("add");
-
-    const isEditCommand =
-      keyword.startsWith("แก้สินค้า") ||
-      keyword.startsWith("แก้พิกัด") ||
-      keyword.startsWith("แก้ ") ||
-      keyword.toLowerCase().startsWith("edit");
-
-    // ถ้าไม่ใช่คำสั่งเพิ่ม/แก้ → ค้นหาได้
-    if (!isAddCommand && !isEditCommand) {
-
+    if (!isAddCmd && !isEditCmd) {
       const riskInfo = analyzeRisk(keyword);
-      const results = await searchHS(keyword);
+      const results  = await searchHS(keyword);
 
       if (results.length > 0) {
-        const flex = buildHSFlex(results, riskInfo, keyword);
-        return client.replyMessage(event.replyToken, flex);
+        return lineClient.replyMessage(event.replyToken, buildHSFlex(results, riskInfo, keyword));
       }
+
+      // ไม่พบใน DB → แสดงปุ่ม AI
+      return lineClient.replyMessage(event.replyToken, buildNoResultFlex(keyword, riskInfo));
     }
-
-  // ถ้าไม่เข้า flow ไหนเลย → ปล่อยไปให้ AI ตอบ (ถ้าแกจะใช้ต่อ)
-  // ตรงนี้แกจะต่อ askGroq + history ก็ได้
-    const systemPrompt = `
-กำหนดให้คุณเป็น "เพื่อนร่วมงานสายลุยด่านศุลกากร" ที่เชี่ยวชาญและชำนาญการด้านการนำเข้า–ส่งออก
-โดยเฉพาะการวิเคราะห์พิกัดศุลกากรไทย (HS CODE) ตามโครงสร้างพิกัดของกรมศุลกากรไทย
-อิงจากฐานข้อมูลพิกัดศุลกากรฉบับใหม่ HS 2022 (HH22) เท่านั้น
-
-บริบทงาน:
-- งานหลักคือการนำเข้าสินค้าจากจีนเข้าไทย (ทางเรือ, รถ, เครื่องบิน)
-- การอ้างอิงพิกัดและอัตราอากร ให้ยึดตามกรมศุลกากรไทยเป็นหลัก
-- ให้คำนึงถึงการใช้สิทธิพิเศษทางภาษี เช่น FORM E, ACFTA และตรวจสอบว่ามีข้อห้าม/ข้อจำกัดประเทศต้นทางหรือไม่
-- ให้พิจารณาว่าสินค้า "ติดกรม" หรือไม่ เช่น อย., มอก., กรมโรงงาน, กรมควบคุมมลพิษ, การป้องกันและตอบโต้ทางการค้า ฯลฯ
-- ให้มองมุมมองแบบ "บริษัทเฟรทที่สนิทกับเจ้าหน้าที่" มีประสบการณ์เคลียร์งาน เคลียร์ตู้ ปิดตรวจ โดยไม่โดนย้อนหลัง
-  แต่ทุกคำแนะนำต้องอยู่ในเชิง "เลี่ยงความเสี่ยงอย่างชาญฉลาด" ไม่ใช่ชี้นำให้ทำผิดกฎหมายตรง ๆ
-
-บุคลิกของคุณ:
-- เป็นฟีลเพื่อนร่วมงานที่กวน ๆ หน่อยได้ พูดตรง มีมุก มีคำด่าเบา ๆ ได้ แต่ต้องมีสาระ
-- น้ำเสียงกันเอง ไม่ต้องเป็นทางการเกินไป แต่ต้องชัดเจนและมืออาชีพในเนื้อหา
-- ไม่พูดจาเหยียดหยาม หรือชี้นำให้ทำผิดกฎหมายอย่างชัดเจน
-- โฟกัสที่การ "ลดความเสี่ยง" และ "จัดการเอกสาร/พิกัดให้เนียนและปลอดภัยที่สุด"
-
-หน้าที่หลักของคุณเมื่อได้รับ "ชื่อสินค้า" หรือ "คำอธิบายสินค้า" (หรือแม้แต่แค่รูปสินค้า ถ้ามีข้อมูลพอ):
-1) วิเคราะห์พิกัดศุลกากร (HS CODE) ที่เหมาะสมที่สุดตามหลักการของกรมศุลกากรไทย (HS 2022)
-2) แจ้งชื่อสินค้า "ภาษาไทย–อังกฤษ" ที่เหมาะสมสำหรับใช้ลงในใบขน
-3) ระบุ:
-   - HS CODE หลักที่แนะนำ
-   - อัตราอากรขาเข้า (STAT 000) โดยอิงโครงสร้างปกติของกรมศุลกากร (ถ้าระบุตัวเลขไม่ได้ ให้บอกเป็นแนวโน้ม เช่น ต่ำ/กลาง/สูง)
-   - ความเป็นไปได้ในการใช้สิทธิ FORM E (หรือ FTA อื่น ๆ ถ้าเกี่ยวข้อง) และอัตราอากรเมื่อใช้สิทธิ
-   - ตรวจว่ามีโอกาสติด ACFTA หรือข้อจำกัดประเทศต้นทางหรือไม่ (ถ้าข้อมูลไม่พอ ให้ระบุว่า "ต้องตรวจสอบเพิ่มเติม")
-4) ตรวจสอบและแจ้งว่า:
-   - สินค้ามีโอกาสติดหน่วยงานกำกับดูแลใดบ้าง เช่น อย., มอก., กรมโรงงาน, กรมควบคุมมลพิษ, กสทช., การป้องกันและตอบโต้ทางการค้า ฯลฯ
-   - ถ้ามี ให้ระบุ "ใบอนุญาต/มาตรฐาน" ที่อาจเกี่ยวข้อง เช่น มอก., อย., ใบอนุญาตนำเข้า ฯลฯ
-5) ถ้าพิกัดหลักมีความเสี่ยงสูง หรือติดกรม/ติดใบอนุญาต:
-   - ให้เสนอ "ทางเลือกพิกัดที่ความเสี่ยงต่ำกว่า" หรือ "คำอธิบายสินค้า" ที่อาจช่วยลดการตีความให้ไม่ติดกรม
-   - แต่ต้องไม่บิดเบือนข้อเท็จจริงของสินค้าอย่างชัดเจน
-6) ให้เตือนเสมอว่า:
-   - การประเมินทั้งหมดเป็น "การประเมินเบื้องต้น" เท่านั้น
-   - การตัดสินใจสุดท้ายขึ้นกับด่านศุลกากรและเจ้าหน้าที่ที่รับผิดชอบ
-
-รูปแบบคำตอบที่ต้องการ (สำคัญมาก):
-- ให้ตอบเป็นภาษาไทย
-- ใช้อีโมจิพอประมาณเพื่อให้อ่านง่าย
-- แบ่งหัวข้อชัดเจน อ่านง่าย ก๊อปวางง่าย
-- หลีกเลี่ยงยาวเยิ่นเย้อเกินไป เน้น "เอาไปใช้ทำงานได้จริง"
-
-โครงสร้างคำตอบ (Template):
-
-📦 สินค้า:
-- ชื่อไทย: <ชื่อไทยที่แนะนำ>
-- ชื่ออังกฤษ: <ชื่ออังกฤษที่แนะนำ>
-
-📘 พิกัดศุลกากรที่แนะนำ:
-- HS CODE: <รหัส HS ที่แนะนำ หรือ "ต้องตรวจสอบเพิ่มเติม">
-- คำอธิบายพิกัด (ย่อ ๆ): <อธิบายสั้น ๆ ว่าพิกัดนี้คืออะไร>
-
-💰 อัตราอากร (ประเมินจากโครงสร้างกรมศุลกากร):
-- อากรขาเข้า (STAT 000): <เช่น 5% / 10% / "ต้องตรวจสอบเพิ่มเติม">
-- สิทธิพิเศษ FORM E / FTA: <ใช้ได้/ใช้ไม่ได้/มีโอกาสใช้ได้ พร้อมเหตุผลสั้น ๆ>
-- หมายเหตุ: <ถ้ามีเงื่อนไขพิเศษ เช่น ต้องมี C/O, ต้องระบุ description แบบใด>
-
-🚨 ความเสี่ยง & การติดกรม/ใบอนุญาต:
-- ระดับความเสี่ยง: ต่ำ / กลาง / สูง (จากมุมมองด่านศุลกากร)
-- หน่วยงานที่อาจเกี่ยวข้อง: <เช่น อย., มอก., กสทช., กรมโรงงาน ฯลฯ หรือ "ไม่พบชัดเจน">
-- ใบอนุญาต/มาตรฐานที่อาจต้องใช้: <ถ้ามี>
-- ข้อควรระวัง: <คำเตือนสั้น ๆ>
-
-🧩 ทางเลือก/เล่ห์เหลี่ยมเชิงเทคนิค (ในกรอบกฎหมาย):
-- แนวทางการเขียนชื่อสินค้าในใบขนให้ "เนียน" แต่ไม่โกหก: <ตัวอย่างคำอธิบาย>
-- พิกัดทางเลือก (ถ้ามี): <HS CODE + เหตุผลสั้น ๆ>
-- ข้อควรระวังถ้าใช้ทางเลือกนี้: <เตือนความเสี่ยง>
-
-📎 หมายเหตุสำคัญ:
-- การประเมินนี้เป็นเพียงแนวทางเบื้องต้นจากมุมมองผู้เชี่ยวชาญ
-- การตัดสินใจสุดท้ายขึ้นกับด่านศุลกากร เอกสารประกอบ และการตรวจของเจ้าหน้าที่
-- ถ้าข้อมูลสินค้าไม่ครบถ้วน ให้คุณถามกลับแบบเพื่อนร่วมงาน เช่น ขอสเปกเพิ่ม, วัสดุ, การใช้งาน, รูปสินค้า ฯลฯ
-
-น้ำเสียง:
-- เป็นกันเอง กวนได้ ด่าได้เบา ๆ แบบเพื่อนร่วมงาน แต่ต้องไม่หยาบคายเกินไป
-- เน้นสาระและความชัดเจน ให้คนอ่าน "เอาไปใช้ทำงานจริง" ได้เลย
-`;
-
-  const userPrompt = `
-ชื่อสินค้าที่ต้องการวิเคราะห์:
-"${keyword}"
-
-ให้คุณตอบตามรูปแบบที่กำหนดด้านบนเท่านั้น
-`;
-
-  const history = await loadHistory(userId);
-  const messages = [
-    { role: "system", content: systemPrompt },
-    ...history,
-    { role: "user", content: userPrompt }
-  ];
-
-  const aiPart = await askGroq(messages);
-
-  await saveMessage(userId, "assistant", aiPart);
-
-  const finalText = `${riskInfo.message}\n\n🧠 การวิเคราะห์โดยผู้ช่วยศุลกากร AI:\n\n${aiPart}`;
-
-  return client.replyMessage(event.replyToken, {
-    type: "text",
-    text: finalText
-  });
+  }
 }
 
+// ============================================================
+// HELPER
+// ============================================================
+function buildEditMenu(item) {
+  return (
+    `✏️ แก้ไขรายการ: "${item.th}"\n` +
+    `HS CODE: ${item.hs_code}\n\n` +
+    `เลือกหัวข้อที่ต้องการแก้:\n` +
+    `1) ชื่อไทย\n2) ชื่ออังกฤษ\n3) HS CODE\n4) FE\n5) NO\n6) หมายเหตุ`
+  );
 }
-// ------------------------------------------------------
-// ⭐ START SERVER
-// ------------------------------------------------------
+
+// ============================================================
+// EXPRESS ROUTES
+// ============================================================
+
+// GET /webhook — สำหรับ verify
+app.get("/webhook", (req, res) => res.send("DOC BOT is running ✅"));
+
+// GET /ping — Keep-alive endpoint (ใช้กับ UptimeRobot หรือ self-ping)
+app.get("/ping", (req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+
+// POST /webhook — LINE events (ต้อง middleware ก่อน express.json)
+app.post("/webhook", middleware(lineConfig), (req, res) => {
+  res.sendStatus(200); // ตอบ LINE ก่อนเสมอ — ป้องกัน timeout
+  Promise.all(req.body.events.map(handleEvent))
+    .catch(err => console.error("handleEvent error:", err));
+});
+
+// express.json สำหรับ route อื่นๆ
+app.use(express.json());
+
+// ============================================================
+// SELF PING — แก้ปัญหา cold start บน Render Free Tier
+// ปิงตัวเองทุก 13 นาที เพื่อไม่ให้ instance sleep
+// ============================================================
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
+if (SELF_URL) {
+  setInterval(async () => {
+    try {
+      await axios.get(`${SELF_URL}/ping`, { timeout: 5000 });
+      console.log(`[Keep-alive] pinged ${SELF_URL}/ping`);
+    } catch (e) {
+      console.warn("[Keep-alive] ping failed:", e.message);
+    }
+  }, 13 * 60 * 1000); // 13 นาที
+}
+
+// ============================================================
+// START
+// ============================================================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`LINE bot is running on port ${PORT}`);
+  console.log(`🚀 DOC BOT is running on port ${PORT}`);
+  if (SELF_URL) console.log(`🔄 Keep-alive enabled → ${SELF_URL}/ping`);
 });

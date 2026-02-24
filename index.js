@@ -24,6 +24,11 @@ const lineClient = new Client(lineConfig);
 const app        = express();
 
 // ============================================================
+// CONFIG
+// ============================================================
+const STAFF_LINE_ID = "LINE_ID_poomlt"; // LINE ID ของเจ้าหน้าที่
+
+// ============================================================
 // STATE MACHINE  (Supabase: conversation_state)
 // ============================================================
 async function setState(userId, state, data = {}) {
@@ -323,8 +328,8 @@ async function askGroq(messages) {
 // AI ANALYSIS HANDLER
 // ============================================================
 async function handleAIAnalysis(event, productName, userId) {
-  const riskInfo  = analyzeRisk(productName);
-  const history   = await loadHistory(userId);
+  const riskInfo   = analyzeRisk(productName);
+  const history    = await loadHistory(userId);
   const userPrompt = `ชื่อสินค้าที่ต้องการวิเคราะห์: "${productName}"\nตอบตาม Template ที่กำหนดเท่านั้น`;
 
   const messages = [
@@ -337,12 +342,89 @@ async function handleAIAnalysis(event, productName, userId) {
   const aiReply = await askGroq(messages);
   await saveMessage(userId, "assistant", aiReply);
 
-  const finalText = `${riskInfo.message}\n\n🧠 การวิเคราะห์โดยผู้ช่วยศุลกากร AI:\n\n${aiReply}`;
+  const finalText = `${riskInfo.message}\n\n🧠 การวิเคราะห์โดยผู้ช่วยศุลกากร AI:\n\n${aiReply}`.slice(0, 5000);
 
-  return lineClient.replyMessage(event.replyToken, {
-    type: "text",
-    text: finalText.slice(0, 5000),
-  });
+  // Flex message พร้อมปุ่มติดต่อเจ้าหน้าที่
+  const staffFlex = buildStaffContactFlex(productName, finalText);
+
+  return lineClient.replyMessage(event.replyToken, [
+    { type: "text", text: finalText },
+    staffFlex,
+  ]);
+}
+
+/** Flex ปุ่มติดต่อเจ้าหน้าที่ — แสดงหลัง AI วิเคราะห์เสร็จ */
+function buildStaffContactFlex(productName) {
+  return {
+    type: "flex",
+    altText: "ติดต่อเจ้าหน้าที่ DOC",
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#1A1A2E",
+        paddingAll: "16px",
+        contents: [
+          {
+            type: "text",
+            text: "📋 ไม่แน่ใจพิกัดที่ AI แนะนำ?",
+            weight: "bold",
+            size: "sm",
+            color: "#E0E0FF",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: `สินค้า: ${productName}`,
+            size: "xs",
+            color: "#AAAACC",
+            margin: "sm",
+            wrap: true,
+          },
+          {
+            type: "text",
+            text: "ให้เจ้าหน้าที่ DOC ตรวจสอบพิกัดจริงให้คุณได้เลย ✅",
+            size: "xs",
+            color: "#9999BB",
+            margin: "sm",
+            wrap: true,
+          },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        paddingAll: "12px",
+        backgroundColor: "#16213E",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: "#06C755",  // LINE green
+            height: "sm",
+            action: {
+              type: "uri",
+              label: "💬 ติดต่อเจ้าหน้าที่ DOC",
+              uri: `https://line.me/ti/p/~${STAFF_LINE_ID}`,
+            },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            height: "sm",
+            action: {
+              type: "message",
+              label: "🔍 ค้นหาพิกัดใหม่",
+              text: productName,
+            },
+          },
+        ],
+      },
+    },
+  };
 }
 
 // ============================================================

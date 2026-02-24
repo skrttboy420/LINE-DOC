@@ -309,7 +309,7 @@ async function askGroq(messages) {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
         },
-        timeout: 30000, // 30 วิ timeout
+        timeout: 30000,
       }
     );
     return response.data.choices[0].message.content;
@@ -333,19 +333,15 @@ async function handleAIAnalysis(event, productName, userId) {
     { role: "user", content: userPrompt },
   ];
 
-  // บันทึก user message ก่อนส่ง AI
   await saveMessage(userId, "user", userPrompt);
-
   const aiReply = await askGroq(messages);
-
-  // บันทึก assistant reply
   await saveMessage(userId, "assistant", aiReply);
 
   const finalText = `${riskInfo.message}\n\n🧠 การวิเคราะห์โดยผู้ช่วยศุลกากร AI:\n\n${aiReply}`;
 
   return lineClient.replyMessage(event.replyToken, {
     type: "text",
-    text: finalText.slice(0, 5000), // LINE limit 5000 chars
+    text: finalText.slice(0, 5000),
   });
 }
 
@@ -359,7 +355,6 @@ async function handleEvent(event) {
   const userId   = event.source.userId;
   const keyword  = rawText.replace(/^@DOC BOT\s*/i, "").trim();
 
-  // ── โหลด State ──────────────────────────────────────────
   const state = await getState(userId);
 
   // ============================================================
@@ -372,7 +367,7 @@ async function handleEvent(event) {
   }
 
   // ============================================================
-  // [1] FLOW ADD — เริ่ม
+  // [1] FLOW ADD
   // ============================================================
   if (!state && (keyword.startsWith("เพิ่มสินค้า") || keyword.toLowerCase().startsWith("add"))) {
     await setState(userId, "add_step_1", { row: {} });
@@ -382,21 +377,18 @@ async function handleEvent(event) {
     });
   }
 
-  // ADD step 1 → ชื่อไทย
   if (state?.state === "add_step_1") {
     const row = { ...state.data.row, th: keyword };
     await setState(userId, "add_step_2", { row });
     return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (2/6) กรุณาส่งชื่อ อังกฤษ ของสินค้า" });
   }
 
-  // ADD step 2 → ชื่ออังกฤษ
   if (state?.state === "add_step_2") {
     const row = { ...state.data.row, en: keyword };
     await setState(userId, "add_step_3", { row });
     return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (3/6) กรุณาส่ง HS CODE (6 หรือ 8 หลัก)" });
   }
 
-  // ADD step 3 → HS CODE
   if (state?.state === "add_step_3") {
     const hs = keyword.replace(/\s/g, "");
     if (!/^\d{6,8}$/.test(hs)) {
@@ -410,21 +402,18 @@ async function handleEvent(event) {
     return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (4/6) อัตราอากร NO (ปกติ) เช่น 5%, 10% หรือ - ถ้าไม่ทราบ" });
   }
 
-  // ADD step 4 → NO
   if (state?.state === "add_step_4") {
     const row = { ...state.data.row, no: keyword || "-" };
     await setState(userId, "add_step_5", { row });
     return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (5/6) อัตราอากร FE (FTA/สิทธิพิเศษ) หรือ - ถ้าไม่ทราบ" });
   }
 
-  // ADD step 5 → FE
   if (state?.state === "add_step_5") {
     const row = { ...state.data.row, fe: keyword || "-" };
     await setState(userId, "add_step_6", { row });
     return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (6/6) หมายเหตุเพิ่มเติม (พิมพ์ - ถ้าไม่มี)" });
   }
 
-  // ADD step 6 → หมายเหตุ + INSERT
   if (state?.state === "add_step_6") {
     const row    = state.data.row;
     const newRow = {
@@ -449,7 +438,7 @@ async function handleEvent(event) {
   }
 
   // ============================================================
-  // [2] FLOW EDIT — เริ่ม
+  // [2] FLOW EDIT
   // ============================================================
   if (!state && /^(แก้สินค้า|แก้พิกัด|แก้\s)/.test(keyword)) {
     const searchKey = keyword
@@ -480,7 +469,6 @@ async function handleEvent(event) {
       });
     }
 
-    // หลายรายการ
     const list = found.map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`).join("\n");
     await setState(userId, "edit_select_item", { list: found });
     return lineClient.replyMessage(event.replyToken, {
@@ -489,7 +477,6 @@ async function handleEvent(event) {
     });
   }
 
-  // EDIT → เลือกรายการ
   if (state?.state === "edit_select_item") {
     const index = parseInt(keyword);
     if (isNaN(index) || index < 1 || index > state.data.list.length) {
@@ -503,7 +490,6 @@ async function handleEvent(event) {
     return lineClient.replyMessage(event.replyToken, { type: "text", text: buildEditMenu(selected) });
   }
 
-  // EDIT → เลือก field
   if (state?.state === "edit_select_field") {
     const FIELD_MAP = {
       "1": "th", "ชื่อไทย": "th",
@@ -529,7 +515,6 @@ async function handleEvent(event) {
     });
   }
 
-  // EDIT → อัปเดต
   if (state?.state === "edit_input_value") {
     const { item, field } = state.data;
     const { error } = await supabase
@@ -548,7 +533,7 @@ async function handleEvent(event) {
   }
 
   // ============================================================
-  // [3] SEARCH MODE (ไม่มี state, ไม่ใช่คำสั่งพิเศษ)
+  // [3] SEARCH MODE
   // ============================================================
   if (!state) {
     const isAddCmd  = /^(เพิ่มสินค้า|add\s)/i.test(keyword);
@@ -562,7 +547,6 @@ async function handleEvent(event) {
         return lineClient.replyMessage(event.replyToken, buildHSFlex(results, riskInfo, keyword));
       }
 
-      // ไม่พบใน DB → แสดงปุ่ม AI
       return lineClient.replyMessage(event.replyToken, buildNoResultFlex(keyword, riskInfo));
     }
   }
@@ -584,25 +568,19 @@ function buildEditMenu(item) {
 // EXPRESS ROUTES
 // ============================================================
 
-// GET /webhook — สำหรับ verify
 app.get("/webhook", (req, res) => res.send("DOC BOT is running ✅"));
-
-// GET /ping — Keep-alive endpoint (ใช้กับ UptimeRobot หรือ self-ping)
 app.get("/ping", (req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
 
-// POST /webhook — LINE events (ต้อง middleware ก่อน express.json)
 app.post("/webhook", middleware(lineConfig), (req, res) => {
-  res.sendStatus(200); // ตอบ LINE ก่อนเสมอ — ป้องกัน timeout
+  res.sendStatus(200);
   Promise.all(req.body.events.map(handleEvent))
     .catch(err => console.error("handleEvent error:", err));
 });
 
-// express.json สำหรับ route อื่นๆ
 app.use(express.json());
 
 // ============================================================
 // SELF PING — แก้ปัญหา cold start บน Render Free Tier
-// ปิงตัวเองทุก 13 นาที เพื่อไม่ให้ instance sleep
 // ============================================================
 const SELF_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL;
 if (SELF_URL) {
@@ -613,7 +591,7 @@ if (SELF_URL) {
     } catch (e) {
       console.warn("[Keep-alive] ping failed:", e.message);
     }
-  }, 13 * 60 * 1000); // 13 นาที
+  }, 13 * 60 * 1000);
 }
 
 // ============================================================

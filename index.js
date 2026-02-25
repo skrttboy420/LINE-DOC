@@ -32,12 +32,16 @@ const STAFF_LINE_ID = "LINE_ID_poomlt"; // LINE ID ของเจ้าหน�
 // STATE MACHINE  (Supabase: conversation_state)
 // ============================================================
 async function setState(userId, state, data = {}) {
-  await supabase.from("conversation_state").upsert({
+  // ลบก่อนเสมอ แล้ว insert ใหม่ — หลีกเลี่ยง upsert conflict key issue
+  await supabase.from("conversation_state").delete().eq("user_id", userId);
+  const { error } = await supabase.from("conversation_state").insert({
     user_id: userId,
     state,
     data,
     updated_at: new Date().toISOString(),
   });
+  if (error) console.error("[setState] error:", error);
+  else console.log(`[setState] userId=${userId} state=${state} data=${JSON.stringify(data)}`);
 }
 
 async function getState(userId) {
@@ -45,8 +49,9 @@ async function getState(userId) {
     .from("conversation_state")
     .select("*")
     .eq("user_id", userId)
-    .maybeSingle();           // ✅ ไม่ throw error เมื่อไม่พบแถว
-  if (error) { console.error("getState error:", error); return null; }
+    .maybeSingle();
+  if (error) { console.error("[getState] error:", error); return null; }
+  console.log(`[getState] userId=${userId} state=${data?.state || "null"}`);
   return data || null;
 }
 
@@ -438,7 +443,9 @@ async function handleEvent(event) {
   const userId   = event.source.userId;
   const keyword  = rawText.replace(/^@DOC BOT\s*/i, "").trim();
 
+  console.log(`[handleEvent] userId=${userId} keyword="${keyword}"`);
   const state = await getState(userId);
+  console.log(`[handleEvent] current state = ${state?.state || "null"}`);
 
   // ============================================================
   // [0] AI TRIGGER จากปุ่ม "ให้ AI วิเคราะห์แทน"
@@ -657,13 +664,105 @@ async function handleEvent(event) {
   }
 
   // ============================================================
-  // [3] SEARCH MODE
+  // [3] FLOW DELETE
+  // ============================================================
+  if (!state && /^(ลบสินค้า|ลบพิกัด|ลบ\s)/.test(keyword)) {
+    const searchKey = keyword.replace(/^(ลบสินค้า|ลบพิกัด|ลบ\s)/, "").trim();
+
+    if (!searchKey) {
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "กรุณาระบุชื่อสินค้าที่ต้องการลบ\nเช่น: ลบสินค้า หมวก",
+      });
+    }
+
+    const found = await searchHS(searchKey);
+
+    if (found.length === 0) {
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `❌ ไม่พบสินค้า "${searchKey}" ในฐานข้อมูล`,
+      });
+    }
+
+    // หลายรายการ ให้เลือกก่อน
+    if (found.length > 1) {
+      const listIds  = found.map(item => item.id);
+      const listText = found.map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`).join("\n");
+      await setState(userId, "delete_select_item", { listIds, count: found.length });
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `พบ ${found.length} รายการ กรุณาเลือกหมายเลขที่ต้องการลบ:\n\n${listText}`,
+      });
+    }
+
+    // รายการเดียว — ถามยืนยันทันที
+    const item = found[0];
+    await setState(userId, "delete_confirm", { itemId: item.id });
+    return lineClient.replyMessage(event.replyToken, buildDeleteConfirmFlex(item));
+  }
+
+  // เลือกรายการที่จะลบ (กรณีเจอหลายรายการ)
+  if (state?.state === "delete_select_item") {
+    const index = parseInt(keyword);
+    const count  = state.data.count || 0;
+
+    if (isNaN(index) || index < 1 || index > count) {
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `กรุณาเลือกหมายเลข 1–${count}`,
+      });
+    }
+
+    const targetId = state.data.listIds[index - 1];
+    const { data: itemArr } = await supabase.from("hs_codes").select("*").eq("id", targetId);
+    const selected = itemArr?.[0];
+
+    if (!selected) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, { type: "text", text: "⚠️ ไม่พบรายการ กรุณาลองใหม่" });
+    }
+
+    await setState(userId, "delete_confirm", { itemId: selected.id });
+    return lineClient.replyMessage(event.replyToken, buildDeleteConfirmFlex(selected));
+  }
+
+  // รอการยืนยัน ใช่ / ไม่ใช่
+  if (state?.state === "delete_confirm") {
+    const answer = keyword.trim().toLowerCase();
+
+    if (!["ใช่", "yes", "ยืนยัน", "y", "confirm"].includes(answer)) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "❎ ยกเลิกการลบแล้ว ไม่มีข้อมูลถูกลบ",
+      });
+    }
+
+    const { itemId } = state.data;
+    const { data: itemArr } = await supabase.from("hs_codes").select("*").eq("id", itemId);
+    const item = itemArr?.[0];
+
+    const { error } = await supabase.from("hs_codes").delete().eq("id", itemId);
+    await clearState(userId);
+
+    return lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: error
+        ? "⚠️ ลบไม่สำเร็จ กรุณาลองใหม่"
+        : `🗑️ ลบสำเร็จ!\n\n📦 ${item?.th || "-"}\n🔢 HS: ${item?.hs_code || "-"}\n\nรายการนี้ถูกลบออกจากฐานข้อมูลแล้ว`,
+    });
+  }
+
+  // ============================================================
+  // [4] SEARCH MODE
   // ============================================================
   if (!state) {
-    const isAddCmd  = /^(เพิ่มสินค้า|add\s)/i.test(keyword);
-    const isEditCmd = /^(แก้สินค้า|แก้พิกัด|แก้\s)/i.test(keyword);
+    const isAddCmd    = /^(เพิ่มสินค้า|add\s)/i.test(keyword);
+    const isEditCmd   = /^(แก้สินค้า|แก้พิกัด|แก้\s)/i.test(keyword);
+    const isDeleteCmd = /^(ลบสินค้า|ลบพิกัด|ลบ\s)/i.test(keyword);
 
-    if (!isAddCmd && !isEditCmd) {
+    if (!isAddCmd && !isEditCmd && !isDeleteCmd) {
       const riskInfo = analyzeRisk(keyword);
       const results  = await searchHS(keyword);
 
@@ -679,6 +778,63 @@ async function handleEvent(event) {
 // ============================================================
 // HELPER
 // ============================================================
+
+/** Flex ยืนยันการลบ — แสดงก่อนลบจริง */
+function buildDeleteConfirmFlex(item) {
+  return {
+    type: "flex",
+    altText: `ยืนยันลบ: ${item.th}`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box",
+        layout: "vertical",
+        backgroundColor: "#2D0A0A",
+        paddingAll: "16px",
+        contents: [
+          { type: "text", text: "🗑️ ยืนยันการลบสินค้า", weight: "bold", size: "sm", color: "#FF6B6B", wrap: true },
+          { type: "separator", margin: "md", color: "#5A1A1A" },
+          {
+            type: "box", layout: "vertical", margin: "md", spacing: "xs",
+            contents: [
+              { type: "text", text: `📦 ${item.th || "-"}`,          size: "sm",  color: "#FFCCCC", wrap: true },
+              { type: "text", text: `🌐 ${item.en || "-"}`,          size: "xs",  color: "#CC9999", wrap: true },
+              { type: "text", text: `🔢 HS: ${item.hs_code || "-"}`, size: "xs",  color: "#CC9999" },
+            ],
+          },
+          { type: "separator", margin: "md", color: "#5A1A1A" },
+          { type: "text", text: "⚠️ การลบไม่สามารถกู้คืนได้!", size: "xs", color: "#FF9999", margin: "md", wrap: true },
+        ],
+      },
+      footer: {
+        type: "box",
+        layout: "horizontal",
+        paddingAll: "12px",
+        backgroundColor: "#1A0808",
+        spacing: "sm",
+        contents: [
+          {
+            type: "button",
+            style: "primary",
+            color: "#CC2222",
+            flex: 1,
+            height: "sm",
+            action: { type: "message", label: "🗑️ ยืนยันลบ", text: "ใช่" },
+          },
+          {
+            type: "button",
+            style: "secondary",
+            flex: 1,
+            height: "sm",
+            action: { type: "message", label: "❎ ยกเลิก", text: "ไม่ใช่" },
+          },
+        ],
+      },
+    },
+  };
+}
+
 function buildEditMenu(item) {
   return (
     `✏️ แก้ไขรายการ: "${item.th}"\n` +

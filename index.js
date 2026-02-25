@@ -41,11 +41,12 @@ async function setState(userId, state, data = {}) {
 }
 
 async function getState(userId) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("conversation_state")
     .select("*")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();           // ✅ ไม่ throw error เมื่อไม่พบแถว
+  if (error) { console.error("getState error:", error); return null; }
   return data || null;
 }
 
@@ -544,42 +545,64 @@ async function handleEvent(event) {
     }
 
     if (found.length === 1) {
-      await setState(userId, "edit_select_field", { item: found[0] });
+      // เก็บแค่ itemId — ป้องกัน Supabase jsonb truncate object ใหญ่
+      await setState(userId, "edit_select_field", { itemId: found[0].id });
       return lineClient.replyMessage(event.replyToken, {
         type: "text",
         text: buildEditMenu(found[0]),
       });
     }
 
-    const list = found.map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`).join("\n");
-    await setState(userId, "edit_select_item", { list: found });
+    // หลายรายการ — เก็บแค่ id array ไม่เก็บ object ทั้งก้อน
+    const listIds  = found.map(item => item.id);
+    const listText = found.map((item, i) => `${i + 1}) ${item.th} (HS: ${item.hs_code})`).join("\n");
+    await setState(userId, "edit_select_item", { listIds, count: found.length });
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `พบ ${found.length} รายการ กรุณาเลือกหมายเลข:\n\n${list}`,
+      text: `พบ ${found.length} รายการ กรุณาเลือกหมายเลข:\n\n${listText}`,
     });
   }
 
   if (state?.state === "edit_select_item") {
     const index = parseInt(keyword);
-    if (isNaN(index) || index < 1 || index > state.data.list.length) {
+    const count  = state.data.count || 0;
+
+    if (isNaN(index) || index < 1 || index > count) {
       return lineClient.replyMessage(event.replyToken, {
         type: "text",
-        text: `กรุณาเลือกหมายเลข 1–${state.data.list.length}`,
+        text: `กรุณาเลือกหมายเลข 1–${count}`,
       });
     }
-    const selected = state.data.list[index - 1];
-    await setState(userId, "edit_select_field", { item: selected });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: buildEditMenu(selected) });
+
+    // refetch จาก Supabase ด้วย id — ไม่พึ่ง object ใน state
+    const targetId = state.data.listIds[index - 1];
+    const { data: selectedArr } = await supabase
+      .from("hs_codes").select("*").eq("id", targetId);
+    const selected = selectedArr?.[0];
+
+    if (!selected) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่พบรายการในฐานข้อมูล กรุณาลองใหม่",
+      });
+    }
+
+    await setState(userId, "edit_select_field", { itemId: selected.id });
+    return lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: buildEditMenu(selected),
+    });
   }
 
   if (state?.state === "edit_select_field") {
     const FIELD_MAP = {
-      "1": "th", "ชื่อไทย": "th",
-      "2": "en", "ชื่ออังกฤษ": "en",
-      "3": "hs_code", "hs": "hs_code", "hs code": "hs_code",
+      "1": "th",       "ชื่อไทย": "th",
+      "2": "en",       "ชื่ออังกฤษ": "en",
+      "3": "hs_code",  "hs": "hs_code", "hs code": "hs_code",
       "4": "fe",
       "5": "no",
-      "6": "note", "หมายเหตุ": "note",
+      "6": "note",     "หมายเหตุ": "note",
     };
     const field = FIELD_MAP[keyword.toLowerCase().trim()];
 
@@ -590,27 +613,46 @@ async function handleEvent(event) {
       });
     }
 
-    await setState(userId, "edit_input_value", { item: state.data.item, field });
+    // refetch item จาก DB แทนการอ่านจาก state
+    const { data: itemArr } = await supabase
+      .from("hs_codes").select("*").eq("id", state.data.itemId);
+    const currentItem = itemArr?.[0];
+    if (!currentItem) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: "⚠️ ไม่พบรายการ กรุณาเริ่มใหม่",
+      });
+    }
+
+    // เก็บแค่ itemId + field — ไม่เก็บ object
+    await setState(userId, "edit_input_value", { itemId: state.data.itemId, field });
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: `✏️ กรุณาส่งค่าใหม่สำหรับ "${field}" ของ "${state.data.item.th}"`,
+      text: `✏️ กรุณาส่งค่าใหม่สำหรับ "${field}" ของ "${currentItem.th}"\n\n(ค่าปัจจุบัน: ${currentItem[field] || "-"})`,
     });
   }
 
   if (state?.state === "edit_input_value") {
-    const { item, field } = state.data;
+    const { itemId, field } = state.data;
+
+    // refetch ก่อน update เพื่อเอาชื่อมาแสดง
+    const { data: itemArr } = await supabase
+      .from("hs_codes").select("*").eq("id", itemId);
+    const currentItem = itemArr?.[0];
+
     const { error } = await supabase
       .from("hs_codes")
       .update({ [field]: keyword })
-      .eq("id", item.id);
+      .eq("id", itemId);
 
     await clearState(userId);
 
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: error
-        ? "⚠️ แก้ไขไม่สำเร็จ"
-        : `✅ แก้ไขสำเร็จ!\n📦 ${item.th}\n🔧 ${field} → ${keyword}`,
+        ? "⚠️ แก้ไขไม่สำเร็จ กรุณาลองใหม่"
+        : `✅ แก้ไขสำเร็จ!\n📦 ${currentItem?.th || itemId}\n🔧 ${field} → ${keyword}`,
     });
   }
 

@@ -457,72 +457,60 @@ async function handleEvent(event) {
   }
 
   // ============================================================
-  // [1] FLOW ADD
+  // [1] FLOW ADD — ฟอร์มข้อความเดียว copy & กรอก
   // ============================================================
   if (!state && (keyword.startsWith("เพิ่มสินค้า") || keyword.toLowerCase().startsWith("add"))) {
-    await setState(userId, "add_step_1", { row: {} });
+    const FORM_TEMPLATE =
+      "📦 กรอกข้อมูลสินค้าแล้วส่งกลับมาเลย:\n\n" +
+      "ชื่อไทย: \n" +
+      "ชื่ออังกฤษ: \n" +
+      "HS CODE: \n" +
+      "NO: \n" +
+      "FE: \n" +
+      "หมายเหตุ: ";
+    await setState(userId, "add_form_wait", {});
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
-      text: "📦 เพิ่มสินค้าใหม่ (1/6)\n\nกรุณาส่งชื่อ ไทย ของสินค้า",
+      text: FORM_TEMPLATE,
     });
   }
 
-  if (state?.state === "add_step_1") {
-    const row = { ...state.data.row, th: keyword };
-    await setState(userId, "add_step_2", { row });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (2/6) กรุณาส่งชื่อ อังกฤษ ของสินค้า" });
-  }
-
-  if (state?.state === "add_step_2") {
-    const row = { ...state.data.row, en: keyword };
-    await setState(userId, "add_step_3", { row });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (3/6) กรุณาส่ง HS CODE (6 หรือ 8 หลัก)" });
-  }
-
-  if (state?.state === "add_step_3") {
-    const hs = keyword.replace(/\s/g, "");
-    if (!/^\d{6,8}$/.test(hs)) {
-      return lineClient.replyMessage(event.replyToken, {
-        type: "text",
-        text: "❌ รูปแบบ HS CODE ไม่ถูกต้อง\nกรุณาส่งเป็นตัวเลข 6 หรือ 8 หลัก เช่น 850610",
-      });
-    }
-    const row = { ...state.data.row, hs_code: hs };
-    await setState(userId, "add_step_4", { row });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (4/6) อัตราอากร NO (ปกติ) เช่น 5%, 10% หรือ - ถ้าไม่ทราบ" });
-  }
-
-  if (state?.state === "add_step_4") {
-    const row = { ...state.data.row, no: keyword || "-" };
-    await setState(userId, "add_step_5", { row });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (5/6) อัตราอากร FE (FTA/สิทธิพิเศษ) หรือ - ถ้าไม่ทราบ" });
-  }
-
-  if (state?.state === "add_step_5") {
-    const row = { ...state.data.row, fe: keyword || "-" };
-    await setState(userId, "add_step_6", { row });
-    return lineClient.replyMessage(event.replyToken, { type: "text", text: "📦 (6/6) หมายเหตุเพิ่มเติม (พิมพ์ - ถ้าไม่มี)" });
-  }
-
-  if (state?.state === "add_step_6") {
-    const row    = state.data.row;
-    const newRow = {
-      hs_code: row.hs_code,
-      th:      row.th,
-      en:      row.en,
-      no:      row.no || "-",
-      fe:      row.fe || "-",
-      note:    keyword || "-",
-      stat:    "-",
+  if (state?.state === "add_form_wait") {
+    // parse ทีละบรรทัด รองรับทั้ง "ชื่อไทย: ค่า" และ "ชื่อไทย:ค่า"
+    const lines = keyword.split("\n").map(l => l.trim()).filter(Boolean);
+    const get = (label) => {
+      const line = lines.find(l => l.startsWith(label));
+      return line ? line.replace(label, "").replace(/^:\s*/, "").trim() || "-" : "-";
     };
 
+    const th      = get("ชื่อไทย");
+    const en      = get("ชื่ออังกฤษ");
+    const hs_raw  = get("HS CODE").replace(/\s/g, "");
+    const no      = get("NO");
+    const fe      = get("FE");
+    const note    = get("หมายเหตุ");
+
+    // validate ชื่อ + HS CODE
+    const errors = [];
+    if (!th || th === "-")  errors.push("• ชื่อไทย ยังว่างอยู่");
+    if (!en || en === "-")  errors.push("• ชื่ออังกฤษ ยังว่างอยู่");
+    if (!/^\d{6,10}$/.test(hs_raw)) errors.push("• HS CODE ต้องเป็นตัวเลข 6–10 หลัก");
+
+    if (errors.length > 0) {
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `❌ ข้อมูลไม่ครบหรือไม่ถูกต้อง:\n${errors.join("\n")}\n\nกรุณาส่งฟอร์มใหม่อีกครั้ง`,
+      });
+    }
+
+    const newRow = { hs_code: hs_raw, th, en, no, fe, note, stat: "-" };
     const ok = await addNewHSRow(newRow);
     await clearState(userId);
 
     return lineClient.replyMessage(event.replyToken, {
       type: "text",
       text: ok
-        ? `✅ เพิ่มสินค้าใหม่เรียบร้อย!\n\n📋 สรุป:\n• ชื่อไทย: ${newRow.th}\n• ชื่ออังกฤษ: ${newRow.en}\n• HS CODE: ${newRow.hs_code}\n• NO: ${newRow.no}\n• FE: ${newRow.fe}\n• หมายเหตุ: ${newRow.note}`
+        ? `✅ เพิ่มสินค้าสำเร็จ!\n\n📋 สรุป:\n• ชื่อไทย: ${th}\n• ชื่ออังกฤษ: ${en}\n• HS CODE: ${hs_raw}\n• NO: ${no}\n• FE: ${fe}\n• หมายเหตุ: ${note}`
         : "⚠️ เพิ่มสินค้าไม่สำเร็จ กรุณาลองใหม่",
     });
   }

@@ -36,21 +36,20 @@ const STAFF_LINE_ID = "0921313786"; // LINE ID ของเจ้าหน้า
 // ============================================================
 const PACRED_API_URL    = (process.env.PACRED_API_URL || "").replace(/\/+$/, "");
 const PACRED_API_SECRET = process.env.PACRED_API_SECRET || "";
+const PR_RED = "#B30000"; // แดงแบรนด์ Pacred
 
 async function pacredGet(q) {
   if (!PACRED_API_URL || !PACRED_API_SECRET) throw new Error("ยังไม่ได้ตั้ง PACRED_API_URL / PACRED_API_SECRET");
   const res = await axios.get(`${PACRED_API_URL}/api/bot`, {
-    params: { q },
-    headers: { Authorization: `Bearer ${PACRED_API_SECRET}` },
-    timeout: 12000,
+    params: { q }, headers: { Authorization: `Bearer ${PACRED_API_SECRET}` }, timeout: 12000,
   });
   return res.data;
 }
 
-// คำสั่งผู้ช่วยงาน (พิมพ์ในไลน์) → true ถ้าเป็นคำสั่งที่ต้องไปถามระบบ Pacred
+// พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน/.test(t);
 }
 
 // dd/mm/yy hh:mm (พ.ศ.)
@@ -62,36 +61,92 @@ function fmtWhen(iso) {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear() + 543).slice(2)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function lineOfUpload(name, hist) {
+// ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว
+const QUICK = { items: [
+  { type: "action", action: { type: "message", label: "📦 อัพล่าสุด", text: "อัพล่าสุด" } },
+  { type: "action", action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
+  { type: "action", action: { type: "message", label: "📋 เมนู", text: "เมนู" } },
+] };
+
+function headerBox(title, color) {
+  return { type: "box", layout: "vertical", backgroundColor: color || PR_RED, paddingAll: "14px",
+    contents: [{ type: "text", text: title, color: "#ffffff", weight: "bold", size: "lg", wrap: true }] };
+}
+
+// การ์ดเมนู (ปุ่มเลือกหัวข้อ)
+function buildMenuFlex() {
+  return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: QUICK, contents: {
+    type: "bubble",
+    header: headerBox("🤖 ผู้ช่วยงาน Pacred"),
+    body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "16px", contents: [
+      { type: "text", text: "เลือกหัวข้อที่ต้องการ", size: "sm", color: "#666666" },
+      { type: "button", style: "primary", color: PR_RED, height: "sm",
+        action: { type: "message", label: "📦 อัพเดตล่าสุด", text: "อัพล่าสุด" } },
+      { type: "button", style: "primary", color: "#e53935", height: "sm",
+        action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
+    ] },
+  } };
+}
+
+// แถวสรุป 1 แหล่ง (การ์ดอัพล่าสุด)
+function uploadRow(name, hist) {
   const l = hist && hist.last;
-  if (!l) return `• ${name}: ยังไม่มีประวัติ`;
-  return `• ${name}: ${l.label} · ${l.count} แทรค\n   ${fmtWhen(l.when)} · โดย ${l.byName}${l.applied ? " · ✓ใช้แล้ว" : ""}`;
+  return { type: "box", layout: "vertical", margin: "lg", spacing: "none", contents: [
+    { type: "text", text: name, size: "xs", color: "#999999" },
+    { type: "text", text: l ? `${l.label} · ${l.count} แทรค` : "ยังไม่มีประวัติ", size: "sm", weight: "bold", wrap: true },
+    ...(l ? [{ type: "text", text: `${fmtWhen(l.when)} · โดย ${l.byName}`, size: "xs", color: "#666666" }] : []),
+  ] };
+}
+
+function buildUploadsFlex(uploads) {
+  return { type: "flex", altText: "อัพเดตล่าสุด (Pacred)", quickReply: QUICK, contents: {
+    type: "bubble",
+    header: headerBox("📦 อัพเดตล่าสุด"),
+    body: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
+      uploadRow("MOMO แพคกิ้ง (กวางโจว)", uploads.momoPacking),
+      uploadRow("อี้อู แพคกิ้ง (TTW)", uploads.yiwu),
+      uploadRow("TTW แพคกิ้งตู้", uploads.ttw),
+    ] },
+  } };
+}
+
+function buildPendingFlex(pending) {
+  const list = (pending.recent || []).slice(0, 12);
+  const rows = list.map((r) => ({
+    type: "box", layout: "vertical", margin: "md", spacing: "none", contents: [
+      { type: "text", text: `${r.tracking}${r.pr ? ` · ${r.pr}` : ""}`, size: "sm", weight: "bold", wrap: true },
+      { type: "text", text: `${r.reason || "อื่นๆ"}${r.container ? ` · ${r.container}` : ""}`, size: "xs",
+        color: r.reason ? "#e53935" : "#999999", wrap: true },
+    ],
+  }));
+  return { type: "flex", altText: `แทรคค้าง ${pending.count} รายการ`, quickReply: QUICK, contents: {
+    type: "bubble",
+    header: headerBox(`🔴 แทรคค้าง ${pending.count} รายการ`, "#e53935"),
+    body: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
+      { type: "text", text: "แทรคที่ยังไม่ได้นำเข้าระบบ (รอข้อมูลครบ)", size: "xs", color: "#666666", wrap: true },
+      ...rows,
+      ...(pending.count > list.length
+        ? [{ type: "text", text: `… และอีก ${pending.count - list.length} แทรค`, size: "xs", color: "#999999", margin: "md" }]
+        : []),
+      { type: "separator", margin: "lg" },
+      { type: "text", text: "💡 ส่วนใหญ่ค้างเพราะยังไม่มีน้ำหนัก/ขนาด — รอครบก่อนถึงนำเข้า", size: "xs", color: "#999999", wrap: true, margin: "md" },
+    ] },
+  } };
 }
 
 async function handleWorkAssistant(event, keyword) {
   const t = (keyword || "").toLowerCase();
   try {
+    if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
+      return lineClient.replyMessage(event.replyToken, buildMenuFlex());
     if (/แทรคค้าง|ยังไม่เข้า|งานค้าง|^ค้าง/.test(t)) {
       const { pending } = await pacredGet("pending");
       if (!pending || pending.count === 0)
-        return lineClient.replyMessage(event.replyToken, { type: "text", text: "✅ ไม่มีแทรคค้าง — MOMO ที่ sync มา นำเข้าระบบครบแล้ว" });
-      const rows = pending.recent.slice(0, 15)
-        .map((r, i) => `${i + 1}) ${r.tracking}${r.pr ? ` · ${r.pr}` : ""}${r.container ? ` · ${r.container}` : ""}`)
-        .join("\n");
-      return lineClient.replyMessage(event.replyToken, {
-        type: "text",
-        text: `🔴 แทรคที่ยังไม่ได้นำเข้าระบบ: ${pending.count} แทรค\n(แสดง ${Math.min(15, pending.recent.length)} ล่าสุด)\n\n${rows}`,
-      });
+        return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "✅ ไม่มีแทรคค้าง — MOMO ที่ sync มา นำเข้าระบบครบแล้ว" });
+      return lineClient.replyMessage(event.replyToken, buildPendingFlex(pending));
     }
-    // ค่าเริ่มต้น = สรุปการอัพล่าสุด
     const { uploads } = await pacredGet("uploads");
-    const text =
-      "📦 สรุปการอัพข้อมูลล่าสุด (Pacred)\n\n" +
-      lineOfUpload("MOMO แพคกิ้ง", uploads.momoPacking) + "\n" +
-      lineOfUpload("MOMO ใบวางบิล", uploads.momoInvoice) + "\n" +
-      lineOfUpload("อี้อู แพคกิ้ง", uploads.yiwu) + "\n" +
-      lineOfUpload("TTW แพคกิ้ง", uploads.ttw);
-    return lineClient.replyMessage(event.replyToken, { type: "text", text });
+    return lineClient.replyMessage(event.replyToken, buildUploadsFlex(uploads));
   } catch (err) {
     console.error("[handleWorkAssistant]", err?.response?.data || err.message);
     return lineClient.replyMessage(event.replyToken, {

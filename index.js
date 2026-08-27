@@ -29,6 +29,79 @@ const app        = express();
 const STAFF_LINE_ID = "0921313786"; // LINE ID ของเจ้าหน้าที่
 
 // ============================================================
+// 🤖 ผู้ช่วยงาน Pacred (ภูม 2026-08-27) — ถามสถานะการอัพข้อมูลในระบบ Pacred ผ่าน API ลับ
+//    ตั้ง env เพิ่ม 2 ตัว:
+//      PACRED_API_URL    = https://pacred.co.th   (โดเมนเว็บ Pacred · ไม่ต้องมี / ท้าย)
+//      PACRED_API_SECRET = <secret ตัวเดียวกับที่ตั้งใน Vercel ของ Pacred>
+// ============================================================
+const PACRED_API_URL    = (process.env.PACRED_API_URL || "").replace(/\/+$/, "");
+const PACRED_API_SECRET = process.env.PACRED_API_SECRET || "";
+
+async function pacredGet(q) {
+  if (!PACRED_API_URL || !PACRED_API_SECRET) throw new Error("ยังไม่ได้ตั้ง PACRED_API_URL / PACRED_API_SECRET");
+  const res = await axios.get(`${PACRED_API_URL}/api/bot`, {
+    params: { q },
+    headers: { Authorization: `Bearer ${PACRED_API_SECRET}` },
+    timeout: 12000,
+  });
+  return res.data;
+}
+
+// คำสั่งผู้ช่วยงาน (พิมพ์ในไลน์) → true ถ้าเป็นคำสั่งที่ต้องไปถามระบบ Pacred
+function isWorkCommand(text) {
+  const t = (text || "").toLowerCase();
+  return /อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน/.test(t);
+}
+
+// dd/mm/yy hh:mm (พ.ศ.)
+function fmtWhen(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear() + 543).slice(2)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function lineOfUpload(name, hist) {
+  const l = hist && hist.last;
+  if (!l) return `• ${name}: ยังไม่มีประวัติ`;
+  return `• ${name}: ${l.label} · ${l.count} แทรค\n   ${fmtWhen(l.when)} · โดย ${l.byName}${l.applied ? " · ✓ใช้แล้ว" : ""}`;
+}
+
+async function handleWorkAssistant(event, keyword) {
+  const t = (keyword || "").toLowerCase();
+  try {
+    if (/แทรคค้าง|ยังไม่เข้า|งานค้าง|^ค้าง/.test(t)) {
+      const { pending } = await pacredGet("pending");
+      if (!pending || pending.count === 0)
+        return lineClient.replyMessage(event.replyToken, { type: "text", text: "✅ ไม่มีแทรคค้าง — MOMO ที่ sync มา นำเข้าระบบครบแล้ว" });
+      const rows = pending.recent.slice(0, 15)
+        .map((r, i) => `${i + 1}) ${r.tracking}${r.pr ? ` · ${r.pr}` : ""}${r.container ? ` · ${r.container}` : ""}`)
+        .join("\n");
+      return lineClient.replyMessage(event.replyToken, {
+        type: "text",
+        text: `🔴 แทรคที่ยังไม่ได้นำเข้าระบบ: ${pending.count} แทรค\n(แสดง ${Math.min(15, pending.recent.length)} ล่าสุด)\n\n${rows}`,
+      });
+    }
+    // ค่าเริ่มต้น = สรุปการอัพล่าสุด
+    const { uploads } = await pacredGet("uploads");
+    const text =
+      "📦 สรุปการอัพข้อมูลล่าสุด (Pacred)\n\n" +
+      lineOfUpload("MOMO แพคกิ้ง", uploads.momoPacking) + "\n" +
+      lineOfUpload("MOMO ใบวางบิล", uploads.momoInvoice) + "\n" +
+      lineOfUpload("อี้อู แพคกิ้ง", uploads.yiwu) + "\n" +
+      lineOfUpload("TTW แพคกิ้ง", uploads.ttw);
+    return lineClient.replyMessage(event.replyToken, { type: "text", text });
+  } catch (err) {
+    console.error("[handleWorkAssistant]", err?.response?.data || err.message);
+    return lineClient.replyMessage(event.replyToken, {
+      type: "text",
+      text: "⚠️ เชื่อมต่อระบบ Pacred ไม่ได้ ลองใหม่อีกครั้ง (หรือยังไม่ได้ตั้งค่า PACRED_API_URL / PACRED_API_SECRET ในบอท)",
+    });
+  }
+}
+
+// ============================================================
 // STATE MACHINE  (Supabase: conversation_state)
 // ============================================================
 async function setState(userId, state, data = {}) {
@@ -454,6 +527,14 @@ async function handleEvent(event) {
   if (/^(Al|AI):/i.test(keyword)) {
     const productName = keyword.replace(/^(Al|AI):\s*/i, "").trim();
     return handleAIAnalysis(event, productName, userId);
+  }
+
+  // ============================================================
+  // [0.5] ผู้ช่วยงาน Pacred (ภูม 2026-08-27) — พิมพ์ "อัพล่าสุด" / "แทรคค้าง"
+  //       → ไปถามระบบ Pacred (API ลับ) แล้วตอบสรุปในไลน์
+  // ============================================================
+  if (!state && isWorkCommand(keyword)) {
+    return handleWorkAssistant(event, keyword);
   }
 
   // ============================================================

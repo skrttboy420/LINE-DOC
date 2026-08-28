@@ -115,11 +115,14 @@ function whBlock(title, hist, maxItems = 3) {
 }
 
 // อัพเดตเข้าระบบ (แทรคที่ commit/เพิ่มเข้า tb_forwarder จริง) — format: เวลา · คนทำ · จำนวนแทรค
-// ⚠️ ไม่ relabel "ระบบ" → ภูม (ตรงนี้ "ระบบ" = cron auto-commit จริงๆ · ภูม 2026-08-28 เคาะให้คงไว้)
+// "ระบบ" → "ภูม" ตอนบอทส่งในไลน์ (ภูม 2026-08-28 เคาะ · เหมือนส่วนแพคกิ้ง · หน้าเว็บคง "ระบบ")
 function importBlock(title, hist, maxItems = 3) {
   const recent = hist && Array.isArray(hist.recent) ? hist.recent.slice(0, maxItems) : [];
   if (recent.length === 0) return `${title}\n   — ยังไม่มี —`;
-  const lines = recent.map((e) => `   • ${fmtWhenShort(e.when)} · ${e.byName} · ${e.count} แทรค`);
+  const lines = recent.map((e) => {
+    const by = e.byName === "ระบบ" ? "ภูม" : e.byName;
+    return `   • ${fmtWhenShort(e.when)} · ${by} · ${e.count} แทรค`;
+  });
   return `${title}\n${lines.join("\n")}`;
 }
 

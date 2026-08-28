@@ -114,8 +114,18 @@ function whBlock(title, hist, maxItems = 3) {
   return `${title}\n${lines.join("\n")}`;
 }
 
-function buildUploadsText(uploads) {
+// อัพเดตเข้าระบบ (แทรคที่ commit/เพิ่มเข้า tb_forwarder จริง) — format: เวลา · คนทำ · จำนวนแทรค
+// ⚠️ ไม่ relabel "ระบบ" → ภูม (ตรงนี้ "ระบบ" = cron auto-commit จริงๆ · ภูม 2026-08-28 เคาะให้คงไว้)
+function importBlock(title, hist, maxItems = 3) {
+  const recent = hist && Array.isArray(hist.recent) ? hist.recent.slice(0, maxItems) : [];
+  if (recent.length === 0) return `${title}\n   — ยังไม่มี —`;
+  const lines = recent.map((e) => `   • ${fmtWhenShort(e.when)} · ${e.byName} · ${e.count} แทรค`);
+  return `${title}\n${lines.join("\n")}`;
+}
+
+function buildUploadsText(uploads, systemImport) {
   const u = uploads || {};
+  const si = systemImport || {};
   const text = [
     "📦 อัปเดตล่าสุด · คีย์แพคกิ้งเข้าระบบ",
     "━━━━━━━━━━━━",
@@ -124,6 +134,13 @@ function buildUploadsText(uploads) {
     whBlock("🧾 อี้อู (TTW)", u.yiwu),
     "",
     whBlock("📥 TTW แพคกิ้งตู้", u.ttw),
+    "",
+    "━━━━━━━━━━━━",
+    "🚀 อัพเดตเข้าระบบล่าสุด (แทรคที่นำเข้าจริง)",
+    "",
+    importBlock("🚢 กวางโจว", si.guangzhou),
+    "",
+    importBlock("🧾 อี้อู", si.yiwu),
     "",
     "— แสดง 3 รายการล่าสุดต่อโกดัง —",
   ].join("\n");
@@ -162,8 +179,8 @@ async function handleWorkAssistant(event, keyword) {
         return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "✅ ไม่มีแทรคค้าง — MOMO ที่ sync มา นำเข้าระบบครบแล้ว" });
       return lineClient.replyMessage(event.replyToken, buildPendingText(pending));
     }
-    const { uploads } = await pacredGet("uploads");
-    return lineClient.replyMessage(event.replyToken, buildUploadsText(uploads));
+    const { uploads, systemImport } = await pacredGet("uploads");
+    return lineClient.replyMessage(event.replyToken, buildUploadsText(uploads, systemImport));
   } catch (err) {
     console.error("[handleWorkAssistant]", err?.response?.data || err.message);
     return lineClient.replyMessage(event.replyToken, {

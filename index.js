@@ -88,50 +88,64 @@ function buildMenuFlex() {
   } };
 }
 
-// แถวสรุป 1 แหล่ง (การ์ดอัพล่าสุด)
-function uploadRow(name, hist) {
-  const l = hist && hist.last;
-  return { type: "box", layout: "vertical", margin: "lg", spacing: "none", contents: [
-    { type: "text", text: name, size: "xs", color: "#999999" },
-    { type: "text", text: l ? `${l.label} · ${l.count} แทรค` : "ยังไม่มีประวัติ", size: "sm", weight: "bold", wrap: true },
-    ...(l ? [{ type: "text", text: `${fmtWhen(l.when)} · โดย ${l.byName}`, size: "xs", color: "#666666" }] : []),
-  ] };
+// ── ตอบเป็น "ข้อความ" ไม่ใช่การ์ด (ภูม 2026-08-27) — กดส่งต่อ/แชร์เข้ากลุ่มไลน์ได้ ·
+//    จัดให้อ่านง่าย แยกโกดังชัด กระชับแต่ครบ (เดิมการ์ดโชว์แค่ตัวล่าสุด = ดูเหมือนตู้เดียว) ──
+
+// dd/mm hh:mm น. (กระชับ — ตัดปีออก)
+function fmtWhenShort(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())} น.`;
 }
 
-function buildUploadsFlex(uploads) {
-  return { type: "flex", altText: "อัพเดตล่าสุด (Pacred)", quickReply: QUICK, contents: {
-    type: "bubble",
-    header: headerBox("📦 อัพเดตล่าสุด"),
-    body: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
-      uploadRow("MOMO แพคกิ้ง (กวางโจว)", uploads.momoPacking),
-      uploadRow("อี้อู แพคกิ้ง (TTW)", uploads.yiwu),
-      uploadRow("TTW แพคกิ้งตู้", uploads.ttw),
-    ] },
-  } };
+// บล็อกต่อโกดัง — โชว์ล่าสุด N รายการ (แต่ละอัน: ตู้ · กี่แทรค · เมื่อไหร่ · ใคร)
+function whBlock(title, hist, maxItems = 3) {
+  const recent = hist && Array.isArray(hist.recent) ? hist.recent.slice(0, maxItems) : [];
+  if (recent.length === 0) return `${title}\n   — ยังไม่มี —`;
+  const lines = recent.map((e) => {
+    const extra = e.extra ? `  (${e.extra})` : "";
+    return `   • ตู้ ${e.label} — ${e.count} แทรค\n      🕒 ${fmtWhenShort(e.when)} · ${e.byName}${extra}`;
+  });
+  return `${title}\n${lines.join("\n")}`;
 }
 
-function buildPendingFlex(pending) {
-  const list = (pending.recent || []).slice(0, 12);
-  const rows = list.map((r) => ({
-    type: "box", layout: "vertical", margin: "md", spacing: "none", contents: [
-      { type: "text", text: `${r.tracking}${r.pr ? ` · ${r.pr}` : ""}`, size: "sm", weight: "bold", wrap: true },
-      { type: "text", text: `${r.reason || "อื่นๆ"}${r.container ? ` · ${r.container}` : ""}`, size: "xs",
-        color: r.reason ? "#e53935" : "#999999", wrap: true },
-    ],
-  }));
-  return { type: "flex", altText: `แทรคค้าง ${pending.count} รายการ`, quickReply: QUICK, contents: {
-    type: "bubble",
-    header: headerBox(`🔴 แทรคค้าง ${pending.count} รายการ`, "#e53935"),
-    body: { type: "box", layout: "vertical", paddingAll: "16px", contents: [
-      { type: "text", text: "แทรคที่ยังไม่ได้นำเข้าระบบ (รอข้อมูลครบ)", size: "xs", color: "#666666", wrap: true },
-      ...rows,
-      ...(pending.count > list.length
-        ? [{ type: "text", text: `… และอีก ${pending.count - list.length} แทรค`, size: "xs", color: "#999999", margin: "md" }]
-        : []),
-      { type: "separator", margin: "lg" },
-      { type: "text", text: "💡 ส่วนใหญ่ค้างเพราะยังไม่มีน้ำหนัก/ขนาด — รอครบก่อนถึงนำเข้า", size: "xs", color: "#999999", wrap: true, margin: "md" },
-    ] },
-  } };
+function buildUploadsText(uploads) {
+  const u = uploads || {};
+  const text = [
+    "📦 อัปเดตล่าสุด · คีย์แพคกิ้งเข้าระบบ",
+    "━━━━━━━━━━━━",
+    whBlock("🚢 กวางโจว (MOMO)", u.momoPacking),
+    "",
+    whBlock("🧾 อี้อู (TTW)", u.yiwu),
+    "",
+    whBlock("📥 TTW แพคกิ้งตู้", u.ttw),
+    "",
+    "— แสดง 3 รายการล่าสุดต่อโกดัง —",
+  ].join("\n");
+  return { type: "text", quickReply: QUICK, text };
+}
+
+function buildPendingText(pending) {
+  const p = pending || { count: 0, recent: [] };
+  const list = Array.isArray(p.recent) ? p.recent.slice(0, 12) : [];
+  const rows = list.map((r, i) => {
+    const detail = [r.reason || "ข้อมูลไม่ครบ", r.container ? `ตู้ ${r.container}` : null]
+      .filter(Boolean).join(" · ");
+    return `${i + 1}. ${r.tracking}${r.pr ? ` · ${r.pr}` : ""}\n   ⏳ ${detail}`;
+  });
+  const more = p.count > list.length ? [`… และอีก ${p.count - list.length} แทรค`] : [];
+  const text = [
+    `🔴 แทรคค้าง ${p.count} รายการ`,
+    "(sync มาแล้ว แต่ยังไม่นำเข้าระบบ)",
+    "━━━━━━━━━━━━",
+    ...rows,
+    ...more,
+    "",
+    "💡 ส่วนใหญ่ค้างเพราะยังไม่มี น้ำหนัก/ขนาด — รอครบก่อนถึงนำเข้า",
+  ].join("\n");
+  return { type: "text", quickReply: QUICK, text };
 }
 
 async function handleWorkAssistant(event, keyword) {
@@ -143,10 +157,10 @@ async function handleWorkAssistant(event, keyword) {
       const { pending } = await pacredGet("pending");
       if (!pending || pending.count === 0)
         return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "✅ ไม่มีแทรคค้าง — MOMO ที่ sync มา นำเข้าระบบครบแล้ว" });
-      return lineClient.replyMessage(event.replyToken, buildPendingFlex(pending));
+      return lineClient.replyMessage(event.replyToken, buildPendingText(pending));
     }
     const { uploads } = await pacredGet("uploads");
-    return lineClient.replyMessage(event.replyToken, buildUploadsFlex(uploads));
+    return lineClient.replyMessage(event.replyToken, buildUploadsText(uploads));
   } catch (err) {
     console.error("[handleWorkAssistant]", err?.response?.data || err.message);
     return lineClient.replyMessage(event.replyToken, {

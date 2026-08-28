@@ -106,7 +106,10 @@ function whBlock(title, hist, maxItems = 3) {
   if (recent.length === 0) return `${title}\n   — ยังไม่มี —`;
   const lines = recent.map((e) => {
     const extra = e.extra ? `  (${e.extra})` : "";
-    return `   • ตู้ ${e.label} — ${e.count} แทรค\n      🕒 ${fmtWhenShort(e.when)} · ${e.byName}${extra}`;
+    // "ระบบ" = ระเบียนไม่มีคนประทับ (โดยเฉพาะ TTW ที่ committed_by ว่าง) — จริงๆ ภูมเป็นคนโหลด
+    // → โชว์ "ภูม" ในบอท (ภูมลงกลุ่มจะได้ไม่โดนว่า) · หน้าเว็บยังโชว์ "ระบบ" ตามจริง
+    const by = e.byName === "ระบบ" ? "ภูม" : e.byName;
+    return `   • ตู้ ${e.label} — ${e.count} แทรค\n      🕒 ${fmtWhenShort(e.when)} · ${by}${extra}`;
   });
   return `${title}\n${lines.join("\n")}`;
 }

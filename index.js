@@ -52,13 +52,27 @@ function isWorkCommand(text) {
   return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน/.test(t);
 }
 
-// dd/mm/yy hh:mm (พ.ศ.)
+// 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
+// (ภูม 2026-09-01: อัพจริง 16:14 แต่บอทโชว์ 09:14 = เพี้ยน 7 ชม. · ทำ KPI เพี้ยน).
+// แปลง tz ด้วย Intl → วัน/เดือน/ชม./นาที ตามเวลาในไทยจริง ไม่ว่าเซิร์ฟเวอร์อยู่โซนไหน.
+function bkkParts(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const f = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(d);
+  const g = (t) => (f.find((p) => p.type === t) || {}).value || "";
+  let hour = g("hour"); if (hour === "24") hour = "00";
+  return { year: Number(g("year")), month: g("month"), day: g("day"), hour, minute: g("minute") };
+}
+
+// dd/mm/yy hh:mm (พ.ศ.) — เวลาไทย
 function fmtWhen(iso) {
   if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
-  const p = (n) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${String(d.getFullYear() + 543).slice(2)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  const b = bkkParts(iso);
+  if (!b) return String(iso);
+  return `${b.day}/${b.month}/${String(b.year + 543).slice(2)} ${b.hour}:${b.minute}`;
 }
 
 // ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว
@@ -91,13 +105,12 @@ function buildMenuFlex() {
 // ── ตอบเป็น "ข้อความ" ไม่ใช่การ์ด (ภูม 2026-08-27) — กดส่งต่อ/แชร์เข้ากลุ่มไลน์ได้ ·
 //    จัดให้อ่านง่าย แยกโกดังชัด กระชับแต่ครบ (เดิมการ์ดโชว์แค่ตัวล่าสุด = ดูเหมือนตู้เดียว) ──
 
-// dd/mm hh:mm น. (กระชับ — ตัดปีออก)
+// dd/mm hh:mm น. (กระชับ — ตัดปีออก) — เวลาไทย
 function fmtWhenShort(iso) {
   if (!iso) return "-";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
-  const p = (n) => String(n).padStart(2, "0");
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())} น.`;
+  const b = bkkParts(iso);
+  if (!b) return String(iso);
+  return `${b.day}/${b.month} ${b.hour}:${b.minute} น.`;
 }
 
 // บล็อกต่อโกดัง — โชว์ล่าสุด N รายการ (แต่ละอัน: ตู้ · กี่แทรค · เมื่อไหร่ · ใคร)

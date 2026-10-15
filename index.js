@@ -80,6 +80,7 @@ const QUICK = { items: [
   { type: "action", action: { type: "message", label: "📦 อัพล่าสุด", text: "อัพล่าสุด" } },
   { type: "action", action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
   { type: "action", action: { type: "message", label: "🧾 รอตอบพิกัด", text: "รอตอบพิกัด" } },
+  { type: "action", action: { type: "message", label: "✨ Gemini", text: "Gemini: " } },
   { type: "action", action: { type: "message", label: "📋 เมนู", text: "เมนู" } },
 ] };
 
@@ -266,6 +267,37 @@ if (NOTIFY_TO) {
   console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — แจ้งเตือนงานรอตอบพิกัดยังไม่ทำงาน (พิมพ์ 'ไอดีฉัน' ในไลน์เพื่อดูไอดี)");
 }
 
+/**
+ * แปลง error จากการถามเว็บ Pacred เป็นข้อความที่บอกว่า "ติดตรงไหน"
+ *
+ * 🔴 ภูม 2026-10-15 เจอจริง: ข้อความเดิมบอกว่า "ยังไม่ได้ตั้งค่า PACRED_API_URL/SECRET"
+ *    ทั้งที่ตั้งแล้ว — ของจริงคือเว็บ prod ยังไม่ได้ push โค้ดที่มีท่อใหม่
+ *    ⇒ ภูมไปไล่หาผิดที่ · ข้อความที่เดาสาเหตุให้ = พาไปผิดทาง
+ */
+function explainPacredError(err) {
+  const code = err?.response?.status;
+  const body = err?.response?.data;
+  const msg  = (body && (body.error || body.message)) || "";
+
+  if (!PACRED_API_URL || !PACRED_API_SECRET)
+    return "⚠️ บอทยังไม่ได้ตั้งค่าเชื่อมเว็บ Pacred\n(ที่ Render ต้องมี PACRED_API_URL และ PACRED_API_SECRET)";
+
+  if (code === 401)
+    return "🔑 รหัสเชื่อมเว็บไม่ตรงกัน\nPACRED_API_SECRET ที่ Render ต้องเป็นตัวเดียวกับ PACRED_BOT_SECRET ที่ Vercel";
+
+  if (code === 400 && /unknown q/i.test(String(msg)))
+    return "🚧 เว็บ Pacred ยังไม่มีฟีเจอร์นี้\nโค้ดใหม่ยังไม่ได้ขึ้นเว็บจริง (รอ push ขึ้น main + deploy)\nคำสั่งเดิม เช่น 'แทรคค้าง' ยังใช้ได้ปกติ";
+
+  if (code === 503)
+    return "🚧 เว็บ Pacred ยังไม่เปิดทางให้บอท (ยังไม่ได้ตั้ง PACRED_BOT_SECRET ที่ Vercel)";
+
+  if (code === 500)
+    return "⚠️ เว็บ Pacred อ่านข้อมูลไม่สำเร็จ ลองใหม่อีกครั้ง";
+
+  if (!code) return "⚠️ ต่อเว็บ Pacred ไม่ติด (เน็ตสะดุด/เว็บไม่ตอบ) ลองใหม่อีกครั้ง";
+  return "⚠️ เว็บ Pacred ตอบ " + code + (msg ? " (" + msg + ")" : "") + " — ลองใหม่อีกครั้ง";
+}
+
 async function handleWorkAssistant(event, keyword) {
   const t = (keyword || "").toLowerCase();
   try {
@@ -288,10 +320,7 @@ async function handleWorkAssistant(event, keyword) {
     return lineClient.replyMessage(event.replyToken, buildUploadsText(uploads, systemImport));
   } catch (err) {
     console.error("[handleWorkAssistant]", err?.response?.data || err.message);
-    return lineClient.replyMessage(event.replyToken, {
-      type: "text",
-      text: "⚠️ เชื่อมต่อระบบ Pacred ไม่ได้ ลองใหม่อีกครั้ง (หรือยังไม่ได้ตั้งค่า PACRED_API_URL / PACRED_API_SECRET ในบอท)",
-    });
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: explainPacredError(err) });
   }
 }
 
@@ -572,6 +601,99 @@ const AI_SYSTEM_PROMPT = `
 📎 หมายเหตุ: การประเมินนี้เป็นแนวทางเบื้องต้นเท่านั้น การตัดสินใจสุดท้ายขึ้นกับด่านและเจ้าหน้าที่
 `.trim();
 
+// ============================================================
+// ✨ Gemini (ภูม 2026-10-15) — ปุ่มที่ 2 ข้าง "ค้นหาในคลัง"
+//
+//    ภูม: "อาจจะมีเพิ่มเติมด้วยเพราะ มันจะมีการอัพเดตจากนายตรวจบ้าง กรมศุลบ้าง"
+//    ⇒ prompt อยู่ตรงนี้ที่เดียว แก้แล้ว push = Render deploy ให้เอง
+//
+//    env ที่ต้องตั้งที่ Render:
+//      GEMINI_API_KEY = key จาก Google AI Studio
+//      GEMINI_MODEL   = ไม่ตั้งก็ได้ (ค่าเริ่มต้นด้านล่าง)
+//    🔴 โมเดลของ Google หมดอายุได้ — 15/10 พบว่า gemini-2.0-flash ตายแล้ว
+//       (API ตอบ 404 พร้อมบอกชื่อรุ่นใหม่) ⇒ เปลี่ยนที่ env ได้โดยไม่ต้องแก้โค้ด
+// ============================================================
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
+const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-3.8-flash").trim();
+
+// 📝 prompt ของภูม — แก้ตรงนี้ได้เลยเมื่อนายตรวจ/กรมศุลเปลี่ยนกติกา
+const GEMINI_SYSTEM_PROMPT = `คุณคือผู้เชี่ยวชาญระดับสูงด้านโลจิสติกส์ ชิปปิ้ง และการนำเข้าสินค้าจากจีนมาไทย สไตล์การคุยของคุณคือเป็นกันเอง ตรงไปตรงมาเหมือนเพื่อนสนิท (เรียกฉันว่า 'เพื่อน' เสมอ) และเน้นข้อมูลที่ใช้งานได้จริง ไม่ต้องเกริ่นนำยืดยาว
+
+ทุกครั้งที่ฉันพิมพ์ชื่อสินค้าเข้ามา หน้าที่ของคุณคือ:
+
+สร้าง ตาราง Markdown สรุปข้อมูลทันที โดยมีคอลัมน์: [รายการสินค้า | พิกัดอ้างอิง (HS Code) | อากรปกติ | Form E (ต้องเป็น 0% เสมอ) | ข้อควบคุมหน้าด่าน (เช่น มอก., อย., กสทช.)]
+
+ใต้ตาราง ให้ทำ Bullet Points สรุป 'ข้อควรระวังระดับวิกฤตและทริคโลจิสติกส์' โดยใช้ Emoji นำหน้า เช่น:
+
+🔴 ด่านใบอนุญาต: วิเคราะห์ความเสี่ยง อย., สมอ. (มอก.), กสทช., กรมปศุสัตว์ หรือด่านลิขสิทธิ์
+
+📝 ทริคสำแดงชื่อ: แนะนำชื่อภาษาอังกฤษ/ไทย ที่ควรใช้ใน Invoice เพื่อให้รอด Red Line และปลอดภัยที่สุด
+
+📦 การขนส่ง & แพ็กกิ้ง: วิเคราะห์ว่าสินค้าคิดค่าส่งทางเรือแบบไหน (เหมาคิว CBM หรือ เหมาน้ำหนัก Ton) และแนะนำวิธีให้โรงงานแพ็กเพื่อประหยัดค่าขนส่งมากที่สุด
+
+ปิดท้ายด้วยคำถามสั้นๆ 1 คำถามเพื่อชวนคุยถึงแผนการตลาดหรือการนำเข้าลอตนี้`;
+
+async function askGemini(productName, hintNames) {
+  if (!GEMINI_API_KEY) throw new Error("ยังไม่ได้ตั้ง GEMINI_API_KEY");
+  // ชื่อใกล้เคียงที่คลังรู้จัก — ช่วยให้ AI เดาน้อยลง (ว่างได้)
+  const hint = (hintNames && hintNames.length)
+    ? "\n\n(ชื่อที่ระบบเราเคยใช้เรียกของแบบนี้: " + hintNames.slice(0, 6).join(" · ") + ")"
+    : "";
+
+  // 🔴 Gemini ตอบ 503/429 บ่อยเวลาฝั่ง Google แน่น (เจอจริงตอนทดสอบ 15/10)
+  //    ไม่ลองซ้ำ = ภูมเจอ "ตอบไม่ได้" ทั้งที่ของใช้ได้ ⇒ ลองใหม่ 3 ครั้ง ห่างขึ้นเรื่อยๆ
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await axios.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent",
+        {
+          systemInstruction: { parts: [{ text: GEMINI_SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: productName + hint }] }],
+        },
+        { params: { key: GEMINI_API_KEY }, headers: { "content-type": "application/json" }, timeout: 30000 },
+      );
+      const parts = res.data?.candidates?.[0]?.content?.parts || [];
+      const text  = parts.map(p => p.text || "").join("").trim();
+      if (!text) throw new Error("Gemini ตอบกลับว่าง");
+      return text;
+    } catch (e) {
+      lastErr = e;
+      const code = e?.response?.status;
+      // ลองใหม่เฉพาะที่ลองแล้วมีโอกาสหาย (แน่น/เกินโควตา/เน็ตสะดุด)
+      const worthRetry = code === 503 || code === 429 || code === 500 || !code;
+      if (!worthRetry || attempt === 3) break;
+      console.warn("[askGemini] ลองใหม่ครั้งที่ " + (attempt + 1) + " (HTTP " + (code || "ไม่มีรหัส") + ")");
+      await new Promise(r => setTimeout(r, attempt * 1500));
+    }
+  }
+  const code = lastErr?.response?.status;
+  throw new Error(code === 503 ? "Gemini แน่นอยู่ ลองใหม่อีกครั้ง" : (lastErr?.message || "เรียก Gemini ไม่สำเร็จ"));
+}
+
+/** ปุ่ม Gemini — วิเคราะห์พิกัดด้วย AI (ไม่ใช่คำตอบจากคลัง) */
+async function handleGeminiAnalysis(event, productName) {
+  try {
+    // เอาชื่อใกล้เคียงจากคลังไปช่วย prompt (คลังของบอท — ภูมเลือกข้อ ข 15/10)
+    let hints = [];
+    try {
+      const rows = await searchHS(productName);
+      hints = rows.map(r => r.th).filter(Boolean).slice(0, 6);
+    } catch (_) { /* หาไม่ได้ก็ไม่เป็นไร */ }
+
+    const reply = await askGemini(productName, hints);
+    // 🔒 พิกัดผิด = ภาษีผิด ⇒ ติดป้ายเสมอว่านี่คือคำแนะนำของ AI ยังไม่ยืนยัน
+    const text = ["✨ Gemini วิเคราะห์: " + productName, "⚠️ AI แนะนำ — ยังไม่ยืนยัน ตรวจกับกรมศุลก่อนใช้จริง", "━━━━━━━━━━━━", "", reply].join("\n").slice(0, 4900);
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: text });
+  } catch (err) {
+    console.error("[handleGeminiAnalysis]", (err && err.response && JSON.stringify(err.response.data).slice(0, 200)) || (err && err.message) || err);
+    return lineClient.replyMessage(event.replyToken, { type: "text", text:
+      (!GEMINI_API_KEY
+        ? "🔑 ยังไม่ได้ใส่ GEMINI_API_KEY ที่ Render\n(Render → line-bot-fms2 → Environment → Add)\nระหว่างนี้พิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังได้"
+        : "⚠️ Gemini ตอบไม่ได้ตอนนี้ (" + ((err && err.message) || "ไม่ทราบสาเหตุ") + ")\nลองใหม่ หรือพิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังแทน") });
+  }
+}
+
 async function askGroq(messages) {
   try {
     const response = await axios.post(
@@ -718,9 +840,32 @@ async function handleEvent(event) {
   // [0] AI TRIGGER จากปุ่ม "ให้ AI วิเคราะห์แทน"
   //     หรือพิมพ์ขึ้นต้นด้วย Al: / AI:
   // ============================================================
+  // ── ✨ ปุ่ม/คำสั่ง Gemini (ภูม 2026-10-15) ──
+  if (/^(gemini|เจมิไน|เจมินาย)[:\s]/i.test(keyword)) {
+    const name = keyword.replace(/^(gemini|เจมิไน|เจมินาย)[:\s]+/i, "").trim();
+    if (!name) return lineClient.replyMessage(event.replyToken, { type: "text", text: "พิมพ์ชื่อสินค้าต่อท้ายด้วยนะ เช่น  Gemini: ปั๊มลม" });
+    return handleGeminiAnalysis(event, name);
+  }
+
   if (/^(Al|AI):/i.test(keyword)) {
     const productName = keyword.replace(/^(Al|AI):\s*/i, "").trim();
     return handleAIAnalysis(event, productName, userId);
+  }
+
+  // ── "เช็คระบบ" — บอกว่าอะไรพร้อม/ไม่พร้อม ในคำสั่งเดียว (ภูม 2026-10-15) ──
+  if (/^เช็คระบบ|^เชคระบบ|^สถานะระบบ|^status$/i.test(keyword)) {
+    const lines = ["🔧 สถานะระบบ", ""];
+    lines.push(PACRED_API_URL ? "✅ ตั้ง PACRED_API_URL แล้ว" : "❌ ยังไม่ได้ตั้ง PACRED_API_URL");
+    lines.push(PACRED_API_SECRET ? "✅ ตั้ง PACRED_API_SECRET แล้ว" : "❌ ยังไม่ได้ตั้ง PACRED_API_SECRET");
+    lines.push(GEMINI_API_KEY ? "✅ ตั้ง GEMINI_API_KEY แล้ว (รุ่น " + GEMINI_MODEL + ")" : "❌ ยังไม่ได้ตั้ง GEMINI_API_KEY");
+    lines.push(NOTIFY_TO ? "✅ ตั้ง NOTIFY_TO แล้ว — แจ้งเตือนทุก 5 นาที" : "❌ ยังไม่ได้ตั้ง NOTIFY_TO — ยังไม่เด้งแจ้งเตือน");
+    lines.push("");
+    try {
+      const r = await pacredGet("hs-pending");
+      lines.push("✅ เว็บ Pacred ตอบแล้ว — งานรอตอบพิกัด " + (r?.hsPending?.count ?? "?") + " ใบ");
+      if (r?.push) lines.push(r.push.configured ? "✅ เว็บดันหาบอทได้ (แบบ B เปิดอยู่)" : "⚪ เว็บยังไม่ได้ตั้งตัวดัน (แบบ B ปิด · แบบ A ยังทำงาน)");
+    } catch (e) { lines.push("❌ " + explainPacredError(e).split("\n")[0]); }
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: lines.join("\n") });
   }
 
   // ── "ไอดีฉัน" — บอก LINE id เพื่อเอาไปใส่ env NOTIFY_TO ที่ Render ──

@@ -49,7 +49,7 @@ async function pacredGet(q) {
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด/.test(t);
 }
 
 // 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
@@ -79,6 +79,7 @@ function fmtWhen(iso) {
 const QUICK = { items: [
   { type: "action", action: { type: "message", label: "📦 อัพล่าสุด", text: "อัพล่าสุด" } },
   { type: "action", action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
+  { type: "action", action: { type: "message", label: "🧾 รอตอบพิกัด", text: "รอตอบพิกัด" } },
   { type: "action", action: { type: "message", label: "📋 เมนู", text: "เมนู" } },
 ] };
 
@@ -184,11 +185,99 @@ function buildPendingText(pending) {
   return { type: "text", quickReply: QUICK, text };
 }
 
+// ============================================================
+// 🧾 งานรอตอบพิกัด (ภูม 2026-10-15) — แท็บ /admin/service-orders?q=10
+//    แบบ A: ตัวจับเวลาถามเว็บทุก 5 นาที
+//    แบบ B: เว็บยิงมาที่ POST /pacred-hook ทันทีที่งานเข้า
+//    ทั้ง 2 ทางมารวมที่ tellPending() ซึ่งกันแจ้งซ้ำให้แล้ว
+// ============================================================
+
+// ภูม 2026-10-15: "ลบชื่อรายการสินค้าออกไปก็ได้ ถ้าออเดอร์มันมาหลายรายการมันจะยิ่งเยอะจนรก"
+function buildHsPendingText(hsPending, opts = {}) {
+  const p = hsPending || { count: 0, orders: [] };
+  const list = Array.isArray(p.orders) ? p.orders : [];
+  const host = (PACRED_API_URL || "https://pacred.co.th").replace(/^https?:\/\//, "");
+  const rows = list.map((o, i) => [
+    (i + 1) + ". " + o.hno + (o.customerCode ? " · " + o.customerCode : "") +
+      (o.customerName ? " (" + o.customerName + ")" : ""),
+    "   " + o.lineCount + " รายการ · ยังไม่มีพิกัด " + o.missingHsCount,
+    "   ⏱ ค้างมา " + o.waitingLabel,
+    "   👉 " + host + o.path,
+  ].join("\n"));
+  const more = p.count > list.length ? ["… และอีก " + (p.count - list.length) + " ใบ"] : [];
+  const head = opts.isNew ? "🔔 งานใหม่เข้ามา — รอตอบพิกัด" : "🧾 งานรอตอบพิกัด " + p.count + " ใบ";
+  return { type: "text", quickReply: QUICK, text: [head, "━━━━━━━━━━━━"].concat(rows, more).join("\n") };
+}
+
+// ── ใครรับแจ้งเตือน ─────────────────────────────────────────
+// ตั้ง env NOTIFY_TO = LINE userId (ขึ้นต้น U…) หรือ groupId (ขึ้นต้น C…)
+// ไม่รู้ไอดีตัวเอง? พิมพ์ "ไอดีฉัน" ในไลน์ บอทตอบให้ แล้วก๊อปไปใส่ Render ได้เลย
+const NOTIFY_TO = (process.env.NOTIFY_TO || "").trim();
+
+// ── กันแจ้งซ้ำ (ภูมถามเอง: "บอทจะรวนไหม") ──────────────────
+// B เด้งแล้ว A จะเจอใบเดิมอีกทุก 5 นาที ⇒ จำว่าบอกใบไหนไปเมื่อไหร่
+// ใบเดิมเตือนซ้ำทุก 4 ชม. · ใบที่ตอบพิกัดเสร็จแล้วลืมทันที (กลับเข้าคิวใหม่ = เด้งใหม่)
+const toldAt = new Map();
+const REMIND_MS = 4 * 60 * 60 * 1000;
+function shouldTell(hno, now) {
+  const t = now || Date.now();
+  const last = toldAt.get(hno);
+  if (last && t - last < REMIND_MS) return false;
+  toldAt.set(hno, t);
+  return true;
+}
+
+async function pushNotify(message) {
+  if (!NOTIFY_TO) { console.warn("[notify] ยังไม่ได้ตั้ง NOTIFY_TO — ข้ามการแจ้งเตือน"); return false; }
+  try { await lineClient.pushMessage(NOTIFY_TO, message); return true; }
+  catch (e) { console.error("[notify] push ล้ม:", (e && e.message) || e); return false; }
+}
+
+/** ถามเว็บแล้วเด้งเฉพาะใบที่ยังไม่เคยบอก (ใช้ร่วมกันทั้งตัวจับเวลาและตอนเว็บยิงมา) */
+async function tellPending(opts) {
+  const isNew = !!(opts && opts.isNew);
+  let data;
+  try { data = await pacredGet("hs-pending"); }
+  catch (e) { console.error("[tellPending] ถามเว็บไม่ได้:", (e && e.message) || e); return; }
+
+  const p = data && data.hsPending;
+  if (!p) return;
+
+  // 🔴 เว็บแปะสุขภาพ "ตัวดัน" (แบบ B) มาด้วย — ดันไม่ออกแล้วห้ามเงียบ
+  if (data.push && data.push.broken) await pushNotify({ type: "text", text: "⚠️ " + data.push.reason });
+
+  const orders = p.orders || [];
+  const fresh = orders.filter(o => shouldTell(o.hno));
+  const live = new Set(orders.map(o => o.hno));
+  for (const hno of Array.from(toldAt.keys())) if (!live.has(hno)) toldAt.delete(hno);
+
+  if (fresh.length === 0) return;
+  await pushNotify(buildHsPendingText({ count: p.count, orders: fresh }, { isNew: isNew }));
+}
+
+// ⏱ แบบ A — ถามเว็บทุก 5 นาที (ภูมเคาะ 2026-10-15)
+const PENDING_POLL_MS = 5 * 60 * 1000;
+if (NOTIFY_TO) {
+  setInterval(function () {
+    tellPending().catch(e => console.error("[poll]", (e && e.message) || e));
+  }, PENDING_POLL_MS);
+  console.log("⏱ เช็คงานรอตอบพิกัดทุก " + (PENDING_POLL_MS / 60000) + " นาที");
+} else {
+  console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — แจ้งเตือนงานรอตอบพิกัดยังไม่ทำงาน (พิมพ์ 'ไอดีฉัน' ในไลน์เพื่อดูไอดี)");
+}
+
 async function handleWorkAssistant(event, keyword) {
   const t = (keyword || "").toLowerCase();
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
       return lineClient.replyMessage(event.replyToken, buildMenuFlex());
+    if (/รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด/.test(t)) {
+      const r = await pacredGet("hs-pending");
+      const hp = r && r.hsPending;
+      if (!hp || hp.count === 0)
+        return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "✅ ไม่มีงานรอตอบพิกัด — เคลียร์หมดแล้ว" });
+      return lineClient.replyMessage(event.replyToken, buildHsPendingText(hp));
+    }
     if (/แทรคค้าง|ยังไม่เข้า|งานค้าง|^ค้าง/.test(t)) {
       const { pending } = await pacredGet("pending");
       if (!pending || pending.count === 0)
@@ -634,6 +723,15 @@ async function handleEvent(event) {
     return handleAIAnalysis(event, productName, userId);
   }
 
+  // ── "ไอดีฉัน" — บอก LINE id เพื่อเอาไปใส่ env NOTIFY_TO ที่ Render ──
+  if (/^ไอดีฉัน|^ไอดี|^my ?id$/i.test(keyword)) {
+    const gid = event.source.groupId || event.source.roomId || null;
+    const lines = ["🪪 ไอดีสำหรับตั้งแจ้งเตือน", "", "ของคุณ: " + userId];
+    if (gid) lines.push("ของกลุ่มนี้: " + gid);
+    lines.push("", "เอาไปใส่ที่ Render → Environment → NOTIFY_TO", "(ใส่ของกลุ่ม = ทั้งกลุ่มได้รับแจ้งเตือน)");
+    return lineClient.replyMessage(event.replyToken, { type: "text", text: lines.join("\n") });
+  }
+
   // ============================================================
   // [0.5] ผู้ช่วยงาน Pacred (ภูม 2026-08-27) — พิมพ์ "อัพล่าสุด" / "แทรคค้าง"
   //       → ไปถามระบบ Pacred (API ลับ) แล้วตอบสรุปในไลน์
@@ -1032,6 +1130,19 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 });
 
 app.use(express.json());
+
+// ============================================================
+// 🔔 แบบ B — เว็บ Pacred ยิงมาทันทีที่งานเข้าสถานะ "รอตรวจพิกัด/เอกสาร"
+//    เว็บส่ง { kind:"hs-pending", hno:"P22704", at:"..." } + header Bearer <PACRED_API_SECRET>
+//    บอทไม่เชื่อ payload ตรงๆ — ถามเว็บซ้ำผ่าน tellPending() แล้วค่อยเด้ง (กันคนยิงมั่ว)
+// ============================================================
+app.post("/pacred-hook", (req, res) => {
+  const got = (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+  if (!PACRED_API_SECRET || got !== PACRED_API_SECRET) return res.sendStatus(401);
+  res.sendStatus(200);
+  console.log("[pacred-hook] งานใหม่ " + ((req.body && req.body.hno) || "(ไม่ระบุเลข)"));
+  tellPending({ isNew: true }).catch(e => console.error("[pacred-hook]", (e && e.message) || e));
+});
 
 // ============================================================
 // SELF PING — แก้ปัญหา cold start บน Render Free Tier

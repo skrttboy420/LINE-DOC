@@ -1266,7 +1266,19 @@ function buildEditMenu(item) {
 // ============================================================
 
 app.get("/webhook", (req, res) => res.send("DOC BOT is running ✅"));
-app.get("/ping", (req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+// /ping บอกด้วยว่ารันโค้ดชุดไหน + ฟีเจอร์ไหนพร้อม
+// (ภูม 2026-10-15: deploy แล้วแต่ยังใช้ไม่ได้ เพราะเป็นโค้ดคนละชุด ⇒ ต้องตรวจได้จากข้างนอก)
+app.get("/ping", (req, res) => res.json({
+  status: "ok",
+  time: new Date().toISOString(),
+  commit: (process.env.RENDER_GIT_COMMIT || "").slice(0, 7) || null,
+  features: {
+    hsPending: true,
+    gemini: Boolean(GEMINI_API_KEY),
+    notify: Boolean(NOTIFY_TO),
+    pacredApi: Boolean(PACRED_API_URL && PACRED_API_SECRET),
+  },
+}));
 
 app.post("/webhook", middleware(lineConfig), (req, res) => {
   res.sendStatus(200);

@@ -614,7 +614,17 @@ const AI_SYSTEM_PROMPT = `
 //       (API ตอบ 404 พร้อมบอกชื่อรุ่นใหม่) ⇒ เปลี่ยนที่ env ได้โดยไม่ต้องแก้โค้ด
 // ============================================================
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
-const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-3.8-flash").trim();
+// 🔴 วัดจริง 2026-10-15 (key ของภูม = free tier) — รุ่นไหนใช้ได้บ้าง:
+//      gemini-flash-lite-latest  ✅ 6.3 วิ   ← เร็วและใช้ได้จริง
+//      gemini-3.8-flash          ❌ 503 แน่นตลอด
+//      gemini-flash-latest       ❌ ช้าเกิน 60 วิ
+//      gemini-pro-latest         ❌ 429 เกินโควตา
+//      gemini-2.5-*              ❌ 404 ปิดบริการแล้ว
+//    ⇒ รุ่นของ Google ตาย/แน่นได้ตลอด ⇒ มีรุ่นสำรองไล่ลงมา + เปลี่ยนที่ env ได้
+const GEMINI_MODEL   = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest").trim();
+const GEMINI_FALLBACK_MODELS = (process.env.GEMINI_FALLBACK_MODELS ||
+  "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-flash-latest").split(",").map(x => x.trim()).filter(Boolean);
+const GEMINI_TIMEOUT_MS = Number(process.env.GEMINI_TIMEOUT_MS || 60000);
 
 // 📝 prompt ของภูม — แก้ตรงนี้ได้เลยเมื่อนายตรวจ/กรมศุลเปลี่ยนกติกา
 const GEMINI_SYSTEM_PROMPT = `คุณคือผู้เชี่ยวชาญระดับสูงด้านโลจิสติกส์ ชิปปิ้ง และการนำเข้าสินค้าจากจีนมาไทย สไตล์การคุยของคุณคือเป็นกันเอง ตรงไปตรงมาเหมือนเพื่อนสนิท (เรียกฉันว่า 'เพื่อน' เสมอ) และเน้นข้อมูลที่ใช้งานได้จริง ไม่ต้องเกริ่นนำยืดยาว
@@ -642,16 +652,19 @@ async function askGemini(productName, hintNames) {
 
   // 🔴 Gemini ตอบ 503/429 บ่อยเวลาฝั่ง Google แน่น (เจอจริงตอนทดสอบ 15/10)
   //    ไม่ลองซ้ำ = ภูมเจอ "ตอบไม่ได้" ทั้งที่ของใช้ได้ ⇒ ลองใหม่ 3 ครั้ง ห่างขึ้นเรื่อยๆ
+  // ไล่: รุ่นหลักลอง 2 ครั้ง → ถ้ายังไม่ไหวค่อยเปลี่ยนรุ่นสำรอง (แต่ละรุ่นลองครั้งเดียว)
+  const plan = [GEMINI_MODEL, GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
   let lastErr;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= plan.length; attempt++) {
+    const model = plan[attempt - 1];
     try {
       const res = await axios.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/" + GEMINI_MODEL + ":generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent",
         {
           systemInstruction: { parts: [{ text: GEMINI_SYSTEM_PROMPT }] },
           contents: [{ role: "user", parts: [{ text: productName + hint }] }],
         },
-        { params: { key: GEMINI_API_KEY }, headers: { "content-type": "application/json" }, timeout: 30000 },
+        { params: { key: GEMINI_API_KEY }, headers: { "content-type": "application/json" }, timeout: GEMINI_TIMEOUT_MS },
       );
       const parts = res.data?.candidates?.[0]?.content?.parts || [];
       const text  = parts.map(p => p.text || "").join("").trim();
@@ -660,19 +673,45 @@ async function askGemini(productName, hintNames) {
     } catch (e) {
       lastErr = e;
       const code = e?.response?.status;
-      // ลองใหม่เฉพาะที่ลองแล้วมีโอกาสหาย (แน่น/เกินโควตา/เน็ตสะดุด)
-      const worthRetry = code === 503 || code === 429 || code === 500 || !code;
-      if (!worthRetry || attempt === 3) break;
-      console.warn("[askGemini] ลองใหม่ครั้งที่ " + (attempt + 1) + " (HTTP " + (code || "ไม่มีรหัส") + ")");
-      await new Promise(r => setTimeout(r, attempt * 1500));
+      // ลองต่อเฉพาะที่ลองแล้วมีโอกาสผ่าน (แน่น/เกินโควตา/รุ่นปิด/เน็ตสะดุด)
+      const worthRetry = code === 503 || code === 429 || code === 500 || code === 404 || !code;
+      if (!worthRetry || attempt === plan.length) break;
+      const next = plan[attempt];
+      console.warn("[askGemini] " + model + " ไม่ไหว (HTTP " + (code || "ไม่มีรหัส") + ") → ลอง " + next);
+      await new Promise(r => setTimeout(r, 1200));
     }
   }
   const code = lastErr?.response?.status;
-  throw new Error(code === 503 ? "Gemini แน่นอยู่ ลองใหม่อีกครั้ง" : (lastErr?.message || "เรียก Gemini ไม่สำเร็จ"));
+  const tried = "ลองมาแล้ว " + plan.length + " รอบ";
+  throw new Error(
+    code === 503 ? "Gemini แน่นอยู่ทุกรุ่น (" + tried + ") ลองใหม่อีกครั้ง"
+    : code === 429 ? "โควตา Gemini เต็มแล้ว (" + tried + ") รอสักพักแล้วลองใหม่"
+    : (lastErr?.message || "เรียก Gemini ไม่สำเร็จ"));
 }
 
-/** ปุ่ม Gemini — วิเคราะห์พิกัดด้วย AI (ไม่ใช่คำตอบจากคลัง) */
+/**
+ * ปุ่ม Gemini — วิเคราะห์พิกัดด้วย AI (ไม่ใช่คำตอบจากคลัง)
+ *
+ * 🔴 ภูม 2026-10-15: *"มันไม่ตอบไรเลยอะ"* → log บอก `timeout of 30000ms exceeded`
+ *    ต้นเหตุจริงคือ **replyToken ของ LINE มีอายุสั้น (~30 วิ)** แต่ Gemini คิด 15–40 วิ
+ *    ⇒ รอคำตอบแล้วค่อย reply = ไม่ทันเกือบทุกครั้ง (ยิ่งบน Render Free Tier ที่เพิ่งตื่น)
+ *
+ *    ⇒ แก้ด้วยการ **ตอบรับทันทีด้วย replyToken** ("กำลังวิเคราะห์…")
+ *       แล้วค่อยส่งคำตอบจริงด้วย pushMessage ตอน Gemini ตอบเสร็จ (ไม่ติดเพดานเวลา)
+ */
 async function handleGeminiAnalysis(event, productName) {
+  const to = event.source.userId || event.source.groupId || event.source.roomId;
+
+  if (!GEMINI_API_KEY) {
+    return lineClient.replyMessage(event.replyToken, { type: "text", text:
+      "🔑 ยังไม่ได้ใส่ GEMINI_API_KEY ที่ Render\n(Render → line-bot-fms2 → Environment → Add)\nระหว่างนี้พิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังได้" });
+  }
+
+  // ตอบรับก่อน — ใช้ replyToken ตอนที่ยังสดอยู่
+  await lineClient.replyMessage(event.replyToken, { type: "text",
+    text: "✨ กำลังให้ Gemini วิเคราะห์ \"" + productName + "\" …\n(ใช้เวลาราว 15–40 วินาที เดี๋ยวส่งมาให้)" });
+
+  // แล้วค่อยทำงานจริง — ส่งผลด้วย push (ไม่ติดเพดานเวลาของ replyToken)
   try {
     // เอาชื่อใกล้เคียงจากคลังไปช่วย prompt (คลังของบอท — ภูมเลือกข้อ ข 15/10)
     let hints = [];
@@ -684,13 +723,11 @@ async function handleGeminiAnalysis(event, productName) {
     const reply = await askGemini(productName, hints);
     // 🔒 พิกัดผิด = ภาษีผิด ⇒ ติดป้ายเสมอว่านี่คือคำแนะนำของ AI ยังไม่ยืนยัน
     const text = ["✨ Gemini วิเคราะห์: " + productName, "⚠️ AI แนะนำ — ยังไม่ยืนยัน ตรวจกับกรมศุลก่อนใช้จริง", "━━━━━━━━━━━━", "", reply].join("\n").slice(0, 4900);
-    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: text });
+    return lineClient.pushMessage(to, { type: "text", quickReply: QUICK, text: text });
   } catch (err) {
     console.error("[handleGeminiAnalysis]", (err && err.response && JSON.stringify(err.response.data).slice(0, 200)) || (err && err.message) || err);
-    return lineClient.replyMessage(event.replyToken, { type: "text", text:
-      (!GEMINI_API_KEY
-        ? "🔑 ยังไม่ได้ใส่ GEMINI_API_KEY ที่ Render\n(Render → line-bot-fms2 → Environment → Add)\nระหว่างนี้พิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังได้"
-        : "⚠️ Gemini ตอบไม่ได้ตอนนี้ (" + ((err && err.message) || "ไม่ทราบสาเหตุ") + ")\nลองใหม่ หรือพิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังแทน") });
+    return lineClient.pushMessage(to, { type: "text", text:
+      "⚠️ Gemini ตอบไม่ได้ตอนนี้ (" + ((err && err.message) || "ไม่ทราบสาเหตุ") + ")\nลองใหม่อีกครั้ง หรือพิมพ์ชื่อสินค้าเฉยๆ เพื่อค้นในคลังแทน" });
   }
 }
 

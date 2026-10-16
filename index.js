@@ -49,7 +49,7 @@ async function pacredGet(q) {
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด/.test(t);
 }
 
 // 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
@@ -80,8 +80,12 @@ const QUICK = { items: [
   { type: "action", action: { type: "message", label: "📦 อัพล่าสุด", text: "อัพล่าสุด" } },
   { type: "action", action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
   { type: "action", action: { type: "message", label: "🧾 รอตอบพิกัด", text: "รอตอบพิกัด" } },
+  /* 🔍 ภูม 2026-10-16 — ตัดปุ่ม "เมนู" ออก เอาที่ว่างมาใส่ "ค้นพิกัด"
+     เหตุผล: การ์ดเมนูมีแค่ 2 ปุ่ม (อัพล่าสุด · แทรคค้าง) ซึ่ง**น้อยกว่า**ปุ่มแถวล่างที่มี 5
+     ⇒ กดเมนูแล้วได้ของน้อยลง + ต้องกด 2 ครั้ง = วนอยู่กับที่
+     (พิมพ์ "เมนู" ยังเรียกการ์ดได้เหมือนเดิม — แค่ไม่กินที่ปุ่มลัด) */
+  { type: "action", action: { type: "message", label: "🔍 ค้นพิกัด", text: "ค้นพิกัด" } },
   { type: "action", action: { type: "message", label: "✨ Gemini", text: "Gemini: " } },
-  { type: "action", action: { type: "message", label: "📋 เมนู", text: "เมนู" } },
 ] };
 
 function headerBox(title, color) {
@@ -298,11 +302,101 @@ function explainPacredError(err) {
   return "⚠️ เว็บ Pacred ตอบ " + code + (msg ? " (" + msg + ")" : "") + " — ลองใหม่อีกครั้ง";
 }
 
+// ══════════════════════════════════════════════════════════════
+// 🔍 ค้นพิกัดจากคลังของ Pacred (ภูม 2026-10-16)
+//
+// ภูม: *"เพิ่มปุ่มค้นพิกัดในแถวล่าง → กดแล้วบอทตอบ 'พิมพ์ชื่อสินค้ามาได้เลย'
+//        → คนรู้ทันทีว่าต้องทำอะไร"*
+//
+// 🔑 **คลังพิกัดมีที่เดียว = ฐานข้อมูลของเว็บ Pacred** (1,818 พิกัด) — บอทไม่มีคลังของตัวเอง
+//    บอทแค่ส่งคำไปถาม `/api/bot?q=hs-search` แล้วเอาผลมาพิมพ์ตอบ
+//    ต่างจากปุ่ม ✨ Gemini ที่ให้ AI เดาพิกัดให้ (ไม่ได้ดูจากคลังเรา)
+// ══════════════════════════════════════════════════════════════
+
+/** ลิงก์หน้าคลังพิกัดบนเว็บ — เผื่อคนอยากไปดู/แก้/เพิ่มเอง */
+function hsLibraryLink() {
+  const base = String(PACRED_API_URL || "").replace(/\/+$/, "");
+  return base ? base + "/admin/accounting/hs-library" : "";
+}
+
+/** ผลค้นพิกัด → ข้อความไลน์ (ส่งต่อเข้ากลุ่มได้ · ไม่ใช่การ์ด) */
+function buildHsSearchText(name, r) {
+  const items = (r && r.hits) || [];   // ท่อฝั่งเว็บคืนชื่อ hits (ไม่ใช่ items)
+  if (items.length === 0) {
+    return { type: "text", quickReply: QUICK, text: [
+      `🔍 ค้นพิกัด "${name}"`,
+      "━━━━━━━━━━━━",
+      "ไม่เจอในคลังพิกัดของเรา",
+      "",
+      "ลองพิมพ์คำสั้นลง หรือคำที่ทีมเรียกจริง เช่น \"ปั๊มลม\" แทน \"เครื่องปั๊มลมไฟฟ้า\"",
+      "ถ้าอยากให้ AI ช่วยเดา พิมพ์  Gemini: " + name,
+    ].join("\n") };
+  }
+  const rows = items.map((it, i) => {
+    const parts = [`${i + 1}. ${it.code}  ${it.nameTh || "-"}`];
+    const sub = [];
+    if (it.dutyPct !== null && it.dutyPct !== undefined) sub.push("อากร " + it.dutyPct + "%");
+    if (it.formEPct !== null && it.formEPct !== undefined) sub.push("Form E " + it.formEPct + "%");
+    if (it.statCode) sub.push("สถิติ " + it.statCode);
+    if (sub.length) parts.push("   " + sub.join(" · "));
+    const tail = [];
+    // ยิ่งเคยยิงใบขนมาก = ยิ่งเชื่อได้ (ของจริงผ่านด่านมาแล้ว)
+    if (it.declCount) tail.push("เคยยิงใบขน " + it.declCount + " ครั้ง");
+    // บอกว่า "เจอเพราะชื่อไหน" — คนจะได้รู้ว่าคลังเก็บชื่อนี้ไว้ว่าอะไร
+    if (it.matchedName && it.matchedName !== it.nameTh) tail.push("เจอเพราะชื่อ \"" + it.matchedName + "\"");
+    if (tail.length) parts.push("   " + tail.join(" · "));
+    return parts.join("\n");
+  });
+  const link = hsLibraryLink();
+  const near = (r.nearbyNames || []).filter((n) => n && n !== name).slice(0, 5);
+  const tail = []
+    .concat(near.length ? ["", "คำใกล้เคียงในคลัง: " + near.join(" · ")] : [])
+    .concat(link ? ["", "📚 ดู/แก้ในคลัง: " + link] : []);
+  return { type: "text", quickReply: QUICK, text: [
+    `🔍 ค้นพิกัด "${name}" — เจอ ${r.total || items.length} รายการ`,
+    "━━━━━━━━━━━━",
+  ].concat(rows, tail).join("\n") };
+}
+
+/** ถามชื่อสินค้า (กดปุ่มค้นพิกัดเฉยๆ ยังไม่พิมพ์ชื่อ) */
+function askHsName() {
+  return { type: "text", quickReply: QUICK, text: [
+    "🔍 ค้นพิกัดจากคลังของเรา",
+    "",
+    "พิมพ์ชื่อสินค้ามาได้เลยครับ เช่น",
+    "   ปั๊มลม",
+    "   ค้นพิกัด ถุงมือยาง",
+    "",
+    "(ค้นจากคลังพิกัดของ Pacred — ชื่อที่ทีมเราเคยใช้จริง)",
+  ].join("\n") };
+}
+
+async function handleHsSearch(event, name, userId) {
+  if (!name) {
+    if (userId) await setState(userId, "hs_search_wait", {});
+    return lineClient.replyMessage(event.replyToken, askHsName());
+  }
+  try {
+    const r = await pacredGet("hs-search", { name, limit: 5 });
+    if (userId) await clearState(userId);
+    return lineClient.replyMessage(event.replyToken, buildHsSearchText(name, r && r.hsSearch));
+  } catch (err) {
+    console.error("[handleHsSearch]", err?.response?.data || err.message);
+    if (userId) await clearState(userId);
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: explainPacredError(err) });
+  }
+}
+
 async function handleWorkAssistant(event, keyword) {
   const t = (keyword || "").toLowerCase();
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
       return lineClient.replyMessage(event.replyToken, buildMenuFlex());
+    if (/^ค้นพิกัด|^หาพิกัด|^พิกัด/.test(t)) {
+      // "ค้นพิกัด ถุงมือยาง" = ค้นเลย · "ค้นพิกัด" เฉยๆ = ถามชื่อก่อน
+      const name = (keyword || "").replace(/^(ค้นพิกัด|หาพิกัด|พิกัด)s*/i, "").trim();
+      return handleHsSearch(event, name, event.source && event.source.userId);
+    }
     if (/รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด/.test(t)) {
       const r = await pacredGet("hs-pending");
       const hp = r && r.hsPending;
@@ -877,6 +971,16 @@ async function handleEvent(event) {
   // [0] AI TRIGGER จากปุ่ม "ให้ AI วิเคราะห์แทน"
   //     หรือพิมพ์ขึ้นต้นด้วย Al: / AI:
   // ============================================================
+  /* 🔍 กดปุ่ม "ค้นพิกัด" แล้วพิมพ์ชื่อสินค้าตามมา (ภูม 2026-10-16)
+     อยู่ก่อนทุกตัวจับคำ เพราะคนเพิ่งถูกถามว่า "พิมพ์ชื่อสินค้ามาได้เลย" ⇒ สิ่งที่พิมพ์คือชื่อสินค้า */
+  if (state && state.state === "hs_search_wait") {
+    if (/^(ยกเลิก|เลิก|ออก|cancel)$/i.test(keyword)) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "ยกเลิกการค้นพิกัดแล้วครับ" });
+    }
+    return handleHsSearch(event, keyword, userId);
+  }
+
   // ── ✨ ปุ่ม/คำสั่ง Gemini (ภูม 2026-10-15) ──
   if (/^(gemini|เจมิไน|เจมินาย)[:\s]/i.test(keyword)) {
     const name = keyword.replace(/^(gemini|เจมิไน|เจมินาย)[:\s]+/i, "").trim();

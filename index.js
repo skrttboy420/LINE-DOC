@@ -38,12 +38,32 @@ const PACRED_API_URL    = (process.env.PACRED_API_URL || "").replace(/\/+$/, "")
 const PACRED_API_SECRET = process.env.PACRED_API_SECRET || "";
 const PR_RED = "#B30000"; // แดงแบรนด์ Pacred
 
-async function pacredGet(q) {
+// extra = พารามิเตอร์เพิ่ม เช่น { all: 1 } สำหรับ ?q=staff&all=1 (ภูม 2026-10-20)
+async function pacredGet(q, extra) {
   if (!PACRED_API_URL || !PACRED_API_SECRET) throw new Error("ยังไม่ได้ตั้ง PACRED_API_URL / PACRED_API_SECRET");
   const res = await axios.get(`${PACRED_API_URL}/api/bot`, {
-    params: { q }, headers: { Authorization: `Bearer ${PACRED_API_SECRET}` }, timeout: 12000,
+    params: { q, ...(extra || {}) }, headers: { Authorization: `Bearer ${PACRED_API_SECRET}` }, timeout: 12000,
   });
   return res.data;
+}
+
+// ============================================================
+// 👥 ทะเบียนพนักงาน + ด่านสิทธิ์ (ภูม 2026-10-20) — ดู staff.js
+// ============================================================
+const { createStaffRegistry } = require("./staff");
+const { mountStaffAdmin } = require("./staff-admin");
+const staffRegistry = createStaffRegistry(supabase, pacredGet);
+
+/**
+ * เจ้าของบอท — ผ่านด่านสิทธิ์เสมอ (กันล็อกตัวเองออก)
+ * ตั้ง `OWNER_LINE_ID` ที่ Render · ไม่ตั้ง = ใช้ NOTIFY_TO ถ้าเป็นไลน์ส่วนตัว (ขึ้นต้น U)
+ */
+const OWNER_LINE_ID = (process.env.OWNER_LINE_ID || "").trim();
+function isBotOwner(userId) {
+  if (!userId) return false;
+  if (OWNER_LINE_ID) return userId === OWNER_LINE_ID;
+  const n = (process.env.NOTIFY_TO || "").trim();
+  return n.startsWith("U") && userId === n;
 }
 
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง)
@@ -232,10 +252,42 @@ function shouldTell(hno, now) {
   return true;
 }
 
-async function pushNotify(message) {
-  if (!NOTIFY_TO) { console.warn("[notify] ยังไม่ได้ตั้ง NOTIFY_TO — ข้ามการแจ้งเตือน"); return false; }
-  try { await lineClient.pushMessage(NOTIFY_TO, message); return true; }
-  catch (e) { console.error("[notify] push ล้ม:", (e && e.message) || e); return false; }
+/**
+ * 📬 ส่งแจ้งเตือน — เข้า **แชทส่วนตัวของทุกคนที่ติ๊กหมวดนี้ไว้** (ภูม 2026-10-20)
+ *
+ * ภูม: *"แชทส่วนตัวของแต่ละคนสิ เพราะแต่ละคนมีไลน์ของตัวเองแล้วก็แอดไลน์บอทไปหนิ"*
+ *
+ * 🔒 กติกา: ส่งเฉพาะคนที่ `active` (ลาออก/ล็อก = ไม่ส่ง) — ตัวกรองอยู่ใน recipientsFor()
+ * 🔁 `NOTIFY_TO` เดิมยังทำงานเหมือนเดิม — เป็น "สายตรงของภูม" ที่ได้ทุกอย่างไม่ว่าทะเบียนจะเป็นยังไง
+ *    (กันวันที่ทะเบียนยังว่าง/ฐานบอทล่ม แล้วแจ้งเตือนหายไปเงียบๆ)
+ *
+ * @param {object} message  ข้อความไลน์
+ * @param {string} category หมวด (ดู CATEGORIES ใน staff.js) · ไม่ใส่ = ส่งหา NOTIFY_TO อย่างเดียว
+ */
+async function pushNotify(message, category) {
+  const targets = new Set();
+  if (NOTIFY_TO) targets.add(NOTIFY_TO);
+
+  if (category) {
+    try {
+      for (const r of await staffRegistry.recipientsFor(category)) targets.add(r.lineUserId);
+    } catch (e) {
+      // ฐานของบอทล่ม ≠ ห้ามแจ้ง — สายตรงของภูมยังต้องได้ (fail-SOFT)
+      console.error("[notify] อ่านทะเบียนไม่ได้:", (e && e.message) || e);
+    }
+  }
+
+  if (targets.size === 0) {
+    console.warn("[notify] ไม่มีผู้รับ (ยังไม่ตั้ง NOTIFY_TO และไม่มีใครติ๊กหมวด " + (category || "-") + ")");
+    return false;
+  }
+
+  let sent = 0;
+  for (const to of targets) {
+    try { await lineClient.pushMessage(to, message); sent += 1; }
+    catch (e) { console.error("[notify] push ล้ม →", to, (e && e.message) || e); }
+  }
+  return sent > 0;
 }
 
 /** ถามเว็บแล้วเด้งเฉพาะใบที่ยังไม่เคยบอก (ใช้ร่วมกันทั้งตัวจับเวลาและตอนเว็บยิงมา) */
@@ -249,7 +301,7 @@ async function tellPending(opts) {
   if (!p) return;
 
   // 🔴 เว็บแปะสุขภาพ "ตัวดัน" (แบบ B) มาด้วย — ดันไม่ออกแล้วห้ามเงียบ
-  if (data.push && data.push.broken) await pushNotify({ type: "text", text: "⚠️ " + data.push.reason });
+  if (data.push && data.push.broken) await pushNotify({ type: "text", text: "⚠️ " + data.push.reason }, "system");
 
   const orders = p.orders || [];
   const fresh = orders.filter(o => shouldTell(o.hno));
@@ -257,19 +309,28 @@ async function tellPending(opts) {
   for (const hno of Array.from(toldAt.keys())) if (!live.has(hno)) toldAt.delete(hno);
 
   if (fresh.length === 0) return;
-  await pushNotify(buildHsPendingText({ count: p.count, orders: fresh }, { isNew: isNew }));
+  await pushNotify(buildHsPendingText({ count: p.count, orders: fresh }, { isNew: isNew }), "hs_pending");
 }
 
 // ⏱ แบบ A — ถามเว็บทุก 5 นาที (ภูมเคาะ 2026-10-15)
 const PENDING_POLL_MS = 5 * 60 * 1000;
-if (NOTIFY_TO) {
-  setInterval(function () {
-    tellPending().catch(e => console.error("[poll]", (e && e.message) || e));
-  }, PENDING_POLL_MS);
-  console.log("⏱ เช็คงานรอตอบพิกัดทุก " + (PENDING_POLL_MS / 60000) + " นาที");
-} else {
-  console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — แจ้งเตือนงานรอตอบพิกัดยังไม่ทำงาน (พิมพ์ 'ไอดีฉัน' ในไลน์เพื่อดูไอดี)");
+// 👥 2026-10-20 — เดิมเปิดเฉพาะตอนตั้ง NOTIFY_TO · ตอนนี้คนในทะเบียนก็เป็นผู้รับได้ ⇒ เปิดเสมอ
+setInterval(function () {
+  tellPending().catch(e => console.error("[poll]", (e && e.message) || e));
+}, PENDING_POLL_MS);
+console.log("⏱ เช็คงานรอตอบพิกัดทุก " + (PENDING_POLL_MS / 60000) + " นาที");
+if (!NOTIFY_TO) {
+  console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — สายตรงปิดอยู่ (ยังส่งหาคนในทะเบียนที่ติ๊กหมวดไว้ได้ปกติ)");
 }
+
+// 🔄 กวาดทะเบียนให้ตรงกับเว็บวันละครั้ง — ใครลาออกแล้วจะถูกปิดสิทธิ์เอง (ภูม 2026-10-20)
+//    อ่านเว็บไม่สำเร็จ = ไม่แตะอะไร (ดู syncFromPacred) ⇒ เน็ตล่มไม่ตัดสิทธิ์ทั้งบริษัท
+const STAFF_SYNC_MS = 24 * 60 * 60 * 1000;
+setInterval(function () {
+  staffRegistry.syncFromPacred()
+    .then(r => console.log("[staff-sync]", JSON.stringify(r)))
+    .catch(e => console.error("[staff-sync]", (e && e.message) || e));
+}, STAFF_SYNC_MS);
 
 /**
  * แปลง error จากการถามเว็บ Pacred เป็นข้อความที่บอกว่า "ติดตรงไหน"
@@ -964,6 +1025,60 @@ async function handleEvent(event) {
   const keyword  = rawText.replace(/^@DOC BOT\s*/i, "").trim();
 
   console.log(`[handleEvent] userId=${userId} keyword="${keyword}"`);
+
+  // ════════════════════════════════════════════════════════════
+  // 🚪 ด่านสิทธิ์ (ภูม 2026-10-20) — ต้องอยู่ "ก่อนทุกอย่าง"
+  //
+  // ภูม: *"ถ้าคนที่ออกไปแล้วมาพิมพ์อะไรในบอทก็ให้ขึ้นไม่มีสิทธิ์ใช้งานบอทไปเลย"*
+  //
+  // 🔒 ยกเว้น 2 กรณี (ตั้งใจ · กันล็อกตัวเองออกจากบอท):
+  //    · เจ้าของบอท (OWNER_LINE_ID หรือ NOTIFY_TO ที่เป็นไลน์ส่วนตัว)
+  //    · ในกลุ่ม — ไม่บังคับ เพราะกลุ่มเป็นของที่ภูมเชิญบอทเข้าไปเอง (ของเดิมไม่พัง)
+  // ════════════════════════════════════════════════════════════
+  const inPrivateChat = !event.source.groupId && !event.source.roomId;
+  if (inPrivateChat && !isBotOwner(userId)) {
+    const pass = await staffRegistry.gate(userId);
+
+    if (!pass.ok) {
+      // 🎟 ยังไม่ผูก + พิมพ์อะไรที่หน้าตาเหมือนรหัสเชิญ ⇒ ลองผูกให้เลย
+      if (pass.reason === "not_linked" && staffRegistry.INVITE_RE.test(keyword.toUpperCase())) {
+        const r = await staffRegistry.redeemInvite(userId, keyword);
+        if (!r.ok) {
+          return lineClient.replyMessage(event.replyToken, { type: "text", text: "❌ " + r.message });
+        }
+        const s = r.staff;
+        return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: [
+          "✅ ผูกบัญชีเรียบร้อย",
+          "",
+          "คุณ " + (s.nickname || s.name),
+          (s.department || "-") + " · " + (s.position || "-"),
+          "",
+          s.notify.length
+            ? "จะได้รับแจ้งเตือน: " + s.notify.join(" · ")
+            : "ยังไม่ได้เปิดหมวดแจ้งเตือนให้ — แจ้งผู้ดูแลบอทได้เลย",
+          "",
+          "พิมพ์ \"เมนู\" เพื่อเริ่มใช้งาน",
+        ].join("\n") });
+      }
+
+      if (pass.reason === "resigned") {
+        return lineClient.replyMessage(event.replyToken, { type: "text", text: [
+          "🔒 ไม่มีสิทธิ์ใช้งานบอท",
+          "",
+          "บัญชีพนักงานของคุณปิดอยู่ในระบบ Pacred (ลาออก/ล็อก)",
+          "ถ้าคิดว่าผิดพลาด ติดต่อผู้ดูแลบอทครับ",
+        ].join("\n") });
+      }
+
+      return lineClient.replyMessage(event.replyToken, { type: "text", text: [
+        "👋 สวัสดีครับ — บอทนี้สำหรับพนักงาน Pacred",
+        "",
+        "ยังไม่ได้ผูกบัญชี · ขอ \"รหัสเชิญ\" จากผู้ดูแลบอท",
+        "แล้วพิมพ์รหัสนั้นมาได้เลย (เช่น  BAM-7421)",
+      ].join("\n") });
+    }
+  }
+
   const state = await getState(userId);
   console.log(`[handleEvent] current state = ${state?.state || "null"}`);
 
@@ -1426,6 +1541,10 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
   Promise.all(req.body.events.map(handleEvent))
     .catch(err => console.error("handleEvent error:", err));
 });
+
+// 🛠 หน้าจัดการสิทธิ์ (ภูม 2026-10-20) — ต้องต่อ "หลัง" /webhook
+//    เพราะ /webhook ต้องได้ body ดิบไปตรวจลายเซ็น LINE ก่อนที่ express.json() จะแตะ
+mountStaffAdmin(app, staffRegistry);
 
 app.use(express.json());
 

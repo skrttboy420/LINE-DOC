@@ -94,9 +94,9 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
     const r = createStaffRegistry(fakeDb(), webOk);
     ok("แผนกบัญชีได้ชุดเริ่มต้น แต่ไม่ได้หมวดที่เห็นเรื่องเงินอัตโนมัติ", () => {
       const d = r.defaultNotifyFor("Accounting");
-      assert.ok(d.includes("forwarder"), "ควรได้ forwarder");
-      assert.ok(!d.includes("wallet"), "wallet = หมวดเงิน ต้องให้ภูมติ๊กเอง");
-      assert.ok(!d.includes("yuan_payment"), "yuan_payment = หมวดเงิน ต้องให้ภูมติ๊กเอง");
+      assert.ok(d.includes("acc_slip"), "ควรได้ acc_slip (คิวตรวจสลิป = งานบัญชีเอง)");
+      assert.ok(d.includes("acc_wht"), "ควรได้ acc_wht");
+      assert.ok(!d.includes("system"), "system = เสียงรบกวนของ ITDT ต้องให้ภูมติ๊กเอง");
     });
     ok("แผนกที่ไม่รู้จัก = ไม่ได้อะไรเลย (ไม่เดามั่ว)", () => {
       assert.deepEqual(r.defaultNotifyFor("ไม่มีแผนกนี้"), []);
@@ -104,7 +104,7 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
     });
     ok("คนขับไม่ได้หมวดที่เห็นต้นทุน/ระบบ", () => {
       const d = r.defaultNotifyFor("Logistics");
-      for (const k of ["wallet", "yuan_payment", "observability", "system"]) {
+      for (const k of ["system"]) {
         assert.ok(!d.includes(k), k + " ต้องไม่อยู่ในชุดเริ่มต้นของคนขับ");
       }
     });
@@ -128,7 +128,7 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
       assert.ok(res.ok, "ควรผูกสำเร็จ (ได้: " + res.message + ")");
       assert.equal(res.staff.login, "admin_aom");
       assert.equal(res.staff.department, "Accounting");
-      assert.ok(res.staff.notify.includes("forwarder"), "ควรได้ชุดเริ่มต้นของ Accounting");
+      assert.ok(res.staff.notify.includes("acc_slip"), "ควรได้ชุดเริ่มต้นของ Accounting");
     });
 
     await okA("🔒 รหัสเดิมใช้ซ้ำไม่ได้", async () => {
@@ -192,15 +192,15 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
     await okA("📬 ผู้รับแจ้งเตือน = เฉพาะคนที่ติ๊กหมวดนั้น และยังทำงานอยู่", async () => {
       const got = await r.recipientsFor("hs_pending");
       assert.deepEqual(got.map((x) => x.lineUserId), ["U_OK"], "คนที่ลาออกต้องไม่อยู่ในรายชื่อ");
-      assert.deepEqual(await r.recipientsFor("wallet"), [], "ไม่มีใครติ๊ก = ไม่ส่งใคร");
+      assert.deepEqual(await r.recipientsFor("acc_slip"), [], "ไม่มีใครติ๊ก = ไม่ส่งใคร");
     });
   }
 
   // ── ซิงค์กับเว็บ ──────────────────────────────────────────────────
   {
     const seed = () => ({ bot_staff: [
-      { line_user_id: "U_AOM",   login: "admin_aom",   name: "เก่า", department: "เก่า", position: "เก่า", active: true, notify: ["forwarder"] },
-      { line_user_id: "U_GRING", login: "admin_gring", name: "กริ๊ง", department: "Freight Import", position: "Doc", active: true, notify: ["forwarder"] },
+      { line_user_id: "U_AOM",   login: "admin_aom",   name: "เก่า", department: "เก่า", position: "เก่า", active: true, notify: ["arrive_th"] },
+      { line_user_id: "U_GRING", login: "admin_gring", name: "กริ๊ง", department: "Freight Import", position: "Doc", active: true, notify: ["arrive_th"] },
       { line_user_id: "U_GHOST", login: "admin_ghost", name: "ผี",   department: null, position: null, active: true, notify: [] },
     ] });
 
@@ -244,9 +244,10 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
     const db = fakeDb({ bot_staff: [{ line_user_id: "U1", login: "a", name: "A", active: true, notify: [] }] });
     const r = createStaffRegistry(db, webOk);
     await okA("ติ๊กหมวดได้ และหมวดมั่วถูกตัดทิ้ง", async () => {
-      const saved = await r.setNotify("U1", ["hs_pending", "ของปลอม", "wallet"]);
-      assert.deepEqual(saved, ["hs_pending", "wallet"], "ต้องเก็บเฉพาะหมวดที่มีจริง");
-      assert.deepEqual(db._tables.bot_staff[0].notify, ["hs_pending", "wallet"]);
+      const saved = await r.setNotify("U1", ["hs_pending", "ของปลอม", "acc_slip", "forwarder"]);
+      // "forwarder" = หมวดเก่าที่เลิกใช้แล้ว ⇒ ต้องถูกตัดเหมือนหมวดมั่ว (ของที่ติ๊กไว้เดิมไม่ค้าง)
+      assert.deepEqual(saved, ["hs_pending", "acc_slip"], "ต้องเก็บเฉพาะหมวดที่มีจริง");
+      assert.deepEqual(db._tables.bot_staff[0].notify, ["hs_pending", "acc_slip"]);
     });
   }
 

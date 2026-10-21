@@ -15,18 +15,45 @@
 //    (ดูเหตุผลใน staff-schema.sql) · ถ้ายังเป็น anon จะเจอ error 42501 แล้วบอทบอกตรงๆ
 // ============================================================
 
-/** หมวดแจ้งเตือนที่ระบบ Pacred มีอยู่จริงวันนี้ (วัดจาก notifications 8,452 ใบ · 20/10) */
+/**
+ * หมวดแจ้งเตือน — ไล่ใหม่ทั้งชุด 2026-10-21 (ภูมสั่ง)
+ *
+ * 🔴 ชุดเดิมตั้งชื่อตาม "พื้นที่งาน" (งานฝากนำเข้า · ระบบ · สุขภาพระบบ)
+ *    ภูม: *"ภูมิอ่านหมวดแจ้งเตือนแล้ว บางหมวดก็งงว่ามันคือแจ้งเตือนอะไร"*
+ *    + วัดแล้วมี **แค่ 2 หมวดที่ยิงจริง** (hs_pending · system) อีก 8 เป็นสวิตช์เปล่า
+ *    ⇒ ตั้งชื่อใหม่ตาม **"ใครได้ + ตอนไหน"** และเหลือเฉพาะหมวดที่ต่อท่อแล้วจริง
+ *
+ * `group` = หัวข้อบนหน้าจัดการสิทธิ์ (จัดกลุ่มให้อ่านง่าย)
+ * `scope` = "customer" เห็นเฉพาะลูกค้าที่ตัวเองดูแล · "all" เห็นทั้งหมด
+ */
 const CATEGORIES = [
-  { key: "hs_pending",   label: "งานรอตอบพิกัด",     hint: "ออเดอร์ที่ยังไม่มีพิกัด — เดิมเด้งหาภูมคนเดียว" },
-  { key: "forwarder",    label: "งานฝากนำเข้า",      hint: "หมวดที่เยอะสุดในระบบ (6,126 ใบ)" },
-  { key: "order",        label: "งานฝากสั่งซื้อ",     hint: "734 ใบ" },
-  { key: "yuan_payment", label: "ฝากโอนหยวน",        hint: "59 ใบ" },
-  { key: "wallet",       label: "กระเป๋าเงิน",        hint: "1 ใบ" },
-  { key: "sales",        label: "งานขาย",            hint: "14 ใบ" },
-  { key: "system",       label: "ระบบ",              hint: "144 ใบ" },
-  { key: "observability", label: "สุขภาพระบบ",       hint: "1,375 ใบ — ปกติเอาไว้ให้ ITDT" },
-  { key: "uploads",      label: "การอัพข้อมูลเข้าระบบ", hint: "MOMO / อี้อู / TTW" },
-  { key: "momo_pending", label: "แทรค MOMO ค้าง",     hint: "ซิงค์มาแล้วแต่ยังไม่กดนำเข้า" },
+  // 🧑‍💼 เซล/CS — แยกตามทะเบียนลูกค้า (adminIDSale / adminIDCS)
+  { key: "arrive_cn", group: "📦 งานคลัง", scope: "customer",
+    label: "ของลูกค้าถึงโกดังจีน",   hint: "ฝากนำเข้าเข้าสถานะ 'ถึงโกดังจีนแล้ว' — รวมเป็นรอบทุก 5 นาที" },
+  { key: "arrive_th", group: "📦 งานคลัง", scope: "customer",
+    label: "ของลูกค้าถึงไทยแล้ว",    hint: "ฝากนำเข้าเข้าสถานะ 'ถึงไทยแล้ว' — ตรวจข้อมูลแล้วเรียกเก็บเงินได้" },
+
+  // 🎧 CS — ฝากสั่งซื้อ
+  { key: "shop_pay",  group: "🎧 ฝากสั่งซื้อ", scope: "customer",
+    label: "ออเดอร์เข้า รอชำระเงิน",   hint: "ตอบพิกัดเสร็จแล้ว — CS ไปเก็บเงิน + แนบสลิป" },
+  { key: "shop_ship", group: "🎧 ฝากสั่งซื้อ", scope: "customer",
+    label: "ออเดอร์เข้า รอร้านจีนจัดส่ง", hint: "บัญชีแนบสลิปจีนแล้ว — CS แจ้งลูกค้าได้" },
+
+  // 🧾 บัญชี — เห็นทั้งหมด (งานบัญชีไม่ได้แบ่งตามลูกค้า)
+  { key: "acc_yuan", group: "🧾 บัญชี", scope: "all",
+    label: "ฝากสั่งเข้า โอนหยวน/สลิปจีน", hint: "บัญชีลงต้นทุน + แนบสลิปโอนหยวน" },
+  { key: "acc_slip", group: "🧾 บัญชี", scope: "all",
+    label: "รอตรวจสลิป (ทุกบริการ)",     hint: "ฝากโอน · ฝากสั่ง · ฝากนำเข้า · มัดจำ Booking" },
+  { key: "acc_wht",  group: "🧾 บัญชี", scope: "all",
+    label: "รอตรวจใบหัก ณ ที่จ่าย",      hint: "ลูกค้าแนบใบ 50 ทวิ มาแล้ว — ตรวจรับเพื่อปลดล็อกใบเสร็จ" },
+  { key: "acc_cnt",  group: "🧾 บัญชี", scope: "all",
+    label: "ตู้ยิงรับครบแล้ว",            hint: "โกดังยิงรับครบทุกกล่อง — ตรวจตู้ได้ (ไม่ต้องรอตู้ถึงไทย)" },
+
+  // ⚙️ ของเดิมที่ยิงจริงอยู่แล้ว
+  { key: "hs_pending", group: "⚙️ อื่นๆ", scope: "all",
+    label: "งานรอตอบพิกัด",   hint: "ออเดอร์ที่ยังไม่มีพิกัด — เดิมเด้งหาภูมคนเดียว" },
+  { key: "system",     group: "⚙️ อื่นๆ", scope: "all",
+    label: "ระบบมีปัญหา",     hint: "ท่อดันหาบอทพัง ฯลฯ — ปกติเอาไว้ให้ ITDT" },
 ];
 const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 
@@ -38,21 +65,29 @@ const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
  *     Accounting Supervisor · Admin Accounting ⇒ แยกรับ/จ่ายจากตำแหน่งไม่ได้ ต้องติ๊กเอง)
  */
 const DEFAULT_BY_DEPARTMENT = {
-  ITDT:                 ["hs_pending", "uploads", "momo_pending", "system", "observability"],
-  Accounting:           ["yuan_payment", "wallet", "forwarder"],
-  Operations:           ["order", "forwarder", "sales"],
-  Logistics:            ["forwarder"],
-  "Freight Import":     ["forwarder"],
-  "Freight Export":     ["forwarder"],
-  "Customs Specialist": ["hs_pending", "order"],
-  Marketing:            ["sales"],
+  ITDT:                 ["hs_pending", "system"],
+  Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
+  Operations:           ["shop_pay", "shop_ship", "arrive_th"],
+  Logistics:            ["arrive_cn", "arrive_th"],
+  "Freight Import":     ["arrive_cn", "arrive_th"],
+  "Freight Export":     [],
+  "Customs Specialist": ["hs_pending", "shop_pay"],
+  Marketing:            ["arrive_th"],
   HR:                   [],
   Partner:              [],
   Pacred:               [],
 };
 
-/** หมวดที่ "ห้ามแจกมั่ว" — เห็นต้นทุน/กำไร/เงินของบริษัท ⇒ ต้องภูมติ๊กเอง ไม่แจกตามแผนก */
-const SENSITIVE = new Set(["wallet", "yuan_payment", "observability", "system"]);
+/**
+ * หมวดที่ "ห้ามแจกอัตโนมัติ" — ต้องภูมติ๊กเอง
+ *
+ * 🔄 2026-10-21 เหลือตัวเดียว: ชุดเดิมกันหมวดเงินไว้ทั้งก้อน เพราะค่าเริ่มต้นสมัยนั้นหยาบ
+ *    (แจก "forwarder" ให้หลายแผนก) · ตอนนี้ค่าเริ่มต้นแยกตามแผนกชัดแล้ว —
+ *    หมวด acc_* ให้เฉพาะแผนก Accounting ซึ่งเป็นงานของเขาเอง (ภูม: *"บัญชีจะงานเยอะมาก
+ *    บางทีพนักงานทำงานตกหล่นไปเยอะเลย"*) ⇒ กันไว้ = บัญชีไม่ได้อะไรเลย ผิดเจตนา
+ *    คงไว้แค่ `system` (เสียงรบกวนของ ITDT · คนอื่นได้ไปก็ไม่รู้จะทำอะไร)
+ */
+const SENSITIVE = new Set(["system"]);
 
 function defaultNotifyFor(department) {
   const base = DEFAULT_BY_DEPARTMENT[String(department || "").trim()] || [];

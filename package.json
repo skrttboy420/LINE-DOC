@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node staff.test.js && node menu.test.js && node dispatch.test.js"
+    "test": "node staff.test.js && node notify-feed.test.js && node menu.test.js && node dispatch.test.js"
   },
   "keywords": [],
   "author": "",

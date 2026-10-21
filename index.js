@@ -51,6 +51,7 @@ async function pacredGet(q, extra) {
 // 👥 ทะเบียนพนักงาน + ด่านสิทธิ์ (ภูม 2026-10-20) — ดู staff.js
 // ============================================================
 const { createStaffRegistry } = require("./staff");
+const { planNotifications } = require("./notify-feed");
 const { mountStaffAdmin } = require("./staff-admin");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
 
@@ -362,13 +363,77 @@ async function tellPending(opts) {
   await pushNotify(buildHsPendingText({ count: p.count, orders: fresh }, { isNew: isNew }), "hs_pending");
 }
 
+/* ══ 🔔 แจ้งเตือนตามหมวด — เซล · CS · บัญชี (ภูม 2026-10-21) ═══════════════
+ *
+ * ยิงถามเว็บทุก 5 นาที แล้วแจกให้คนที่ติ๊กหมวดไว้ (ดู notify-feed.js)
+ *
+ * ⏱ ขอ window 15 นาที ทั้งที่ยิงทุก 5 — เผื่อรอบที่พลาด (เน็ตสะดุด/บอทรีสตาร์ท)
+ *    ของที่ทับกัน 2 รอบถูกกันซ้ำด้วย `told` ข้างล่าง ⇒ ซ้อนได้ไม่เป็นไร แต่ตกไม่ได้
+ *
+ * 🧠 `told` = จำว่าเคยบอกเรื่องไหนไปแล้ว (คีย์ = หมวด|คน|ชิ้นงาน)
+ *    เก็บในหน่วยความจำเหมือน `toldAt` ของงานพิกัด — บอทรีสตาร์ทแล้วลืม
+ *    ⇒ หมวดที่เป็น "คิวค้าง" อาจซ้ำ 1 รอบ (คิวเล็ก 4–18 ใบ ยอมได้)
+ *    ⇒ หมวดที่เยอะ (ฝากนำเข้า) ใช้ช่วงเวลาที่ฝั่งเว็บ ⇒ ไม่ซ้ำอยู่แล้ว
+ *    🧹 ล้างของเก่ากว่า 24 ชม. กันหน่วยความจำบวม
+ */
+const NOTIFY_WINDOW_MIN = 15;
+const told = new Map();
+function notifyIsNew(key) {
+  const now = Date.now();
+  if (told.has(key)) return false;
+  told.set(key, now);
+  if (told.size > 5000) {
+    for (const [k, t] of told) if (now - t > 24 * 3600_000) told.delete(k);
+  }
+  return true;
+}
+
+async function runNotifyRound() {
+  let feed;
+  try {
+    const r = await pacredGet("notify", { window: NOTIFY_WINDOW_MIN });
+    feed = r && r.notify;
+  } catch (e) {
+    console.error("[notify] ถามเว็บไม่ได้:", (e && e.message) || e);
+    return;
+  }
+  if (!feed) return;
+
+  // 🔴 หมวดไหนเว็บอ่านไม่ได้ ต้องไม่เงียบ — ไม่งั้นคนคิดว่า "ไม่มีงาน"
+  if (Array.isArray(feed.errors) && feed.errors.length) {
+    for (const msg of feed.errors.slice(0, 3)) {
+      if (notifyIsNew("feed-error|" + msg)) await pushNotify({ type: "text", text: "⚠️ แจ้งเตือนบางหมวดอ่านไม่ได้: " + msg }, "system");
+    }
+  }
+
+  let staff = [];
+  try { staff = await staffRegistry.listLinked(); }
+  catch (e) { console.error("[notify] อ่านทะเบียนไม่ได้:", (e && e.message) || e); return; }
+
+  const plans = planNotifications(feed, staff, notifyIsNew);
+  if (plans.length === 0) return;   // ✅ ไม่มีของใหม่ = เงียบสนิท (ภูมสั่ง)
+
+  for (const plan of plans) {
+    try {
+      await lineClient.pushMessage(plan.lineUserId, { type: "text", quickReply: QUICK, text: plan.text });
+      console.log(`[notify] ส่งหา ${plan.lineUserId} (${plan.keys.length} รายการ)`);
+    } catch (e) {
+      // ส่งไม่ออก = คืนคีย์ให้รอบหน้าลองใหม่ (ไม่งั้นงานหายเงียบ)
+      for (const k of plan.keys) told.delete(k);
+      console.error("[notify] ส่งไม่ออก:", (e && e.message) || e);
+    }
+  }
+}
+
 // ⏱ แบบ A — ถามเว็บทุก 5 นาที (ภูมเคาะ 2026-10-15)
 const PENDING_POLL_MS = 5 * 60 * 1000;
 // 👥 2026-10-20 — เดิมเปิดเฉพาะตอนตั้ง NOTIFY_TO · ตอนนี้คนในทะเบียนก็เป็นผู้รับได้ ⇒ เปิดเสมอ
 setInterval(function () {
   tellPending().catch(e => console.error("[poll]", (e && e.message) || e));
+  // 🔔 เกาะรอบเดียวกัน — ไม่เพิ่ม timer ใหม่ (ภูม: *"เด้งทุก 5 หรือ 10 นาทีได้ไหม"*)
+  runNotifyRound().catch(e => console.error("[notify]", (e && e.message) || e));
 }, PENDING_POLL_MS);
-console.log("⏱ เช็คงานรอตอบพิกัดทุก " + (PENDING_POLL_MS / 60000) + " นาที");
+console.log("⏱ เช็คงานรอตอบพิกัด + แจ้งเตือนตามหมวด ทุก " + (PENDING_POLL_MS / 60000) + " นาที");
 if (!NOTIFY_TO) {
   console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — สายตรงปิดอยู่ (ยังส่งหาคนในทะเบียนที่ติ๊กหมวดไว้ได้ปกติ)");
 }

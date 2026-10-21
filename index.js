@@ -66,7 +66,18 @@ function isBotOwner(userId) {
   return n.startsWith("U") && userId === n;
 }
 
-// พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง)
+/**
+ * 🪪 "คนที่พิมพ์มาคือใคร" — ใช้ร่วมกันทั้งปุ่มสรุปงานและการ์ดเมนู
+ * @returns {Promise<{userId: string, isOwner: boolean, me: object|null}>}
+ *   `me` = แถวทะเบียนที่ผูกไลน์ไว้ (null = ยังไม่ผูก · เช่น เจ้าของบอทที่ข้ามด่าน)
+ */
+async function botCallerContext(userId) {
+  let me = null;
+  try { me = await staffRegistry.whoIs(userId); } catch (_) { /* ถามไม่ได้ = ถือว่ายังไม่ผูก */ }
+  return { userId, isOwner: isBotOwner(userId), me };
+}
+
+// พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง / สรุปงานวันนี้)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
   return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด/.test(t);
@@ -95,36 +106,75 @@ function fmtWhen(iso) {
   return `${b.day}/${b.month}/${String(b.year + 543).slice(2)} ${b.hour}:${b.minute}`;
 }
 
-// ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว
-const QUICK = { items: [
-  { type: "action", action: { type: "message", label: "📦 อัพล่าสุด", text: "อัพล่าสุด" } },
-  { type: "action", action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
-  { type: "action", action: { type: "message", label: "🧾 รอตอบพิกัด", text: "รอตอบพิกัด" } },
-  /* 🔍 ภูม 2026-10-16 — ตัดปุ่ม "เมนู" ออก เอาที่ว่างมาใส่ "ค้นพิกัด"
-     เหตุผล: การ์ดเมนูมีแค่ 2 ปุ่ม (อัพล่าสุด · แทรคค้าง) ซึ่ง**น้อยกว่า**ปุ่มแถวล่างที่มี 5
-     ⇒ กดเมนูแล้วได้ของน้อยลง + ต้องกด 2 ครั้ง = วนอยู่กับที่
-     (พิมพ์ "เมนู" ยังเรียกการ์ดได้เหมือนเดิม — แค่ไม่กินที่ปุ่มลัด) */
-  { type: "action", action: { type: "message", label: "🔍 ค้นพิกัด", text: "ค้นพิกัด" } },
-  { type: "action", action: { type: "message", label: "✨ Gemini", text: "Gemini: " } },
-] };
+/* ══ 🧭 เมนูทั้งหมดอยู่ในรายการเดียว (ภูม 2026-10-21) ══════════════════════════
+ *
+ * ภูม: *"ตอนนี้มันแสดงแค่อัพเดตล่าสุด กับ แทรคค้าง จะลบไปเลยมั้ยหรือว่าจะเพิ่มปุ่มให้ครบ"*
+ *      → *"โอเค เติมให้ครบเลย"*
+ *
+ * 🔑 เดิมปุ่มลัด (แถวล่าง) กับการ์ดเมนูเขียนแยกกัน ⇒ ปุ่มลัดมี 5 · การ์ดมี 2
+ *    = กดเมนูแล้วได้ของ **น้อยลง** · เพิ่มปุ่มที่หนึ่งแล้วลืมอีกที่
+ *    ⇒ ตอนนี้ทั้ง 2 ที่สร้างจาก MENU_ITEMS ตัวเดียว — เพิ่มที่นี่ที่เดียว ขึ้นครบทั้งคู่
+ *
+ * label = บนปุ่มลัด (ไลน์จำกัด 20 ตัวอักษร) · menuLabel = บนการ์ด (ยาวได้)
+ */
+const MENU_ITEMS = [
+  { label: "📦 อัพล่าสุด",   menuLabel: "📦 อัพเดตล่าสุด",        text: "อัพล่าสุด",      color: PR_RED },
+  { label: "🔴 แทรคค้าง",    menuLabel: "🔴 แทรคค้าง",            text: "แทรคค้าง",      color: "#e53935" },
+  { label: "🧾 รอตอบพิกัด",  menuLabel: "🧾 งานรอตอบพิกัด",       text: "รอตอบพิกัด",    color: "#f57c00" },
+  { label: "📊 งานวันนี้",   menuLabel: "📊 สรุปงานวันนี้ของฉัน",  text: "สรุปงานวันนี้",  color: "#2e7d32" },
+  { label: "🔍 ค้นพิกัด",    menuLabel: "🔍 ค้นพิกัดในคลัง",       text: "ค้นพิกัด",      color: "#00897b" },
+  { label: "✨ Gemini",      menuLabel: "✨ ให้ Gemini เดาพิกัด",  text: "Gemini",       color: "#5e35b1" },
+];
+
+// ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว · ไลน์รับได้สูงสุด 13 ปุ่ม
+const QUICK = { items: MENU_ITEMS.map((m) => ({
+  type: "action", action: { type: "message", label: m.label, text: m.text },
+})) };
 
 function headerBox(title, color) {
   return { type: "box", layout: "vertical", backgroundColor: color || PR_RED, paddingAll: "14px",
     contents: [{ type: "text", text: title, color: "#ffffff", weight: "bold", size: "lg", wrap: true }] };
 }
 
-// การ์ดเมนู (ปุ่มเลือกหัวข้อ)
-function buildMenuFlex() {
+/**
+ * ลิงก์หน้าจัดการสิทธิ์พนักงาน (มีคีย์ติดไปด้วย) — "" = เปิดไม่ได้
+ * 🔒 ส่งให้ "เจ้าของบอท" เท่านั้น — ใครถือลิงก์นี้ออกรหัสเชิญ/ตัดสิทธิ์คนอื่นได้
+ * 🔑 ไม่ต้องตั้ง env ใหม่: Render ใส่ RENDER_EXTERNAL_URL ให้เองอยู่แล้ว
+ */
+function staffAdminLink() {
+  const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
+  const key = String(process.env.ADMIN_KEY || "").trim();
+  if (!base || !key) return "";
+  return base + "/admin?key=" + encodeURIComponent(key);
+}
+
+/**
+ * การ์ดเมนู — ปุ่มครบทุกหัวข้อจาก MENU_ITEMS
+ * @param {{isOwner?: boolean}} [opts] เจ้าของบอทได้ปุ่ม "จัดการสิทธิ์" เพิ่ม
+ */
+function buildMenuFlex(opts) {
+  const contents = [
+    { type: "text", text: "เลือกหัวข้อที่ต้องการ", size: "sm", color: "#666666" },
+    ...MENU_ITEMS.map((m) => ({
+      type: "button", style: "primary", color: m.color, height: "sm",
+      action: { type: "message", label: m.menuLabel, text: m.text },
+    })),
+  ];
+
+  /* ⚙️ ปุ่มจัดการสิทธิ์ (ภูม 2026-10-21) — *"ตอนนี้ยังไม่มีปุ่มให้กดเข้าหน้าจัดการง่ายๆ
+   *    ภูมิต้อง copy link ไปเปิดเอาเองอะตอนนี้"*
+   * 🔒 เจ้าของบอทเท่านั้น (ลิงก์พากุญแจไปด้วย) · ไม่ได้ตั้ง ADMIN_KEY = ไม่โชว์ (หน้านั้นปิด) */
+  const adminUrl = staffAdminLink();
+  if (opts && opts.isOwner && adminUrl) {
+    contents.push({ type: "separator", margin: "md" });
+    contents.push({ type: "button", style: "secondary", height: "sm",
+      action: { type: "uri", label: "⚙️ จัดการสิทธิ์พนักงาน", uri: adminUrl } });
+  }
+
   return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: QUICK, contents: {
     type: "bubble",
     header: headerBox("🤖 ผู้ช่วยงาน Pacred"),
-    body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "16px", contents: [
-      { type: "text", text: "เลือกหัวข้อที่ต้องการ", size: "sm", color: "#666666" },
-      { type: "button", style: "primary", color: PR_RED, height: "sm",
-        action: { type: "message", label: "📦 อัพเดตล่าสุด", text: "อัพล่าสุด" } },
-      { type: "button", style: "primary", color: "#e53935", height: "sm",
-        action: { type: "message", label: "🔴 แทรคค้าง", text: "แทรคค้าง" } },
-    ] },
+    body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "16px", contents },
   } };
 }
 
@@ -390,7 +440,7 @@ function buildHsSearchText(name, r) {
       "ไม่เจอในคลังพิกัดของเรา",
       "",
       "ลองพิมพ์คำสั้นลง หรือคำที่ทีมเรียกจริง เช่น \"ปั๊มลม\" แทน \"เครื่องปั๊มลมไฟฟ้า\"",
-      "ถ้าอยากให้ AI ช่วยเดา พิมพ์  Gemini: " + name,
+      "ถ้าอยากให้ AI ช่วยเดา กดปุ่ม ✨ Gemini แถวล่างได้เลย",
     ].join("\n") };
   }
   const rows = items.map((it, i) => {
@@ -417,6 +467,29 @@ function buildHsSearchText(name, r) {
     `🔍 ค้นพิกัด "${name}" — เจอ ${r.total || items.length} รายการ`,
     "━━━━━━━━━━━━",
   ].concat(rows, tail).join("\n") };
+}
+
+/**
+ * กรอบถามชื่อสินค้าของ ✨ Gemini (ภูม 2026-10-21)
+ * 🔑 ไลน์ใส่ "ช่องพิมพ์" ในการ์ดไม่ได้ ⇒ การ์ดบอกให้พิมพ์ + มีปุ่มทางเลือกอีก 2 ทาง
+ */
+function askGeminiName() {
+  return { type: "flex", altText: "ให้ Gemini เดาพิกัด — พิมพ์ชื่อสินค้ามาได้เลย", quickReply: QUICK, contents: {
+    type: "bubble",
+    header: headerBox("✨ ให้ Gemini เดาพิกัด", "#5e35b1"),
+    body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "16px", contents: [
+      { type: "text", text: "พิมพ์ชื่อสินค้ามาได้เลยครับ", weight: "bold", wrap: true },
+      { type: "text", size: "sm", color: "#666666", wrap: true,
+        text: "เช่น  ปั๊มลม  ·  ถุงมือยาง  ·  ลำโพงบลูทูธ" },
+      { type: "separator", margin: "sm" },
+      { type: "text", size: "xs", color: "#b26500", wrap: true,
+        text: "⚠️ Gemini เป็นการเดาของ AI — ยังไม่ยืนยัน ตรวจกับกรมศุลก่อนใช้จริง" },
+      { type: "button", style: "secondary", height: "sm",
+        action: { type: "message", label: "🔍 ค้นในคลังของเราแทน", text: "ค้นพิกัด" } },
+      { type: "button", style: "secondary", height: "sm",
+        action: { type: "message", label: "ยกเลิก", text: "ยกเลิก" } },
+    ] },
+  } };
 }
 
 /** ถามชื่อสินค้า (กดปุ่มค้นพิกัดเฉยๆ ยังไม่พิมพ์ชื่อ) */
@@ -448,11 +521,90 @@ async function handleHsSearch(event, name, userId) {
   }
 }
 
-async function handleWorkAssistant(event, keyword) {
+/* ══ 📊 สรุปงานวันนี้ของฉัน (ภูม 2026-10-21) ════════════════════════════════════
+ *
+ * ภูม: *"อยากได้สรุปงานวันนี้อะ แต่จะเป็นสรุปงานของแต่ละคนนะ อย่างของภูมิ ภูมิอยากได้สรุปว่า
+ *   วันนี้อัพแทรคกริ้งเข้าระบบไปทั้งหมด จำนวนกี่แทรคกริ้ง+กี่คิว และตอบพิกัดไปกี่ออเดอร์"*
+ *
+ * 🔑 "ของฉัน" = ของ **บัญชีพนักงานที่ผูกไลน์ไว้** (ไม่ใช่ของทั้งบริษัท)
+ *    ⇒ ต้องรู้รหัสล็อกอินก่อน · ยังไม่ผูก = บอกให้ขอรหัสเชิญ ไม่ใช่โชว์ 0
+ * 🔒 คนอื่นดูของคนอื่นไม่ได้ — ระบุชื่อคนอื่นได้เฉพาะเจ้าของบอท (ภูมดูของทีมได้)
+ */
+async function handleMyDay(event, ctx, arg) {
+  const wanted = String(arg || "").trim();
+  const isOwner = !!(ctx && ctx.isOwner);
+  let login = (ctx && ctx.me && ctx.me.login) || "";
+
+  // เจ้าของบอทพิมพ์ "สรุปงานวันนี้ admin_bam" = ดูของคนนั้น
+  if (wanted && isOwner) login = wanted;
+  else if (wanted && !isOwner) {
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text:
+      "🔒 ดูได้แค่งานของตัวเองครับ\nพิมพ์ \"สรุปงานวันนี้\" เฉยๆ" });
+  }
+
+  if (!login) {
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: [
+      "📊 สรุปงานวันนี้",
+      "━━━━━━━━━━━━",
+      "ยังไม่รู้ว่าคุณคือใครในระบบ Pacred",
+      "",
+      "ขอ \"รหัสเชิญ\" จากผู้ดูแลบอทแล้วพิมพ์รหัสนั้นมา",
+      "ผูกบัญชีแล้วปุ่มนี้จะนับงานของคุณให้เอง",
+    ].join("\n") });
+  }
+
+  try {
+    const r = await pacredGet("my-day", { login });
+    return lineClient.replyMessage(event.replyToken, buildMyDayText(r && r.myDay, login));
+  } catch (err) {
+    console.error("[handleMyDay]", (err && err.response && err.response.data) || (err && err.message));
+    return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: explainPacredError(err) });
+  }
+}
+
+/** ผลสรุปงาน → ข้อความไลน์ (ส่งต่อเข้ากลุ่มได้ · ไม่ใช่การ์ด) */
+function buildMyDayText(d, login) {
+  if (!d) return { type: "text", quickReply: QUICK, text: "⚠️ เว็บ Pacred ตอบข้อมูลไม่ครบ ลองใหม่อีกครั้ง" };
+  if (!d.found) return { type: "text", quickReply: QUICK, text:
+    "⚠️ ไม่พบ \"" + login + "\" ในทะเบียนพนักงาน Pacred" };
+  if (!d.active) return { type: "text", quickReply: QUICK, text:
+    "🔒 บัญชี \"" + login + "\" ปิดอยู่ในระบบ Pacred (ลาออก/ล็อก)" };
+
+  const i = d.intake || {};
+  const hs = d.hsAnswered || {};
+  const lines = [
+    "📊 สรุปงานวันนี้ — " + (d.name || login),
+    d.day,
+    "━━━━━━━━━━━━",
+    "",
+    "📦 อัพแทรคเข้าระบบ",
+    "   " + (i.tracks || 0) + " แทรค · " + (i.boxes || 0) + " กล่อง",
+    "   " + (i.weightKg || 0) + " กก. · " + (i.cbm || 0) + " คิว",
+  ];
+  /* 🔑 แยก "งานของคน" ออกจาก "งานของตัวนำเข้าอัตโนมัติ" ให้เห็นคาตา
+        ไม่งั้นคนเอาไปเทียบกับจอ /admin แล้วคิดว่าบอทนับขาด */
+  if (i.autoTracks) lines.push("   (ระบบนำเข้าเองอีก " + i.autoTracks + " แทรค — ไม่นับเป็นของใคร)");
+  lines.push("");
+  lines.push("🧾 ตอบพิกัด " + (hs.orders || 0) + " ออเดอร์");
+  const hnos = hs.hnos || [];
+  if (hnos.length) lines.push("   " + hnos.slice(0, 12).join(" · ") + (hnos.length > 12 ? " …" : ""));
+
+  if (!i.tracks && !(hs.orders || 0)) {
+    lines.push("");
+    lines.push("ยังไม่มีงานที่นับได้วันนี้");
+  }
+  return { type: "text", quickReply: QUICK, text: lines.join("\n") };
+}
+
+async function handleWorkAssistant(event, keyword, ctx) {
   const t = (keyword || "").toLowerCase();
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
-      return lineClient.replyMessage(event.replyToken, buildMenuFlex());
+      return lineClient.replyMessage(event.replyToken, buildMenuFlex({ isOwner: ctx && ctx.isOwner }));
+    if (/^สรุปงานวันนี้|^งานวันนี้|^สรุปงานของฉัน/.test(t)) {
+      const arg = (keyword || "").replace(/^(สรุปงานวันนี้|งานวันนี้|สรุปงานของฉัน)\s*/i, "").trim();
+      return handleMyDay(event, ctx || {}, arg);
+    }
     if (/^ค้นพิกัด|^หาพิกัด|^พิกัด/.test(t)) {
       // "ค้นพิกัด ถุงมือยาง" = ค้นเลย · "ค้นพิกัด" เฉยๆ = ถามชื่อก่อน
       const name = (keyword || "").replace(/^(ค้นพิกัด|หาพิกัด|พิกัด)s*/i, "").trim();
@@ -868,12 +1020,22 @@ async function handleGeminiAnalysis(event, productName) {
 
   // แล้วค่อยทำงานจริง — ส่งผลด้วย push (ไม่ติดเพดานเวลาของ replyToken)
   try {
-    // เอาชื่อใกล้เคียงจากคลังไปช่วย prompt (คลังของบอท — ภูมเลือกข้อ ข 15/10)
+    /* เอาชื่อใกล้เคียงจาก **คลังพิกัดของ Pacred** ไปช่วย prompt (ภูม 2026-10-21)
+     *
+     * 🔴 เดิมดึงจากคลังของบอทเอง (749 แถว) ซึ่ง**เล็กกว่าและเนื้อหาไม่เหมือน**คลัง Pacred
+     *    📏 วัด 2026-10-21: "ถุงมือยาง" คลังบอท 0 รายการ · คลัง Pacred 7 (6216.00.92 ถุงมือ)
+     *       "ปั๊มลม" คลังบอท 0 · คลัง Pacred 25 (8414.20.90 ปั๊มลม)
+     *    ⇒ Gemini เคยเดาโดยไม่มีคำใบ้เลย ทั้งที่ของจริงมีอยู่ในคลังเรา
+     * 🔑 `nearbyNames` = ชื่อที่ทีมเอกสารสอนคลังไว้ (product_aliases) ⇒ คำใบ้ตรงภาษาที่ทีมใช้
+     * ⚠️ best-effort — คำใบ้หาไม่ได้ต้องไม่ทำให้ Gemini ล้ม (เดาต่อได้โดยไม่มีคำใบ้)
+     */
     let hints = [];
     try {
-      const rows = await searchHS(productName);
-      hints = rows.map(r => r.th).filter(Boolean).slice(0, 6);
-    } catch (_) { /* หาไม่ได้ก็ไม่เป็นไร */ }
+      const r = await pacredGet("hs-search", { name: productName, limit: 5 });
+      const hs = (r && r.hsSearch) || {};
+      const fromHits = (hs.hits || []).map((h) => h.nameTh).filter(Boolean);
+      hints = [...new Set([...fromHits, ...(hs.nearbyNames || [])])].slice(0, 8);
+    } catch (_) { /* หาไม่ได้ก็ไม่เป็นไร — Gemini เดาเองได้ */ }
 
     const reply = await askGemini(productName, hints);
     // 🔒 พิกัดผิด = ภาษีผิด ⇒ ติดป้ายเสมอว่านี่คือคำแนะนำของ AI ยังไม่ยืนยัน
@@ -1079,13 +1241,25 @@ async function handleEvent(event) {
     }
   }
 
-  const state = await getState(userId);
+  // 🔑 `let` ไม่ใช่ `const` — ปุ่มเมนูที่กดระหว่างรอพิมพ์ชื่อจะล้างสถานะทิ้ง (ดูข้างล่าง)
+  let state = await getState(userId);
   console.log(`[handleEvent] current state = ${state?.state || "null"}`);
 
   // ============================================================
   // [0] AI TRIGGER จากปุ่ม "ให้ AI วิเคราะห์แทน"
   //     หรือพิมพ์ขึ้นต้นด้วย Al: / AI:
   // ============================================================
+  /* 🔙 กดปุ่มเมนูอื่นระหว่างที่บอทรอชื่อสินค้า = **เปลี่ยนใจ** ไม่ใช่ชื่อสินค้า (ภูม 2026-10-21)
+   *    เดิม: กด 🔍 ค้นพิกัด → เปลี่ยนใจกด ✨ Gemini ⇒ บอทไปค้นสินค้าชื่อ "Gemini"
+   *    (ทางตันที่คนออกไม่ได้ถ้าไม่รู้ว่าต้องพิมพ์ "ยกเลิก")
+   *    ⇒ ล้างสถานะแล้วปล่อยให้ไหลไปตัวจับคำปกติ · อ่านรายการจาก MENU_ITEMS ที่เดียว
+   *       ⇒ เพิ่มปุ่มใหม่วันหน้าได้สิทธิ์นี้เอง ไม่ต้องมาเติมที่นี่ */
+  const WAIT_STATES = ["hs_search_wait", "gemini_wait"];
+  if (state && WAIT_STATES.includes(state.state) && MENU_ITEMS.some((m) => m.text === keyword)) {
+    await clearState(userId);
+    state = null;
+  }
+
   /* 🔍 กดปุ่ม "ค้นพิกัด" แล้วพิมพ์ชื่อสินค้าตามมา (ภูม 2026-10-16)
      อยู่ก่อนทุกตัวจับคำ เพราะคนเพิ่งถูกถามว่า "พิมพ์ชื่อสินค้ามาได้เลย" ⇒ สิ่งที่พิมพ์คือชื่อสินค้า */
   if (state && state.state === "hs_search_wait") {
@@ -1096,10 +1270,35 @@ async function handleEvent(event) {
     return handleHsSearch(event, keyword, userId);
   }
 
-  // ── ✨ ปุ่ม/คำสั่ง Gemini (ภูม 2026-10-15) ──
-  if (/^(gemini|เจมิไน|เจมินาย)[:\s]/i.test(keyword)) {
-    const name = keyword.replace(/^(gemini|เจมิไน|เจมินาย)[:\s]+/i, "").trim();
-    if (!name) return lineClient.replyMessage(event.replyToken, { type: "text", text: "พิมพ์ชื่อสินค้าต่อท้ายด้วยนะ เช่น  Gemini: ปั๊มลม" });
+  /* ✨ กดปุ่ม "Gemini" แล้วพิมพ์ชื่อสินค้าตามมา (ภูม 2026-10-21)
+     อยู่ก่อนทุกตัวจับคำ เพราะคนเพิ่งถูกถามว่า "พิมพ์ชื่อสินค้ามาได้เลย" ⇒ สิ่งที่พิมพ์คือชื่อสินค้า */
+  if (state && state.state === "gemini_wait") {
+    if (/^(ยกเลิก|เลิก|ออก|cancel)$/i.test(keyword)) {
+      await clearState(userId);
+      return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "ยกเลิกแล้วครับ" });
+    }
+    await clearState(userId);
+    return handleGeminiAnalysis(event, keyword);
+  }
+
+  /* ── ✨ ปุ่ม/คำสั่ง Gemini (ภูม 2026-10-15 · กดปุ่มแล้วถามชื่อ 2026-10-21) ──
+   *
+   * ภูม: *"ตัว gemini เวลาจะใช้ต้องมาพิมพ์ประมาณว่า gemini: ตามด้วยชื่อสินค้า
+   *        ซึ่งภูมิคิดว่ามันยุ่งยากเสียเวลาไปอะ … พอกดปุ่ม Gemini แล้วบอทจะส่งกรอบ
+   *        ที่ในกรอบจะเป็นช่องให้พิมพ์ชื่อสินค้า และกดปุ่มค้นหา"*
+   *
+   * 🔑 ไลน์ไม่มี "ช่องกรอกในกรอบ" ให้ใช้ — Flex ใส่ปุ่มได้ ใส่ช่องพิมพ์ไม่ได้
+   *    (ของที่ใกล้ที่สุดคือ LIFF = เว็บย่อยในไลน์ ต้องขึ้นทะเบียนแอป + โฮสต์หน้าเว็บเพิ่ม)
+   *    ⇒ ทำแบบเดียวกับปุ่ม 🔍 ค้นพิกัด: กดปุ่ม → บอทถาม → พิมพ์ชื่อเฉยๆ → ได้คำตอบ
+   *       **ไม่ต้องพิมพ์คำว่า Gemini อีกแล้ว** (คนพิมพ์ 1 ครั้ง เท่ากับที่ภูมขอ)
+   * ℹ️ พิมพ์ "Gemini: ปั๊มลม" แบบเดิมยังใช้ได้ (คนที่ชินแล้วไม่ต้องเปลี่ยน)
+   */
+  if (/^(gemini|เจมิไน|เจมินาย)(\s*[:：]\s*|\s+|$)/i.test(keyword)) {
+    const name = keyword.replace(/^(gemini|เจมิไน|เจมินาย)(\s*[:：]\s*|\s+|$)/i, "").trim();
+    if (!name) {
+      await setState(userId, "gemini_wait", {});
+      return lineClient.replyMessage(event.replyToken, askGeminiName());
+    }
     return handleGeminiAnalysis(event, name);
   }
 
@@ -1138,7 +1337,9 @@ async function handleEvent(event) {
   //       → ไปถามระบบ Pacred (API ลับ) แล้วตอบสรุปในไลน์
   // ============================================================
   if (!state && isWorkCommand(keyword)) {
-    return handleWorkAssistant(event, keyword);
+    /* 🪪 ส่ง "คุณคือใคร" ไปด้วย — ปุ่มสรุปงานต้องรู้รหัสล็อกอิน · เมนูต้องรู้ว่าเป็นเจ้าของบอทไหม
+       (เจ้าของบอทข้ามด่านสิทธิ์ ⇒ ไม่มี pass.staff ⇒ ถามทะเบียนตรงๆ ที่นี่) */
+    return handleWorkAssistant(event, keyword, await botCallerContext(userId));
   }
 
   // ============================================================
@@ -1436,9 +1637,32 @@ async function handleEvent(event) {
     const isDeleteCmd = /^(ลบสินค้า|ลบพิกัด|ลบ\s)/i.test(keyword);
 
     if (!isAddCmd && !isEditCmd && !isDeleteCmd) {
+      /* 🔴 พิมพ์ชื่อสินค้าเฉยๆ ต้องได้คำตอบเดียวกับกดปุ่ม 🔍 ค้นพิกัด (ภูม 2026-10-21)
+       *
+       * ภูม: *"ตัวค้นพิกัดนี้เอาจากคลังใน supabase ใช่ไหมตอนนี้ แล้วถ้าดึงข้อมูลจากในหน้า
+       *        /admin/accounting/hs-library นี้ด้วยได้ไหม มันเป็นคลังในระบบ pacred อะ"*
+       *
+       * 🔑 ต้นเหตุที่ภูมรู้สึก "ใช้งานจริงไม่ได้" — **มีคลังพิกัด 2 ที่ ตอบไม่เหมือนกัน**
+       *    · กดปุ่ม 🔍 ค้นพิกัด → คลัง Pacred (1,826 พิกัด · มีอากร · มีชื่อที่ทีมสอนไว้ 865)
+       *    · พิมพ์ชื่อเฉยๆ      → คลังของบอทเอง (749 แถว · ไม่มีอากร)
+       *    📏 วัด 2026-10-21: "ถุงมือยาง" / "ปั๊มลม" คลังบอทตอบ **ไม่เจอ** ทั้งคู่
+       *       แต่คลัง Pacred เจอ 7 / 25 รายการ ⇒ คำตอบขึ้นกับว่า "ถามยังไง" = ใช้จริงไม่ได้
+       *    ⇒ ตอนนี้ถามคลัง Pacred ก่อนเสมอ · ไม่เจอค่อยถอยไปคลังของบอท (ของที่ทีมเพิ่มเองไม่หาย)
+       * ⚠️ best-effort — เว็บ Pacred ล่มต้องไม่ทำให้ค้นไม่ได้เลย (ถอยไปคลังบอทแล้วบอกไว้)
+       */
       const riskInfo = analyzeRisk(keyword);
-      const results  = await searchHS(keyword);
 
+      try {
+        const r = await pacredGet("hs-search", { name: keyword, limit: 5 });
+        const hs = (r && r.hsSearch) || {};
+        if ((hs.hits || []).length > 0) {
+          return lineClient.replyMessage(event.replyToken, buildHsSearchText(keyword, hs));
+        }
+      } catch (err) {
+        console.error("[search:pacred]", (err && err.message) || err);
+      }
+
+      const results = await searchHS(keyword);
       if (results.length > 0) {
         return lineClient.replyMessage(event.replyToken, buildHSFlex(results, riskInfo, keyword));
       }

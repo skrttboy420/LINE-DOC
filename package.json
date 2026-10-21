@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node staff.test.js && node menu.test.js && node dispatch.test.js"
   },
   "keywords": [],
   "author": "",

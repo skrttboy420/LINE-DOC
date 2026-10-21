@@ -1214,7 +1214,15 @@ async function handleEvent(event) {
     const already = await staffRegistry.whoIs(userId);
     if (!already) {
       const r = await staffRegistry.redeemInvite(userId, keyword);
-      if (!r.ok) return lineClient.replyMessage(event.replyToken, { type: "text", text: "❌ " + r.message });
+      if (!r.ok) {
+        /* 🔑 รหัสไม่มีจริง = อาจไม่ใช่รหัสเชิญตั้งแต่แรก — ชื่อสินค้าบางตัวหน้าตาเหมือนกันได้
+              (รูปรหัส = ตัวอักษรใหญ่ 2–6 ตัว + ขีด + เลข 4 ตัว ⇒ "LED-2024" ก็เข้าข่าย)
+              ⇒ บอกทั้ง 2 ทางในข้อความเดียว ไม่ปล่อยให้เป็นทางตัน */
+        const notFound = /ไม่พบรหัสนี้/.test(r.message || "");
+        return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: notFound
+          ? ["❌ " + r.message, "", "ถ้าจะค้นพิกัดสินค้า กดปุ่ม 🔍 ค้นพิกัด แถวล่าง แล้วพิมพ์ชื่อสินค้าได้เลย"].join("\n")
+          : "❌ " + r.message });
+      }
       const st = r.staff;
       return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: [
         "✅ ผูกบัญชีเรียบร้อย",

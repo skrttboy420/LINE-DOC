@@ -140,7 +140,10 @@ ok("📦 รายการยาวเกิน ต้องตัดแล้�
     salesLogin: "admin_may", csLogin: "", pieces: 1, weightKg: 1, sampleTracks: [],
   }));
   const plans = planNotifications(many, [{ ...MAY, notify: ["arrive_th"] }], allNew);
-  assert.match(plans[0].text, /อีก 10 ลูกค้า/, "ต้องบอกจำนวนที่ตัดไป\n" + plans[0].text);
+  assert.match(plans[0].text, /อีก 10 รายการ/, "ต้องบอกจำนวนที่ตัดไป\n" + plans[0].text);
+  /* 🔑 ตัวนับในหัวข้อต้องตรงกับจำนวนบรรทัดที่โชว์จริง —
+        ไม่งั้นหัวบอก 30 แต่ลิสต์มี 20 แล้วคนนับไม่ตรงกับที่เห็น */
+  assert.ok(plans[0].text.includes("20 ลูกค้า"), "หัวข้อต้องนับเฉพาะที่โชว์จริง\n" + plans[0].text);
 });
 
 console.log("\n🧾 งานบัญชี — ไม่แบ่งตามลูกค้า");

@@ -38,7 +38,10 @@ const NOTIFY_CATEGORIES = [
 ];
 const NOTIFY_KEYS = NOTIFY_CATEGORIES.map((c) => c.key);
 
-const money = (n) => "฿" + Number(n || 0).toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const { renderNotification } = require("./notify-template");
+
+/** จำนวนรายการสูงสุดต่อข้อความ — ไลน์ตัดที่ 5,000 ตัว ยาวกว่านี้หายท้ายแบบเงียบๆ */
+const MAX_ROWS_PER_MESSAGE = 20;
 
 /**
  * แปลง feed จากเว็บ → "ใครควรได้ข้อความอะไร"
@@ -46,9 +49,12 @@ const money = (n) => "฿" + Number(n || 0).toLocaleString("th-TH", { minimumFra
  * @param {object} feed              ผลจาก /api/bot?q=notify (feed.notify)
  * @param {Array}  staff             ทะเบียนที่ผูกไลน์ไว้ [{ line_user_id, login, name, nickname, notify, active }]
  * @param {(key:string)=>boolean} isNew  เคยบอกเรื่องนี้ไปแล้วหรือยัง (กันซ้ำ)
+ * @param {Record<string,{head:string,line:string}>} [templates]
+ *        ข้อความที่ภูมแก้ไว้ (ไม่ส่ง/อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด · ดู notify-template.js)
  * @returns {Array<{lineUserId:string, text:string, keys:string[]}>}
  */
-function planNotifications(feed, staff, isNew) {
+function planNotifications(feed, staff, isNew, templates) {
+  const tplOf = (key) => (templates && templates[key]) || null;
   if (!feed) return [];
   const out = [];
 
@@ -65,10 +71,10 @@ function planNotifications(feed, staff, isNew) {
 
   /* ── ① ฝากนำเข้า + ฝากสั่ง — แยกตามคนที่ดูแลลูกค้า ───────────────── */
   const CUSTOMER_SECTIONS = [
-    { key: "arrive_cn", head: "📦 ถึงโกดังจีนแล้ว", rows: (feed.arrivals || {}).cnWarehouse || [], kind: "arrival" },
-    { key: "arrive_th", head: "🇹🇭 ถึงไทยแล้ว",      rows: (feed.arrivals || {}).thArrived   || [], kind: "arrival" },
-    { key: "shop_pay",  head: "💳 รอชำระเงิน",       rows: (feed.shop || {}).awaitingPayment  || [], kind: "order" },
-    { key: "shop_ship", head: "🚚 รอร้านจีนจัดส่ง",  rows: (feed.shop || {}).awaitingShopShip || [], kind: "order" },
+    { key: "arrive_cn", rows: (feed.arrivals || {}).cnWarehouse || [], kind: "arrival" },
+    { key: "arrive_th", rows: (feed.arrivals || {}).thArrived   || [], kind: "arrival" },
+    { key: "shop_pay",  rows: (feed.shop || {}).awaitingPayment  || [], kind: "order" },
+    { key: "shop_ship", rows: (feed.shop || {}).awaitingShopShip || [], kind: "order" },
   ];
 
   for (const sec of CUSTOMER_SECTIONS) {
@@ -82,25 +88,13 @@ function planNotifications(feed, staff, isNew) {
       );
       if (fresh.length === 0) continue;
 
-      const lines = [sec.head, "━━━━━━━━━━━━"];
-      if (sec.kind === "arrival") {
-        const pieces = fresh.reduce((a, r) => a + Number(r.pieces || 0), 0);
-        lines[0] = `${sec.head} — ${pieces} ชิ้น · ${fresh.length} ลูกค้า`;
-        for (const r of fresh.slice(0, 20)) {
-          lines.push(`• ${r.customerCode} ${r.customerName} — ${r.pieces} ชิ้น (${r.weightKg} กก.)`);
-        }
-        if (fresh.length > 20) lines.push(`… อีก ${fresh.length - 20} ลูกค้า`);
-      } else {
-        lines[0] = `${sec.head} — ${fresh.length} ใบ`;
-        for (const r of fresh.slice(0, 15)) {
-          lines.push(`• ${r.hno} ${r.customerCode} ${r.customerName} — ${money(r.amountThb)}`);
-        }
-        if (fresh.length > 15) lines.push(`… อีก ${fresh.length - 15} ใบ`);
-      }
-
+      /* 🔑 หัวข้อ/บรรทัด มาจากข้อความที่แก้ได้ (notify-template.js)
+            ⚠️ **ตัวนับในหัวข้อคิดจาก `shown` ไม่ใช่ `fresh`** — ไม่งั้นหัวบอก 30 แต่ลิสต์มี 20
+               แล้วคนนับไม่ตรง (บรรทัดท้ายบอกส่วนที่ตัดแยกอยู่แล้ว) */
+      const shown = fresh.slice(0, MAX_ROWS_PER_MESSAGE);
       out.push({
         lineUserId: person.line_user_id,
-        text: lines.join("\n"),
+        text: renderNotification(sec.key, shown, tplOf(sec.key), fresh.length - shown.length),
         keys: fresh.map((r) => `${sec.key}|${person.login}|${sec.kind === "arrival" ? r.customerCode : r.hno}`),
       });
     }
@@ -108,10 +102,10 @@ function planNotifications(feed, staff, isNew) {
 
   /* ── ② งานบัญชี — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ─────────────── */
   const ACC_SECTIONS = [
-    { key: "acc_yuan", head: "💴 ฝากสั่ง · โอนหยวน/สลิปจีน", rows: (feed.shop || {}).yuanCost || [], order: true },
-    { key: "acc_slip", head: "🧾 รอตรวจสลิป",                rows: (feed.accounting || {}).slipReview || [] },
-    { key: "acc_wht",  head: "📄 รอตรวจใบหัก ณ ที่จ่าย",     rows: (feed.accounting || {}).whtReview || [] },
-    { key: "acc_cnt",  head: "📦 ตู้ยิงรับครบแล้ว",           rows: (feed.accounting || {}).containersComplete || [] },
+    { key: "acc_yuan", rows: (feed.shop || {}).yuanCost || [], order: true },
+    { key: "acc_slip", rows: (feed.accounting || {}).slipReview || [] },
+    { key: "acc_wht",  rows: (feed.accounting || {}).whtReview || [] },
+    { key: "acc_cnt",  rows: (feed.accounting || {}).containersComplete || [] },
   ];
 
   for (const sec of ACC_SECTIONS) {
@@ -122,17 +116,10 @@ function planNotifications(feed, staff, isNew) {
       const fresh = sec.rows.filter((r) => isNew(`${sec.key}|${person.login}|${idOf(r)}`));
       if (fresh.length === 0) continue;
 
-      const lines = [`${sec.head} — ${fresh.length} รายการ`, "━━━━━━━━━━━━"];
-      for (const r of fresh.slice(0, 15)) {
-        lines.push(sec.order
-          ? `• ${r.hno} ${r.customerCode} ${r.customerName} — ${money(r.amountThb)}`
-          : `• [${r.service}] ${r.ref} — ${r.label}`);
-      }
-      if (fresh.length > 15) lines.push(`… อีก ${fresh.length - 15} รายการ`);
-
+      const shown = fresh.slice(0, MAX_ROWS_PER_MESSAGE);
       out.push({
         lineUserId: person.line_user_id,
-        text: lines.join("\n"),
+        text: renderNotification(sec.key, shown, tplOf(sec.key), fresh.length - shown.length),
         keys: fresh.map((r) => `${sec.key}|${person.login}|${idOf(r)}`),
       });
     }

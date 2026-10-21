@@ -52,8 +52,11 @@ async function pacredGet(q, extra) {
 // ============================================================
 const { createStaffRegistry } = require("./staff");
 const { planNotifications } = require("./notify-feed");
+const { createTemplateStore } = require("./notify-template-store");
 const { mountStaffAdmin } = require("./staff-admin");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
+/** ✏️ ข้อความแจ้งเตือนที่ภูมแก้เอง — อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด (ไม่เคยทำให้แจ้งเตือนเงียบ) */
+const templateStore = createTemplateStore(supabase);
 
 /**
  * เจ้าของบอท — ผ่านด่านสิทธิ์เสมอ (กันล็อกตัวเองออก)
@@ -410,7 +413,9 @@ async function runNotifyRound() {
   try { staff = await staffRegistry.listLinked(); }
   catch (e) { console.error("[notify] อ่านทะเบียนไม่ได้:", (e && e.message) || e); return; }
 
-  const plans = planNotifications(feed, staff, notifyIsNew);
+  // ✏️ ข้อความที่แก้ไว้ — อ่านไม่ได้ก็ส่งต่อได้ (loadAll คืน {} ไม่โยน)
+  const templates = await templateStore.loadAll().catch(() => ({}));
+  const plans = planNotifications(feed, staff, notifyIsNew, templates);
   if (plans.length === 0) return;   // ✅ ไม่มีของใหม่ = เงียบสนิท (ภูมสั่ง)
 
   for (const plan of plans) {
@@ -1853,7 +1858,7 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 
 // 🛠 หน้าจัดการสิทธิ์ (ภูม 2026-10-20) — ต้องต่อ "หลัง" /webhook
 //    เพราะ /webhook ต้องได้ body ดิบไปตรวจลายเซ็น LINE ก่อนที่ express.json() จะแตะ
-mountStaffAdmin(app, staffRegistry);
+mountStaffAdmin(app, staffRegistry, templateStore);
 
 app.use(express.json());
 

@@ -1198,31 +1198,43 @@ async function handleEvent(event) {
   //    · ในกลุ่ม — ไม่บังคับ เพราะกลุ่มเป็นของที่ภูมเชิญบอทเข้าไปเอง (ของเดิมไม่พัง)
   // ════════════════════════════════════════════════════════════
   const inPrivateChat = !event.source.groupId && !event.source.roomId;
+
+  /* 🎟 รหัสเชิญ — ต้องรับ **ก่อน** ด่านสิทธิ์ และ **ก่อน**ตัวจับคำทุกตัว (ภูม 2026-10-21)
+   *
+   * 🔴 บั๊กที่ภูมเจอ: *"มันขอรหัสเชิญ แต่พอส่งรหัสเชิญไปให้ มันดันไปหาพิกัดเฉยเลย"*
+   *    เดิมโค้ดรับรหัสซ่อนอยู่ **ข้างใน** `if (!pass.ok)` ของด่านสิทธิ์
+   *    แต่เจ้าของบอท **ข้ามด่านทั้งก้อน** (กันล็อกตัวเองออก) ⇒ ไม่มีใครรับรหัส
+   *    ⇒ ข้อความตกไปถึงตัวค้นพิกัดท้ายสุด แล้วไปค้น "POOM-9717" ในคลังพิกัด
+   *    ⇒ **เจ้าของบอทผูกบัญชีตัวเองไม่ได้เลย** ตั้งแต่วันแรก
+   *
+   * 🔑 ย้ายออกมาข้างนอก: ใครก็ตามที่ยังไม่ผูก + พิมพ์อะไรที่หน้าตาเป็นรหัสเชิญ = ลองผูกให้
+   *    (คนที่ผูกแล้วพิมพ์รหัสซ้ำ = ตกไปทางเดิม · `redeemInvite` มีด่านของตัวเองครบ)
+   */
+  if (inPrivateChat && staffRegistry.INVITE_RE.test(keyword.toUpperCase())) {
+    const already = await staffRegistry.whoIs(userId);
+    if (!already) {
+      const r = await staffRegistry.redeemInvite(userId, keyword);
+      if (!r.ok) return lineClient.replyMessage(event.replyToken, { type: "text", text: "❌ " + r.message });
+      const st = r.staff;
+      return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: [
+        "✅ ผูกบัญชีเรียบร้อย",
+        "",
+        "คุณ " + (st.nickname || st.name),
+        (st.department || "-") + " · " + (st.position || "-"),
+        "",
+        st.notify.length
+          ? "จะได้รับแจ้งเตือน: " + st.notify.join(" · ")
+          : "ยังไม่ได้เปิดหมวดแจ้งเตือนให้ — แจ้งผู้ดูแลบอทได้เลย",
+        "",
+        "พิมพ์ \"เมนู\" เพื่อเริ่มใช้งาน",
+      ].join("\n") });
+    }
+  }
+
   if (inPrivateChat && !isBotOwner(userId)) {
     const pass = await staffRegistry.gate(userId);
 
     if (!pass.ok) {
-      // 🎟 ยังไม่ผูก + พิมพ์อะไรที่หน้าตาเหมือนรหัสเชิญ ⇒ ลองผูกให้เลย
-      if (pass.reason === "not_linked" && staffRegistry.INVITE_RE.test(keyword.toUpperCase())) {
-        const r = await staffRegistry.redeemInvite(userId, keyword);
-        if (!r.ok) {
-          return lineClient.replyMessage(event.replyToken, { type: "text", text: "❌ " + r.message });
-        }
-        const s = r.staff;
-        return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: [
-          "✅ ผูกบัญชีเรียบร้อย",
-          "",
-          "คุณ " + (s.nickname || s.name),
-          (s.department || "-") + " · " + (s.position || "-"),
-          "",
-          s.notify.length
-            ? "จะได้รับแจ้งเตือน: " + s.notify.join(" · ")
-            : "ยังไม่ได้เปิดหมวดแจ้งเตือนให้ — แจ้งผู้ดูแลบอทได้เลย",
-          "",
-          "พิมพ์ \"เมนู\" เพื่อเริ่มใช้งาน",
-        ].join("\n") });
-      }
-
       if (pass.reason === "resigned") {
         return lineClient.replyMessage(event.replyToken, { type: "text", text: [
           "🔒 ไม่มีสิทธิ์ใช้งานบอท",

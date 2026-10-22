@@ -49,11 +49,13 @@ const CATEGORIES = [
   { key: "acc_cnt",  group: "🧾 บัญชี", scope: "all",
     label: "ตู้ยิงรับครบแล้ว",            hint: "โกดังยิงรับครบทุกกล่อง — ตรวจตู้ได้ (ไม่ต้องรอตู้ถึงไทย)" },
 
-  // ⚙️ ของเดิมที่ยิงจริงอยู่แล้ว
-  { key: "hs_pending", group: "⚙️ อื่นๆ", scope: "all",
-    label: "งานรอตอบพิกัด",   hint: "ออเดอร์ที่ยังไม่มีพิกัด — เดิมเด้งหาภูมคนเดียว" },
-  { key: "system",     group: "⚙️ อื่นๆ", scope: "all",
-    label: "ระบบมีปัญหา",     hint: "ท่อดันหาบอทพัง ฯลฯ — ปกติเอาไว้ให้ ITDT" },
+  // 🧰 งานทีมระบบ (ITDT)
+  { key: "hs_pending",  group: "🧰 ทีมระบบ", scope: "all",
+    label: "ออเดอร์รอตอบพิกัด",  hint: "ออเดอร์ที่ยังไม่มีพิกัด — คิวเดียวกับปุ่ม รอตอบพิกัด" },
+  { key: "track_stuck", group: "🧰 ทีมระบบ", scope: "all",
+    label: "แทรครออัพเข้าระบบ",   hint: "MOMO sync มาแล้วแต่ยังไม่ได้นำเข้า — บอกเหตุผลรายแทรค (รอน้ำหนัก/รอขนาด)" },
+  { key: "system",      group: "🧰 ทีมระบบ", scope: "all",
+    label: "ระบบมีปัญหา",        hint: "ท่อดันหาบอทพัง ฯลฯ — ยังไม่มีตัวนับในปุ่ม งานค้าง" },
 ];
 const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 
@@ -65,7 +67,9 @@ const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
  *     Accounting Supervisor · Admin Accounting ⇒ แยกรับ/จ่ายจากตำแหน่งไม่ได้ ต้องติ๊กเอง)
  */
 const DEFAULT_BY_DEPARTMENT = {
-  ITDT:                 ["hs_pending", "system"],
+  /* 🔄 2026-10-22 ภูม: *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด · งานอัพแทรคเข้าระบบ"*
+     เดิมแจก "system" ซึ่ง**ไม่มีตัวนับงานค้าง** ⇒ กดปุ่มแล้วขึ้น "หมวดที่ติ๊กไว้ยังไม่มีตัวนับ" */
+  ITDT:                 ["hs_pending", "track_stuck"],
   Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
   Operations:           ["shop_pay", "shop_ship", "arrive_th"],
   Logistics:            ["arrive_cn", "arrive_th"],

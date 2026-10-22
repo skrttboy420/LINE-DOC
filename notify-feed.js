@@ -35,6 +35,10 @@ const NOTIFY_CATEGORIES = [
   { key: "acc_slip",    group: "🧾 บัญชี",     label: "รอตรวจสลิป (ทุกบริการ)",     scope: "all",      unit: "รายการ" },
   { key: "acc_wht",     group: "🧾 บัญชี",     label: "รอตรวจใบหัก ณ ที่จ่าย",      scope: "all",      unit: "รายการ" },
   { key: "acc_cnt",     group: "🧾 บัญชี",     label: "ตู้ยิงรับครบแล้ว",            scope: "all",      unit: "ตู้" },
+  /* 🧰 งานทีมระบบ (ภูม 2026-10-22) — *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด ว่ามีค้างอยู่ไหม ·
+     งานอัพแทรคเข้าระบบ มีแทรคค้างอยู่กี่แทรค (พร้อมบอกเหตุผลด้วย เช่น ข้อมูลไม่ครบ)"* */
+  { key: "hs_pending",  group: "🧰 ทีมระบบ",   label: "ออเดอร์รอตอบพิกัด",           scope: "all",      unit: "ใบ" },
+  { key: "track_stuck", group: "🧰 ทีมระบบ",   label: "แทรครออัพเข้าระบบ",           scope: "all",      unit: "แทรค" },
 ];
 const NOTIFY_KEYS = NOTIFY_CATEGORIES.map((c) => c.key);
 
@@ -42,6 +46,20 @@ const { renderNotification } = require("./notify-template");
 
 /** จำนวนรายการสูงสุดต่อข้อความ — ไลน์ตัดที่ 5,000 ตัว ยาวกว่านี้หายท้ายแบบเงียบๆ */
 const MAX_ROWS_PER_MESSAGE = 20;
+
+/**
+ * หมวดงานทีมระบบ — ทุกคนที่ติ๊กเห็นชุดเดียวกัน (ไม่แบ่งตามลูกค้า)
+ *
+ * 🔑 `total` = จำนวนจริงทั้งคิวจากเว็บ · `rows` = ตัวอย่างไม่กี่รายการ
+ *    ⇒ ตัวนับต้องอ่าน `total` ไม่ใช่ `rows.length` (คิวแทรคค้างยาวเป็นพันแถวได้)
+ */
+function itdtSections(feed) {
+  const it = (feed && feed.itdt) || {};
+  return [
+    { key: "hs_pending",  rows: it.hsPending   || [], total: it.hsPendingTotal },
+    { key: "track_stuck", rows: it.tracksStuck || [], total: it.tracksStuckTotal },
+  ];
+}
 
 /**
  * แปลง feed จากเว็บ → "ใครควรได้ข้อความอะไร"
@@ -102,10 +120,14 @@ function summarizeBacklog(feed, person) {
   for (const cat of NOTIFY_CATEGORIES) {
     if (!picked.includes(cat.key)) continue;
     const sec = customerSections(feed).find((x) => x.key === cat.key)
-             || accSections(feed).find((x) => x.key === cat.key);
+             || accSections(feed).find((x) => x.key === cat.key)
+             || itdtSections(feed).find((x) => x.key === cat.key);
     if (!sec) continue;
     const rows = cat.scope === "customer" ? sec.rows.filter((r) => ownsRow(person, r)) : sec.rows;
-    out.push({ key: cat.key, group: cat.group, label: cat.label, unit: cat.unit || "รายการ", count: rows.length, rows });
+    /* 🔑 หมวดที่เว็บส่ง `total` มาด้วย (งานทีมระบบ) = คิวจริงยาวกว่าตัวอย่างที่ส่งมา
+          ⇒ นับจาก total · หมวดที่กรองรายคนอยู่แล้วใช้ rows.length ตามเดิม */
+    const count = cat.scope !== "customer" && typeof sec.total === "number" ? sec.total : rows.length;
+    out.push({ key: cat.key, group: cat.group, label: cat.label, unit: cat.unit || "รายการ", count, rows });
   }
   return out;
 }
@@ -145,8 +167,8 @@ function planNotifications(feed, staff, isNew, templates) {
     }
   }
 
-  /* ── ② งานบัญชี — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ─────────────── */
-  const ACC_SECTIONS = accSections(feed);
+  /* ── ② งานบัญชี + งานทีมระบบ — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ── */
+  const ACC_SECTIONS = accSections(feed).concat(itdtSections(feed));
 
   for (const sec of ACC_SECTIONS) {
     const people = listeners(sec.key);

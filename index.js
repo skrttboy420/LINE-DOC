@@ -51,7 +51,8 @@ async function pacredGet(q, extra) {
 // 👥 ทะเบียนพนักงาน + ด่านสิทธิ์ (ภูม 2026-10-20) — ดู staff.js
 // ============================================================
 const { createStaffRegistry } = require("./staff");
-const { planNotifications } = require("./notify-feed");
+const { planNotifications, summarizeBacklog } = require("./notify-feed");
+const { renderNotification } = require("./notify-template");
 const { createTemplateStore } = require("./notify-template-store");
 const { mountStaffAdmin } = require("./staff-admin");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
@@ -84,7 +85,7 @@ async function botCallerContext(userId) {
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง / สรุปงานวันนี้)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน|^งานค้าง|^เช็คงาน/.test(t);
 }
 
 // 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
@@ -129,7 +130,7 @@ function fmtWhen(iso) {
  *   🔑 **ตัดแค่ "ปุ่ม" ไม่ได้ตัด "ความสามารถ"** — ใครพิมพ์ "แทรคค้าง" เองยังใช้ได้ทุกคน
  *      (ตัดฟังก์ชันทิ้ง = คนที่เคยใช้อยู่ทำงานไม่ได้ · ภูมสั่งแค่ "ยังไม่ต้องเพิ่ม") */
 const CORE_MENU = [
-  { label: "🔔 แจ้งเตือน",   menuLabel: "🔔 งานที่ต้องทำตอนนี้",   text: "แจ้งเตือน",     color: "#e53935" },
+  { label: "🔔 งานค้างของฉัน", menuLabel: "🔔 เช็คงานที่ค้าง",      text: "งานค้าง",       color: "#e53935" },
   { label: "📊 งานวันนี้",   menuLabel: "📊 สรุปงานวันนี้ของฉัน",  text: "สรุปงานวันนี้",  color: "#2e7d32" },
 ];
 
@@ -758,17 +759,43 @@ async function handleNotifyNow(event, ctx) {
   if (!feed) return reply("⚠️ เว็บ Pacred ตอบข้อมูลไม่ครบ ลองใหม่อีกครั้ง");
 
   const templates = await templateStore.loadAll().catch(() => ({}));
-  /* () => true = เอาทุกรายการ ไม่ใช่เฉพาะของใหม่ (ต่างจากรอบอัตโนมัติแค่ตรงนี้)
+  /* 🔑 สรุป **ทุกหมวดที่เขาติ๊ก รวมหมวดที่ว่าง** — ภูม: ปุ่มนี้ต้องบอกได้ว่า "เคลียร์หมดแล้ว"
+        เหมือนปุ่มรอตอบพิกัด ไม่ใช่เงียบไปเฉยๆ แล้วคนเดาว่าบอทพังหรือไม่มีงานกันแน่
      🔒 ไม่แตะตัวจำ (told) — กดดูเองต้องไม่ทำให้รอบอัตโนมัติเงียบไปด้วย */
-  const plans = planNotifications(feed, [me], () => true, templates);
-  if (plans.length === 0) {
-    const head = "✅ ตอนนี้ไม่มีงานค้างในหมวดที่คุณดูแล";
-    const errs = Array.isArray(feed.errors) && feed.errors.length
-      ? ["", "⚠️ แต่มีบางหมวดอ่านไม่ได้:"].concat(feed.errors.slice(0, 3).map((e) => "   " + e))
-      : [];
-    return reply([head].concat(errs).join("\n"));
+  const cats = summarizeBacklog(feed, me);
+  if (cats.length === 0) return reply("🔕 หมวดที่ติ๊กไว้ยังไม่มีตัวนับงานค้าง — บอกผู้ดูแลบอทได้เลย");
+
+  const total = cats.reduce((a, c) => a + c.count, 0);
+  const lines = [
+    total > 0 ? "🔔 งานค้างของคุณ — " + (me.nickname || me.name || me.login)
+              : "✅ เคลียร์หมดแล้ว — ไม่มีงานค้างในหมวดที่คุณดูแล",
+    "━━━━━━━━━━━━",
+  ];
+
+  /* สรุปรายหมวด จัดกลุ่มตามแผนก — มีงาน = ตัวเลข · ไม่มี = บอกว่าเคลียร์แล้ว */
+  let lastGroup = "";
+  for (const c of cats) {
+    if (c.group !== lastGroup) { lines.push(c.group); lastGroup = c.group; }
+    lines.push(c.count > 0
+      ? "   • " + c.label + " — " + c.count + " " + c.unit
+      : "   ✓ " + c.label + " — เคลียร์แล้ว");
   }
-  return reply(plans[0].text);
+
+  /* รายละเอียดเฉพาะหมวดที่มีงาน — หมวดละไม่เกิน 5 แถว (ไลน์ตัดที่ 5,000 ตัว) */
+  const DETAIL_ROWS = 5;
+  for (const c of cats) {
+    if (c.count === 0) continue;
+    const shown = c.rows.slice(0, DETAIL_ROWS);
+    const text = renderNotification(c.key, shown, templates[c.key] || null, c.count - shown.length);
+    if (text) { lines.push(""); lines.push(text); }
+  }
+
+  if (Array.isArray(feed.errors) && feed.errors.length) {
+    lines.push("");
+    lines.push("⚠️ บางหมวดอ่านไม่ได้ (ตัวเลขอาจไม่ครบ):");
+    for (const e of feed.errors.slice(0, 3)) lines.push("   " + e);
+  }
+  return reply(lines.join("\n"));
 }
 
 async function handleWorkAssistant(event, keyword, ctx) {
@@ -776,7 +803,7 @@ async function handleWorkAssistant(event, keyword, ctx) {
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
       return lineClient.replyMessage(event.replyToken, buildMenuFlex({ isOwner: ctx && ctx.isOwner }));
-    if (/^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน/.test(t)) return handleNotifyNow(event, ctx || {});
+    if (/^งานค้าง|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน|^เช็คงาน/.test(t)) return handleNotifyNow(event, ctx || {});
     if (/^สรุปงานวันนี้|^งานวันนี้|^สรุปงานของฉัน/.test(t)) {
       const arg = (keyword || "").replace(/^(สรุปงานวันนี้|งานวันนี้|สรุปงานของฉัน)\s*/i, "").trim();
       return handleMyDay(event, ctx || {}, arg);

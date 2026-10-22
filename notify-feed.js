@@ -27,14 +27,14 @@
  *   "all"      = เห็นทั้งหมด (งานบัญชี)
  */
 const NOTIFY_CATEGORIES = [
-  { key: "arrive_cn",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงโกดังจีน",       scope: "customer" },
-  { key: "arrive_th",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงไทยแล้ว",        scope: "customer" },
-  { key: "shop_pay",    group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอชำระเงิน",    scope: "customer" },
-  { key: "shop_ship",   group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอร้านจีนจัดส่ง", scope: "customer" },
-  { key: "acc_yuan",    group: "🧾 บัญชี",     label: "ฝากสั่งเข้า โอนหยวน/สลิปจีน", scope: "all" },
-  { key: "acc_slip",    group: "🧾 บัญชี",     label: "รอตรวจสลิป (ทุกบริการ)",     scope: "all" },
-  { key: "acc_wht",     group: "🧾 บัญชี",     label: "รอตรวจใบหัก ณ ที่จ่าย",      scope: "all" },
-  { key: "acc_cnt",     group: "🧾 บัญชี",     label: "ตู้ยิงรับครบแล้ว",            scope: "all" },
+  { key: "arrive_cn",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงโกดังจีน",       scope: "customer", unit: "ราย" },
+  { key: "arrive_th",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงไทยแล้ว",        scope: "customer", unit: "ราย" },
+  { key: "shop_pay",    group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอชำระเงิน",    scope: "customer", unit: "ใบ" },
+  { key: "shop_ship",   group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอร้านจีนจัดส่ง", scope: "customer", unit: "ใบ" },
+  { key: "acc_yuan",    group: "🧾 บัญชี",     label: "ฝากสั่งเข้า โอนหยวน/สลิปจีน", scope: "all",      unit: "ใบ" },
+  { key: "acc_slip",    group: "🧾 บัญชี",     label: "รอตรวจสลิป (ทุกบริการ)",     scope: "all",      unit: "รายการ" },
+  { key: "acc_wht",     group: "🧾 บัญชี",     label: "รอตรวจใบหัก ณ ที่จ่าย",      scope: "all",      unit: "รายการ" },
+  { key: "acc_cnt",     group: "🧾 บัญชี",     label: "ตู้ยิงรับครบแล้ว",            scope: "all",      unit: "ตู้" },
 ];
 const NOTIFY_KEYS = NOTIFY_CATEGORIES.map((c) => c.key);
 
@@ -53,6 +53,63 @@ const MAX_ROWS_PER_MESSAGE = 20;
  *        ข้อความที่ภูมแก้ไว้ (ไม่ส่ง/อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด · ดู notify-template.js)
  * @returns {Array<{lineUserId:string, text:string, keys:string[]}>}
  */
+/** แถวนี้เป็นของคนนี้ไหม — เซลหรือ CS ของลูกค้ารายนั้น */
+function ownsRow(person, row) {
+  const login = String((person && person.login) || "").trim();
+  if (!login) return false;
+  return login === String(row.salesLogin || "") || login === String(row.csLogin || "");
+}
+
+/** หมวดที่แยกตามคนดูแลลูกค้า (เซล/CS) + ที่มาของแถวใน feed */
+function customerSections(feed) {
+  return [
+    { key: "arrive_cn", rows: (feed.arrivals || {}).cnWarehouse || [], kind: "arrival" },
+    { key: "arrive_th", rows: (feed.arrivals || {}).thArrived   || [], kind: "arrival" },
+    { key: "shop_pay",  rows: (feed.shop || {}).awaitingPayment  || [], kind: "order" },
+    { key: "shop_ship", rows: (feed.shop || {}).awaitingShopShip || [], kind: "order" },
+  ];
+}
+
+/** หมวดงานบัญชี — ทุกคนที่ติ๊กเห็นชุดเดียวกัน (ไม่แบ่งตามลูกค้า) */
+function accSections(feed) {
+  return [
+    { key: "acc_yuan", rows: (feed.shop || {}).yuanCost || [], order: true },
+    { key: "acc_slip", rows: (feed.accounting || {}).slipReview || [] },
+    { key: "acc_wht",  rows: (feed.accounting || {}).whtReview || [] },
+    { key: "acc_cnt",  rows: (feed.accounting || {}).containersComplete || [] },
+  ];
+}
+
+/**
+ * 📋 "งานค้างของฉัน" — ปุ่มเช็คงานค้าง (ภูม 2026-10-22)
+ *
+ * ภูม: *"อยากให้ทำปุ่มไว้ให้พนักงานแต่ละแผนกเช็คได้ด้วยว่ามีงานไหนค้างอยู่อีกไหม"*
+ *      เทียบกับปุ่ม "รอตอบพิกัด" ที่กดแล้วบอกได้ว่า *"ไม่มีงานรอตอบพิกัด — เคลียร์หมดแล้ว"*
+ *
+ * 🔑 ต่างจากรอบแจ้งเตือนอัตโนมัติ (planNotifications) 2 อย่าง:
+ *    ① **คืนทุกหมวดที่เขาติ๊ก รวมหมวดที่ว่าง** (count 0) — คนกดต้องรู้ว่า "เคลียร์แล้ว"
+ *       ไม่ใช่หมวดหายไปเฉยๆ แล้วเดาเอาเองว่าไม่มีงานหรือบอทพัง
+ *    ② ไม่สน "ของใหม่" — กดเมื่อไหร่ก็เห็นของที่ค้างอยู่ทั้งหมด
+ *
+ * 🔒 ใช้ตารางแถว + ตัวเช็คเจ้าของ **ตัวเดียวกับรอบแจ้งเตือน** ⇒ เลขตรงกันเสมอ
+ *
+ * @returns {Array<{key:string, group:string, label:string, unit:string, count:number, rows:Array}>}
+ */
+function summarizeBacklog(feed, person) {
+  if (!feed || !person) return [];
+  const picked = Array.isArray(person.notify) ? person.notify : [];
+  const out = [];
+  for (const cat of NOTIFY_CATEGORIES) {
+    if (!picked.includes(cat.key)) continue;
+    const sec = customerSections(feed).find((x) => x.key === cat.key)
+             || accSections(feed).find((x) => x.key === cat.key);
+    if (!sec) continue;
+    const rows = cat.scope === "customer" ? sec.rows.filter((r) => ownsRow(person, r)) : sec.rows;
+    out.push({ key: cat.key, group: cat.group, label: cat.label, unit: cat.unit || "รายการ", count: rows.length, rows });
+  }
+  return out;
+}
+
 function planNotifications(feed, staff, isNew, templates) {
   const tplOf = (key) => (templates && templates[key]) || null;
   if (!feed) return [];
@@ -62,20 +119,8 @@ function planNotifications(feed, staff, isNew, templates) {
   const listeners = (key) =>
     (staff || []).filter((s) => s && s.active && Array.isArray(s.notify) && s.notify.includes(key));
 
-  /** แถวนี้เป็นของคนนี้ไหม — เซลหรือ CS ของลูกค้ารายนั้น */
-  const ownsRow = (person, row) => {
-    const login = String((person && person.login) || "").trim();
-    if (!login) return false;
-    return login === String(row.salesLogin || "") || login === String(row.csLogin || "");
-  };
-
   /* ── ① ฝากนำเข้า + ฝากสั่ง — แยกตามคนที่ดูแลลูกค้า ───────────────── */
-  const CUSTOMER_SECTIONS = [
-    { key: "arrive_cn", rows: (feed.arrivals || {}).cnWarehouse || [], kind: "arrival" },
-    { key: "arrive_th", rows: (feed.arrivals || {}).thArrived   || [], kind: "arrival" },
-    { key: "shop_pay",  rows: (feed.shop || {}).awaitingPayment  || [], kind: "order" },
-    { key: "shop_ship", rows: (feed.shop || {}).awaitingShopShip || [], kind: "order" },
-  ];
+  const CUSTOMER_SECTIONS = customerSections(feed);
 
   for (const sec of CUSTOMER_SECTIONS) {
     for (const person of listeners(sec.key)) {
@@ -101,12 +146,7 @@ function planNotifications(feed, staff, isNew, templates) {
   }
 
   /* ── ② งานบัญชี — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ─────────────── */
-  const ACC_SECTIONS = [
-    { key: "acc_yuan", rows: (feed.shop || {}).yuanCost || [], order: true },
-    { key: "acc_slip", rows: (feed.accounting || {}).slipReview || [] },
-    { key: "acc_wht",  rows: (feed.accounting || {}).whtReview || [] },
-    { key: "acc_cnt",  rows: (feed.accounting || {}).containersComplete || [] },
-  ];
+  const ACC_SECTIONS = accSections(feed);
 
   for (const sec of ACC_SECTIONS) {
     const people = listeners(sec.key);
@@ -128,4 +168,4 @@ function planNotifications(feed, staff, isNew, templates) {
   return out;
 }
 
-module.exports = { NOTIFY_CATEGORIES, NOTIFY_KEYS, planNotifications };
+module.exports = { NOTIFY_CATEGORIES, NOTIFY_KEYS, planNotifications, summarizeBacklog };

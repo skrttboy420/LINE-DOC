@@ -59,11 +59,11 @@ ok("ทุกปุ่มมีครบ 4 ช่อง + label ไม่เก�
   const items = readMenuItems();
   assert.ok(items.length >= 6, "ควรมีอย่างน้อย 6 ปุ่ม · เจอ " + items.length);
   assert.ok(items.length <= 13, "ไลน์รับปุ่มลัดได้ไม่เกิน 13 ปุ่ม · เจอ " + items.length);
-  /* 🏢 ภูม 2026-10-22 *"ให้ทุกแผนกมีแค่ แจ้งเตือน กับ สรุปงานวันนี้ไปก่อน"* —
+  /* 🏢 ภูม 2026-10-22 *"ให้ทุกแผนกมีแค่ แจ้งเตือน กับ สรุปงานวันนี้ไปก่อน"* (ปุ่มแจ้งเตือน = "เช็คงานที่ค้าง") —
         เมนูที่ทุกคนเห็นต้องเป็น 2 ปุ่มนี้เท่านั้น (เพิ่มปุ่มให้ทุกแผนก = ต้องถามภูมก่อน) */
   const core = readMenuGroup("CORE_MENU");
   assert.equal(core.length, 2, "เมนูหลักต้องมี 2 ปุ่ม · เจอ " + core.length + " = " + core.map((m) => m.text).join(","));
-  assert.deepEqual(core.map((m) => m.text), ["แจ้งเตือน", "สรุปงานวันนี้"], "เมนูหลัก = แจ้งเตือน + สรุปงานวันนี้");
+  assert.deepEqual(core.map((m) => m.text), ["งานค้าง", "สรุปงานวันนี้"], "เมนูหลัก = เช็คงานค้าง + สรุปงานวันนี้");
   for (const m of items) {
     for (const k of ["label", "menuLabel", "text", "color"]) {
       assert.ok(m[k] && String(m[k]).trim(), "ปุ่ม " + JSON.stringify(m) + " ขาดช่อง " + k);
@@ -97,7 +97,7 @@ ok("ทุกปุ่มส่งคำที่บอทจับได้จ�
 ok("ทุกปุ่มมีคนรับงานจริงใน handleWorkAssistant", () => {
   const fn = fnBody("async function handleWorkAssistant");
   const CLAIMED = {
-    "แจ้งเตือน": /handleNotifyNow\(/,
+    "งานค้าง": /handleNotifyNow\(/,
     "อัพล่าสุด": /pacredGet\("uploads"\)/,
     "แทรคค้าง": /แทรคค้าง\|ยังไม่เข้า/,
     "รอตอบพิกัด": /รอตอบพิกัด\|รอพิกัด/,

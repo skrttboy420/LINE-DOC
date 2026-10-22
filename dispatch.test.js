@@ -196,7 +196,7 @@ const POOM = {
     STAFF = POOM; STATE = null;
     await say("เมนู", "Ustaff");                       // ไม่ใช่เจ้าของบอท
     const b = flexButtons();
-    for (const want of ["🔔 งานที่ต้องทำตอนนี้", "📊 สรุปงานวันนี้ของฉัน"]) {
+    for (const want of ["🔔 เช็คงานที่ค้าง", "📊 สรุปงานวันนี้ของฉัน"]) {
       assert.ok(b.includes(want), "การ์ดไม่มีปุ่ม " + want + " · มี: " + b.join(" | "));
     }
     for (const no of ["📦 อัพเดตล่าสุด", "🔴 แทรคค้าง", "🧾 งานรอตอบพิกัด", "🔍 ค้นพิกัดในคลัง", "✨ ให้ Gemini เดาพิกัด"]) {
@@ -209,7 +209,7 @@ const POOM = {
     STAFF = POOM; STATE = null;
     await say("เมนู", "Uowner");
     const b = flexButtons();
-    for (const want of ["🔔 งานที่ต้องทำตอนนี้", "📊 สรุปงานวันนี้ของฉัน",
+    for (const want of ["🔔 เช็คงานที่ค้าง", "📊 สรุปงานวันนี้ของฉัน",
                         "📦 อัพเดตล่าสุด", "🔴 แทรคค้าง", "🧾 งานรอตอบพิกัด",
                         "🔍 ค้นพิกัดในคลัง", "✨ ให้ Gemini เดาพิกัด"]) {
       assert.ok(b.includes(want), "การ์ดของเจ้าของบอทไม่มีปุ่ม " + want + " · มี: " + b.join(" | "));
@@ -386,6 +386,92 @@ const POOM = {
     await say("เมนู", "Ustranger");
     assert.ok(replyText().includes("ยังไม่ได้ผูกบัญชี"), "ต้องขึ้นข้อความด่านสิทธิ์ · ได้: " + replyText());
     assert.equal(replyFlex(), null, "ไม่ควรได้การ์ดเมนู");
+  });
+
+
+  console.log("\n🔔 เช็คงานที่ค้าง (กดจริง)");
+
+  /* 🧾 บัญชี (ออม) — ติ๊กครบ 4 หมวด · feed มีงาน 2 หมวด ว่าง 2 หมวด */
+  const AOM = {
+    line_user_id: "Uaom", login: "admin_aom", code: "AD012", name: "สรวิชญ์ กัวศรี", nickname: "ออม",
+    department: "Accounting", position: "Admin Accounting", roles: ["ultra"], active: true,
+    notify: ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
+  };
+  const FEED_SOME = {
+    arrivals: { cnWarehouse: [], thArrived: [] },
+    shop: {
+      awaitingPayment: [], awaitingShopShip: [],
+      yuanCost: [
+        { hno: "P22667", customerCode: "PR583", customerName: "ไทรทัน", amountThb: 25654.18 },
+        { hno: "P22691", customerCode: "PR622", customerName: "วุฒิ", amountThb: 37827.9 },
+      ],
+    },
+    accounting: {
+      slipReview: [],
+      whtReview: [],
+      containersComplete: [
+        { service: "ตู้ยิงรับครบแล้ว", ref: "GZE261016-1", label: "238/238 กล่อง · 103 แทรค" },
+      ],
+    },
+    errors: [],
+  };
+
+  await ok("บัญชีกด \"งานค้าง\" → เห็นครบทุกหมวด · หมวดที่ว่างบอกว่าเคลียร์แล้ว", async () => {
+    STAFF = AOM; STATE = null;
+    PACRED = () => ({ notify: FEED_SOME });
+    await say("งานค้าง", "Uaom");
+    const t = replyText();
+    assert.match(t, /งานค้างของคุณ/, "ต้องขึ้นหัวว่ามีงานค้าง · ได้: " + t);
+    /* หมวดที่มีงาน = ตัวเลข + หน่วย */
+    assert.match(t, /โอนหยวน\/สลิปจีน — 2 ใบ/, "หมวดที่มีงานต้องบอกจำนวน + หน่วย\n" + t);
+    assert.match(t, /ตู้ยิงรับครบแล้ว — 1 ตู้/, "หน่วยของตู้ต้องเป็น 'ตู้'\n" + t);
+    /* 🔑 หัวใจของปุ่มนี้ — หมวดที่ไม่มีงานต้อง **ยังขึ้น** พร้อมบอกว่าเคลียร์แล้ว */
+    assert.match(t, /✓ รอตรวจสลิป \(ทุกบริการ\) — เคลียร์แล้ว/, "หมวดที่ว่างต้องบอกว่าเคลียร์แล้ว\n" + t);
+    assert.match(t, /✓ รอตรวจใบหัก ณ ที่จ่าย — เคลียร์แล้ว/, "หมวดที่ว่างต้องไม่หายไปเฉยๆ\n" + t);
+    /* มีรายละเอียดของหมวดที่มีงานต่อท้าย */
+    assert.ok(t.includes("P22667"), "ต้องมีรายละเอียดงานจริงต่อท้าย\n" + t);
+  });
+
+  await ok("ไม่มีงานเลย → บอก \"เคลียร์หมดแล้ว\" ไม่ใช่เงียบ", async () => {
+    STAFF = AOM; STATE = null;
+    PACRED = () => ({ notify: {
+      arrivals: { cnWarehouse: [], thArrived: [] },
+      shop: { awaitingPayment: [], awaitingShopShip: [], yuanCost: [] },
+      accounting: { slipReview: [], whtReview: [], containersComplete: [] },
+      errors: [],
+    } });
+    await say("งานค้าง", "Uaom");
+    const t = replyText();
+    assert.match(t, /เคลียร์หมดแล้ว/, "ต้องบอกว่าเคลียร์หมด · ได้: " + t);
+    assert.match(t, /✓ ตู้ยิงรับครบแล้ว — เคลียร์แล้ว/, "ต้องลิสต์ทุกหมวดที่ติ๊กไว้\n" + t);
+  });
+
+  await ok("เซล/CS เห็นเฉพาะลูกค้าของตัวเอง", async () => {
+    /* 🔒 ปุ่มนี้ต้องกรองเจ้าของเหมือนรอบแจ้งเตือน — ไม่งั้นเซลเห็นลูกค้าคนอื่นทั้งบริษัท */
+    const BAM = { line_user_id: "Ubam", login: "admin_bam", name: "แบม", nickname: "แบม",
+                  department: "Sales", roles: ["sales"], active: true, notify: ["arrive_th"] };
+    STAFF = BAM; STATE = null;
+    PACRED = () => ({ notify: {
+      arrivals: { cnWarehouse: [], thArrived: [
+        { customerCode: "PR001", customerName: "ของแบม", pieces: 3, weightKg: 10, salesLogin: "admin_bam", csLogin: "" },
+        { customerCode: "PR999", customerName: "ของคนอื่น", pieces: 9, weightKg: 90, salesLogin: "admin_may", csLogin: "" },
+      ] },
+      shop: { awaitingPayment: [], awaitingShopShip: [], yuanCost: [] },
+      accounting: { slipReview: [], whtReview: [], containersComplete: [] },
+      errors: [],
+    } });
+    await say("งานค้าง", "Ubam");
+    const t = replyText();
+    assert.match(t, /ถึงไทยแล้ว — 1 ราย/, "ต้องนับเฉพาะลูกค้าของตัวเอง\n" + t);
+    assert.ok(t.includes("PR001"), "ต้องมีลูกค้าของตัวเอง\n" + t);
+    assert.ok(!t.includes("PR999"), "ห้ามเห็นลูกค้าของคนอื่น\n" + t);
+  });
+
+  await ok("ยังไม่ติ๊กหมวดไหนเลย → บอกให้ไปติ๊ก (ไม่ใช่บอกว่าไม่มีงาน)", async () => {
+    STAFF = { line_user_id: "Unew", login: "admin_new", name: "ใหม่", active: true, notify: [] };
+    STATE = null;
+    await say("งานค้าง", "Unew");
+    assert.match(replyText(), /ยังไม่ได้ติ๊กหมวด/, "ได้: " + replyText());
   });
 
   console.log("\nรวม: " + pass + " ผ่าน" + (fail ? " · " + fail + " ตก" : ""));

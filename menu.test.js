@@ -47,7 +47,11 @@ function readMenuItems() { return readMenuGroup("CORE_MENU").concat(readMenuGrou
 console.log("\n🧭 เมนู");
 
 ok("ปุ่มลัด + การ์ดเมนู สร้างจากรายการเดียว (ห้ามเขียนแยก)", () => {
-  assert.match(SRC, /const QUICK = \{ items: CORE_MENU\.map/, "ปุ่มลัดต้องมาจาก CORE_MENU");
+  /* 🔄 2026-10-22 ปุ่มลัดมี 2 ชุด (ทุกแผนก 2 ปุ่ม · ทีมระบบครบ) ⇒ สร้างผ่าน quickOf() ตัวเดียว
+        🔑 ต้องสร้างจาก CORE_MENU/TOOL_MENU ห้ามพิมพ์รายการปุ่มซ้ำ */
+  assert.match(SRC, /const QUICK = quickOf\(CORE_MENU\)/, "ปุ่มลัดของทุกแผนกต้องมาจาก CORE_MENU");
+  assert.match(SRC, /const QUICK_TOOLS = quickOf\(CORE_MENU\.concat\(TOOL_MENU\)\)/, "ปุ่มลัดของทีมระบบต้องเป็น CORE + TOOL");
+  assert.match(SRC, /quickReply: showTools \? QUICK_TOOLS : QUICK/, "การ์ดต้องส่งปุ่มลัดชุดเดียวกับปุ่มที่โชว์");
   assert.match(SRC, /\.\.\.CORE_MENU\.map\(btn\)/, "การ์ดเมนูต้องมาจาก CORE_MENU");
   assert.match(SRC, /\.\.\.TOOL_MENU\.map\(btn\)/, "เครื่องมือต้องมาจาก TOOL_MENU");
   // ถ้ามีใครกลับไปเขียนปุ่มมือในการ์ด จะโผล่เป็น action ที่ไม่ได้มาจาก m.*
@@ -130,7 +134,13 @@ ok("โชว์เฉพาะเจ้าของบอท + ต้องม�
 });
 
 ok("การ์ดเมนูต้องรู้ว่าใครกด (ไม่งั้นปุ่มนี้ไม่มีวันโผล่)", () => {
-  assert.match(SRC, /buildMenuFlex\(\{ isOwner: ctx && ctx\.isOwner \}\)/, "ต้องส่ง isOwner เข้าการ์ด");
+  /* 🔴 ภูม 2026-10-22 *"ของภูมิแทบเมนูหายหมดเลย"* — เดิมดูแค่ `isOwner` ซึ่งอ่านจาก env
+        `OWNER_LINE_ID`/`NOTIFY_TO` · env ไม่ได้ตั้ง ⇒ ไม่มีใครเป็นเจ้าของ ⇒ เครื่องมือหายทั้งแผง
+        ⇒ ต้องส่ง `me` (แถวทะเบียน) เข้าไปด้วย แล้วตัดสินจากแผนก */
+  assert.match(SRC, /buildMenuFlex\(\{ isOwner: ctx && ctx\.isOwner, me: ctx && ctx\.me \}\)/,
+    "ต้องส่งทั้ง isOwner และ me เข้าการ์ด");
+  assert.match(SRC, /const showTools = isOwner \|\| isToolDept\(/, "เครื่องมือต้องตัดสินจากแผนกด้วย ไม่ใช่ env อย่างเดียว");
+  assert.match(SRC, /const TOOL_DEPARTMENTS = \["ITDT"\]/, "ITDT = แผนกที่ได้เครื่องมือ (คนตอบพิกัด/ดูแลระบบ)");
   assert.match(SRC, /handleWorkAssistant\(event, keyword, await botCallerContext\(userId\)\)/,
     "ต้องส่งตัวตนคนกดเข้า handleWorkAssistant");
 });

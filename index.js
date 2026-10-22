@@ -134,7 +134,7 @@ const CORE_MENU = [
   { label: "📊 งานวันนี้",   menuLabel: "📊 สรุปงานวันนี้ของฉัน",  text: "สรุปงานวันนี้",  color: "#2e7d32" },
 ];
 
-/* 🧰 เครื่องมือเฉพาะทาง — เจ้าของบอทเท่านั้น (ภูมต้องใช้ตอบพิกัด + เทสระบบ)
+/* 🧰 เครื่องมือเฉพาะทาง — คนทำงานพิกัด/ระบบ (ภูมต้องใช้ตอบพิกัด + เทสระบบ)
  *   คนอื่นพิมพ์คำสั่งเองได้เหมือนเดิม แค่ไม่มีปุ่มมาให้รก */
 const TOOL_MENU = [
   { label: "📦 อัพล่าสุด",   menuLabel: "📦 อัพเดตล่าสุด",        text: "อัพล่าสุด",      color: PR_RED },
@@ -150,9 +150,13 @@ const TOOL_MENU = [
 const ALL_MENU = CORE_MENU.concat(TOOL_MENU);
 
 // ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว · ไลน์รับได้สูงสุด 13 ปุ่ม
-const QUICK = { items: CORE_MENU.map((m) => ({
+const quickOf = (items) => ({ items: items.map((m) => ({
   type: "action", action: { type: "message", label: m.label, text: m.text },
-})) };
+})) });
+/** ปุ่มลัดของทุกแผนก (2 ปุ่ม) — ตัวตั้งต้นที่ข้อความทั่วไปใช้ */
+const QUICK = quickOf(CORE_MENU);
+/** ปุ่มลัดของทีมระบบ — เครื่องมือครบ (ภูมต้องกดต่อเนื่องตอนตอบพิกัด) */
+const QUICK_TOOLS = quickOf(CORE_MENU.concat(TOOL_MENU));
 
 function headerBox(title, color) {
   return { type: "box", layout: "vertical", backgroundColor: color || PR_RED, paddingAll: "14px",
@@ -172,11 +176,28 @@ function staffAdminLink() {
 }
 
 /**
+ * 🧰 แผนกที่ได้ปุ่มเครื่องมือ (ค้นพิกัด · แทรคค้าง · อัพเดตล่าสุด · Gemini)
+ *
+ * ภูม 2026-10-22 — ITDT คือคนตอบพิกัด + ดูแลระบบ ⇒ ต้องมีเครื่องมือครบ
+ * แผนกอื่นได้เมนูหลัก 2 ปุ่ม (ภูม: *"ยังไม่ต้องเพิ่มฟังชั่นอะไรให้ เดี๋ยวจะยิ่งวุ่นวาย"*)
+ * 🔑 อ่านจาก**ทะเบียนพนักงาน** ไม่ใช่ env — env ไม่ได้ตั้งแล้วเมนูหายทั้งแผง (บั๊กที่ภูมเจอ)
+ */
+const TOOL_DEPARTMENTS = ["ITDT"];
+function isToolDept(me) {
+  const d = String((me && me.department) || "").trim().toUpperCase();
+  return TOOL_DEPARTMENTS.some((x) => d === x.toUpperCase());
+}
+
+/**
  * การ์ดเมนู — ปุ่มครบทุกหัวข้อจาก MENU_ITEMS
  * @param {{isOwner?: boolean}} [opts] เจ้าของบอทได้ปุ่ม "จัดการสิทธิ์" เพิ่ม
  */
 function buildMenuFlex(opts) {
   const isOwner = !!(opts && opts.isOwner);
+  /* 🔴 ภูม 2026-10-22: *"ของภูมิแทบเมนูหายหมดเลย"* — เดิมผูกเครื่องมือไว้กับ `isOwner`
+        ซึ่งอ่านจาก env `OWNER_LINE_ID`/`NOTIFY_TO` · env นั้นไม่ได้ตั้ง ⇒ ภูมไม่ถูกนับเป็นเจ้าของ
+        ⇒ ผูกกับ **ทะเบียนพนักงาน** แทน (แผนก ITDT = คนดูแลระบบ/ตอบพิกัด) จะได้ไม่พึ่ง env */
+  const showTools = isOwner || isToolDept(opts && opts.me);
   const btn = (m) => ({
     type: "button", style: "primary", color: m.color, height: "sm",
     action: { type: "message", label: m.menuLabel, text: m.text },
@@ -185,10 +206,10 @@ function buildMenuFlex(opts) {
     { type: "text", text: "เลือกหัวข้อที่ต้องการ", size: "sm", color: "#666666" },
     ...CORE_MENU.map(btn),
   ];
-  /* 🧰 เครื่องมือของเจ้าของบอท — คั่นให้เห็นว่าเป็นคนละชุด */
-  if (isOwner) {
+  /* 🧰 เครื่องมือของทีมระบบ — คั่นให้เห็นว่าเป็นคนละชุด */
+  if (showTools) {
     contents.push({ type: "separator", margin: "md" });
-    contents.push({ type: "text", text: "เครื่องมือ (เจ้าของบอท)", size: "xs", color: "#999999", margin: "sm" });
+    contents.push({ type: "text", text: "เครื่องมือ (ทีมระบบ)", size: "xs", color: "#999999", margin: "sm" });
     contents.push(...TOOL_MENU.map(btn));
   }
 
@@ -202,7 +223,7 @@ function buildMenuFlex(opts) {
       action: { type: "uri", label: "⚙️ จัดการสิทธิ์พนักงาน", uri: adminUrl } });
   }
 
-  return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: QUICK, contents: {
+  return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: showTools ? QUICK_TOOLS : QUICK, contents: {
     type: "bubble",
     header: headerBox("🤖 ผู้ช่วยงาน Pacred"),
     body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "16px", contents },
@@ -802,7 +823,7 @@ async function handleWorkAssistant(event, keyword, ctx) {
   const t = (keyword || "").toLowerCase();
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
-      return lineClient.replyMessage(event.replyToken, buildMenuFlex({ isOwner: ctx && ctx.isOwner }));
+      return lineClient.replyMessage(event.replyToken, buildMenuFlex({ isOwner: ctx && ctx.isOwner, me: ctx && ctx.me }));
     if (/^งานค้าง|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน|^เช็คงาน/.test(t)) return handleNotifyNow(event, ctx || {});
     if (/^สรุปงานวันนี้|^งานวันนี้|^สรุปงานของฉัน/.test(t)) {
       const arg = (keyword || "").replace(/^(สรุปงานวันนี้|งานวันนี้|สรุปงานของฉัน)\s*/i, "").trim();

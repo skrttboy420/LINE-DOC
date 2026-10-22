@@ -84,7 +84,7 @@ async function botCallerContext(userId) {
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง / สรุปงานวันนี้)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน/.test(t);
 }
 
 // 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
@@ -121,17 +121,35 @@ function fmtWhen(iso) {
  *
  * label = บนปุ่มลัด (ไลน์จำกัด 20 ตัวอักษร) · menuLabel = บนการ์ด (ยาวได้)
  */
-const MENU_ITEMS = [
+/* 🏢 เมนูหลัก — **ทุกแผนกเห็นเท่ากัน 2 ปุ่ม** (ภูม 2026-10-22)
+ *   ภูม: *"ตอนนี้ให้ทุกแผนกมีแค่ แจ้งเตือน กับ สรุปงานวันนี้ไปก่อน ยังไม่ต้องเพิ่มฟังชั่น
+ *         อะไรให้ เดี๋ยวจะยิ่งวุ่นวายเอา"*
+ *   🔴 เดิมทุกคนได้ 6 ปุ่มเท่ากันหมด ⇒ ออม (บัญชี) เปิดมาเจอ "แทรคค้าง · อัพเดตล่าสุด"
+ *      ซึ่งเป็นงานคลังล้วน = เมนูไม่ใช่ของเขา
+ *   🔑 **ตัดแค่ "ปุ่ม" ไม่ได้ตัด "ความสามารถ"** — ใครพิมพ์ "แทรคค้าง" เองยังใช้ได้ทุกคน
+ *      (ตัดฟังก์ชันทิ้ง = คนที่เคยใช้อยู่ทำงานไม่ได้ · ภูมสั่งแค่ "ยังไม่ต้องเพิ่ม") */
+const CORE_MENU = [
+  { label: "🔔 แจ้งเตือน",   menuLabel: "🔔 งานที่ต้องทำตอนนี้",   text: "แจ้งเตือน",     color: "#e53935" },
+  { label: "📊 งานวันนี้",   menuLabel: "📊 สรุปงานวันนี้ของฉัน",  text: "สรุปงานวันนี้",  color: "#2e7d32" },
+];
+
+/* 🧰 เครื่องมือเฉพาะทาง — เจ้าของบอทเท่านั้น (ภูมต้องใช้ตอบพิกัด + เทสระบบ)
+ *   คนอื่นพิมพ์คำสั่งเองได้เหมือนเดิม แค่ไม่มีปุ่มมาให้รก */
+const TOOL_MENU = [
   { label: "📦 อัพล่าสุด",   menuLabel: "📦 อัพเดตล่าสุด",        text: "อัพล่าสุด",      color: PR_RED },
   { label: "🔴 แทรคค้าง",    menuLabel: "🔴 แทรคค้าง",            text: "แทรคค้าง",      color: "#e53935" },
   { label: "🧾 รอตอบพิกัด",  menuLabel: "🧾 งานรอตอบพิกัด",       text: "รอตอบพิกัด",    color: "#f57c00" },
-  { label: "📊 งานวันนี้",   menuLabel: "📊 สรุปงานวันนี้ของฉัน",  text: "สรุปงานวันนี้",  color: "#2e7d32" },
   { label: "🔍 ค้นพิกัด",    menuLabel: "🔍 ค้นพิกัดในคลัง",       text: "ค้นพิกัด",      color: "#00897b" },
   { label: "✨ Gemini",      menuLabel: "✨ ให้ Gemini เดาพิกัด",  text: "Gemini",       color: "#5e35b1" },
 ];
 
+/* 🔑 "ปุ่มเมนูทั้งหมด" = หลัก + เครื่องมือ — ใช้ตัดสินว่าข้อความที่พิมพ์มาเป็น "ปุ่ม" หรือ "ชื่อสินค้า"
+      🔴 ถ้าเทียบแค่ CORE_MENU: กด 🔍 ค้นพิกัด แล้วเปลี่ยนใจกด ✨ Gemini จะถูกอ่านเป็น
+         ชื่อสินค้า "Gemini" (ทางตันเดิมที่ยามข้อ "กดปุ่มเมนูอื่นระหว่างรอพิมพ์" กันไว้) */
+const ALL_MENU = CORE_MENU.concat(TOOL_MENU);
+
 // ปุ่มลัดใต้ข้อความ (Quick Reply) — กดถามซ้ำได้เร็ว · ไลน์รับได้สูงสุด 13 ปุ่ม
-const QUICK = { items: MENU_ITEMS.map((m) => ({
+const QUICK = { items: CORE_MENU.map((m) => ({
   type: "action", action: { type: "message", label: m.label, text: m.text },
 })) };
 
@@ -157,19 +175,27 @@ function staffAdminLink() {
  * @param {{isOwner?: boolean}} [opts] เจ้าของบอทได้ปุ่ม "จัดการสิทธิ์" เพิ่ม
  */
 function buildMenuFlex(opts) {
+  const isOwner = !!(opts && opts.isOwner);
+  const btn = (m) => ({
+    type: "button", style: "primary", color: m.color, height: "sm",
+    action: { type: "message", label: m.menuLabel, text: m.text },
+  });
   const contents = [
     { type: "text", text: "เลือกหัวข้อที่ต้องการ", size: "sm", color: "#666666" },
-    ...MENU_ITEMS.map((m) => ({
-      type: "button", style: "primary", color: m.color, height: "sm",
-      action: { type: "message", label: m.menuLabel, text: m.text },
-    })),
+    ...CORE_MENU.map(btn),
   ];
+  /* 🧰 เครื่องมือของเจ้าของบอท — คั่นให้เห็นว่าเป็นคนละชุด */
+  if (isOwner) {
+    contents.push({ type: "separator", margin: "md" });
+    contents.push({ type: "text", text: "เครื่องมือ (เจ้าของบอท)", size: "xs", color: "#999999", margin: "sm" });
+    contents.push(...TOOL_MENU.map(btn));
+  }
 
   /* ⚙️ ปุ่มจัดการสิทธิ์ (ภูม 2026-10-21) — *"ตอนนี้ยังไม่มีปุ่มให้กดเข้าหน้าจัดการง่ายๆ
    *    ภูมิต้อง copy link ไปเปิดเอาเองอะตอนนี้"*
    * 🔒 เจ้าของบอทเท่านั้น (ลิงก์พากุญแจไปด้วย) · ไม่ได้ตั้ง ADMIN_KEY = ไม่โชว์ (หน้านั้นปิด) */
   const adminUrl = staffAdminLink();
-  if (opts && opts.isOwner && adminUrl) {
+  if (isOwner && adminUrl) {
     contents.push({ type: "separator", margin: "md" });
     contents.push({ type: "button", style: "secondary", height: "sm",
       action: { type: "uri", label: "⚙️ จัดการสิทธิ์พนักงาน", uri: adminUrl } });
@@ -642,28 +668,107 @@ function buildMyDayText(d, login) {
 
   const i = d.intake || {};
   const hs = d.hsAnswered || {};
+  const works = Array.isArray(d.works) ? d.works : [];
   const lines = [
     "📊 สรุปงานวันนี้ — " + (d.name || login),
     d.day,
     "━━━━━━━━━━━━",
-    "",
-    "📦 อัพแทรคเข้าระบบ",
-    "   " + (i.tracks || 0) + " แทรค · " + (i.boxes || 0) + " กล่อง",
-    "   " + (i.weightKg || 0) + " กก. · " + (i.cbm || 0) + " คิว",
   ];
-  /* 🔑 แยก "งานของคน" ออกจาก "งานของตัวนำเข้าอัตโนมัติ" ให้เห็นคาตา
-        ไม่งั้นคนเอาไปเทียบกับจอ /admin แล้วคิดว่าบอทนับขาด */
-  if (i.autoTracks) lines.push("   (ระบบนำเข้าเองอีก " + i.autoTracks + " แทรค — ไม่นับเป็นของใคร)");
-  lines.push("");
-  lines.push("🧾 ตอบพิกัด " + (hs.orders || 0) + " ออเดอร์");
-  const hnos = hs.hnos || [];
-  if (hnos.length) lines.push("   " + hnos.slice(0, 12).join(" · ") + (hnos.length > 12 ? " …" : ""));
 
-  if (!i.tracks && !(hs.orders || 0)) {
+  /* 🔴 ภูม 2026-10-22: ออม (บัญชี) กดแล้วเห็น "อัพแทรค 0 · ตอบพิกัด 0" = ข้อความบอกว่า
+        เขาไม่ได้ทำอะไรทั้งวัน ทั้งที่ตรวจสลิปไปหลายใบ
+     ⇒ **บล็อกไหนไม่มีเลข ไม่ต้องขึ้น** — แต่ละแผนกเห็นเฉพาะงานของตัวเอง */
+  if (i.tracks) {
+    lines.push("");
+    lines.push("📦 อัพแทรคเข้าระบบ");
+    lines.push("   " + i.tracks + " แทรค · " + (i.boxes || 0) + " กล่อง");
+    lines.push("   " + (i.weightKg || 0) + " กก. · " + (i.cbm || 0) + " คิว");
+    /* 🔑 แยก "งานของคน" ออกจาก "งานของตัวนำเข้าอัตโนมัติ" ให้เห็นคาตา
+          ไม่งั้นคนเอาไปเทียบกับจอ /admin แล้วคิดว่าบอทนับขาด */
+    if (i.autoTracks) lines.push("   (ระบบนำเข้าเองอีก " + i.autoTracks + " แทรค — ไม่นับเป็นของใคร)");
+  }
+
+  if (hs.orders) {
+    lines.push("");
+    lines.push("🧭 ตอบพิกัด " + hs.orders + " ออเดอร์");
+    const hnos = hs.hnos || [];
+    if (hnos.length) lines.push("   " + hnos.slice(0, 12).join(" · ") + (hnos.length > 12 ? " …" : ""));
+  }
+
+  /* งานอื่นที่เว็บนับมาให้ — จัดกลุ่มตามแผนก เรียงมากไปน้อย (เว็บเรียงมาแล้ว) */
+  const ICON = { "คลัง": "📦", "ฝากนำเข้า": "🚚", "ฝากสั่งซื้อ": "🎧", "บัญชี": "🧾" };
+  const groups = [];
+  for (const w of works) {
+    let g = groups.find((x) => x.name === w.group);
+    if (!g) { g = { name: w.group, items: [] }; groups.push(g); }
+    g.items.push(w.label + " " + w.count);
+  }
+  for (const g of groups) {
+    lines.push("");
+    lines.push((ICON[g.name] || "•") + " " + g.name);
+    /* 2 รายการต่อบรรทัด — ไลน์บนมือถือตัดบรรทัดเองถ้ายาวเกิน อ่านยาก */
+    for (let k = 0; k < g.items.length; k += 2) {
+      lines.push("   " + g.items.slice(k, k + 2).join(" · "));
+    }
+  }
+
+  /* ใบเสร็จที่ระบบออกเอง — ไม่ใช่ผลงานรายคน ⇒ บอกตรงๆ ว่าเป็นของทั้งทีม
+     (ภูมขอ "ออกใบเสร็จกี่ใบ" · วัดแล้วใบพวกนี้ไม่มีคนกด ระบบออกให้ตอนอนุมัติ) */
+  if (typeof d.teamReceiptsToday === "number") {
+    lines.push("   ใบเสร็จที่ระบบออกวันนี้ " + d.teamReceiptsToday + " ใบ (ทั้งทีม)");
+  }
+
+  if (!i.tracks && !hs.orders && works.length === 0) {
     lines.push("");
     lines.push("ยังไม่มีงานที่นับได้วันนี้");
   }
   return { type: "text", quickReply: QUICK, text: lines.join("\n") };
+}
+
+/* ══ 🔔 "งานที่ต้องทำตอนนี้" (ภูม 2026-10-22) ═══════════════════════════════════
+ *
+ * แจ้งเตือนอัตโนมัติเด้งทุก 5 นาที **เฉพาะของใหม่** (ภูมสั่งไว้ว่าไม่มีของใหม่ = เงียบ)
+ * ⇒ คนที่เพิ่งเปิดไลน์/เพิ่งผูกบัญชี ไม่มีทางเห็นคิวที่ค้างอยู่ก่อนหน้า
+ *   ปุ่มนี้คือ "ขอดูเดี๋ยวนี้" — ใช้ **ตัวแจกตัวเดียวกับรอบอัตโนมัติ** (planNotifications)
+ *   ต่างแค่ไม่กรอง "ของใหม่" ⇒ เลขตรงกันเสมอ ไม่มีสูตรที่สอง
+ *
+ * ⏱ ขอช่วง 1 วัน (ไม่ใช่ 15 นาทีแบบรอบอัตโนมัติ) — กดดูเองต้องเห็นงานทั้งวัน
+ */
+async function handleNotifyNow(event, ctx) {
+  const reply = (text) => lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text });
+  const me = ctx && ctx.me;
+  if (!me) return reply([
+    "🔒 ยังไม่ได้ผูกบัญชีพนักงาน",
+    "ขอ \"รหัสเชิญ\" จากผู้ดูแลบอทแล้วพิมพ์รหัสนั้นมาได้เลย",
+  ].join("\n"));
+
+  const picked = Array.isArray(me.notify) ? me.notify : [];
+  if (picked.length === 0) return reply([
+    "🔕 ยังไม่ได้ติ๊กหมวดแจ้งเตือนให้คุณ",
+    "บอกผู้ดูแลบอทให้ติ๊กหมวดที่ต้องการในหน้าจัดการสิทธิ์",
+  ].join("\n"));
+
+  let feed;
+  try {
+    const r = await pacredGet("notify", { window: 24 * 60 });
+    feed = r && r.notify;
+  } catch (err) {
+    return reply(explainPacredError(err));
+  }
+  if (!feed) return reply("⚠️ เว็บ Pacred ตอบข้อมูลไม่ครบ ลองใหม่อีกครั้ง");
+
+  const templates = await templateStore.loadAll().catch(() => ({}));
+  /* () => true = เอาทุกรายการ ไม่ใช่เฉพาะของใหม่ (ต่างจากรอบอัตโนมัติแค่ตรงนี้)
+     🔒 ไม่แตะตัวจำ (told) — กดดูเองต้องไม่ทำให้รอบอัตโนมัติเงียบไปด้วย */
+  const plans = planNotifications(feed, [me], () => true, templates);
+  if (plans.length === 0) {
+    const head = "✅ ตอนนี้ไม่มีงานค้างในหมวดที่คุณดูแล";
+    const errs = Array.isArray(feed.errors) && feed.errors.length
+      ? ["", "⚠️ แต่มีบางหมวดอ่านไม่ได้:"].concat(feed.errors.slice(0, 3).map((e) => "   " + e))
+      : [];
+    return reply([head].concat(errs).join("\n"));
+  }
+  return reply(plans[0].text);
 }
 
 async function handleWorkAssistant(event, keyword, ctx) {
@@ -671,6 +776,7 @@ async function handleWorkAssistant(event, keyword, ctx) {
   try {
     if (/^เมนู|ผู้ช่วย|^ช่วย/.test(t))
       return lineClient.replyMessage(event.replyToken, buildMenuFlex({ isOwner: ctx && ctx.isOwner }));
+    if (/^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน/.test(t)) return handleNotifyNow(event, ctx || {});
     if (/^สรุปงานวันนี้|^งานวันนี้|^สรุปงานของฉัน/.test(t)) {
       const arg = (keyword || "").replace(/^(สรุปงานวันนี้|งานวันนี้|สรุปงานของฉัน)\s*/i, "").trim();
       return handleMyDay(event, ctx || {}, arg);
@@ -1345,7 +1451,7 @@ async function handleEvent(event) {
    *    ⇒ ล้างสถานะแล้วปล่อยให้ไหลไปตัวจับคำปกติ · อ่านรายการจาก MENU_ITEMS ที่เดียว
    *       ⇒ เพิ่มปุ่มใหม่วันหน้าได้สิทธิ์นี้เอง ไม่ต้องมาเติมที่นี่ */
   const WAIT_STATES = ["hs_search_wait", "gemini_wait"];
-  if (state && WAIT_STATES.includes(state.state) && MENU_ITEMS.some((m) => m.text === keyword)) {
+  if (state && WAIT_STATES.includes(state.state) && ALL_MENU.some((m) => m.text === keyword)) {
     await clearState(userId);
     state = null;
   }

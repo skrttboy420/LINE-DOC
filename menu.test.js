@@ -32,20 +32,24 @@ function fnBody(startMarker) {
   return end > 0 ? rest.slice(0, end) : rest;
 }
 
-/** ดึงก้อน MENU_ITEMS ออกมาเป็นข้อมูลจริง (ไม่ต้องโหลด index.js ที่ต่อไลน์) */
-function readMenuItems() {
-  const m = SRC.match(/const MENU_ITEMS = \[([\s\S]*?)\n\];/);
-  assert.ok(m, "หา MENU_ITEMS ไม่เจอ");
+/** ดึงรายการปุ่มออกมาเป็นข้อมูลจริง (ไม่ต้องโหลด index.js ที่ต่อไลน์)
+ *  ภูม 2026-10-22 แยกเป็น 2 ชุด: CORE_MENU (ทุกแผนก) · TOOL_MENU (เจ้าของบอท) */
+function readMenuGroup(name) {
+  const re = new RegExp("const " + name + " = \\[([\\s\\S]*?)\\n\\];");
+  const m = SRC.match(re);
+  assert.ok(m, "หา " + name + " ไม่เจอ");
   const PR_RED = "#B30000";
   // eslint-disable-next-line no-new-func
   return new Function("PR_RED", "return [" + m[1] + "];")(PR_RED);
 }
+function readMenuItems() { return readMenuGroup("CORE_MENU").concat(readMenuGroup("TOOL_MENU")); }
 
 console.log("\n🧭 เมนู");
 
 ok("ปุ่มลัด + การ์ดเมนู สร้างจากรายการเดียว (ห้ามเขียนแยก)", () => {
-  assert.match(SRC, /const QUICK = \{ items: MENU_ITEMS\.map/, "QUICK ต้องมาจาก MENU_ITEMS");
-  assert.match(SRC, /\.\.\.MENU_ITEMS\.map\(\(m\) => \(\{/, "การ์ดเมนูต้องมาจาก MENU_ITEMS");
+  assert.match(SRC, /const QUICK = \{ items: CORE_MENU\.map/, "ปุ่มลัดต้องมาจาก CORE_MENU");
+  assert.match(SRC, /\.\.\.CORE_MENU\.map\(btn\)/, "การ์ดเมนูต้องมาจาก CORE_MENU");
+  assert.match(SRC, /\.\.\.TOOL_MENU\.map\(btn\)/, "เครื่องมือต้องมาจาก TOOL_MENU");
   // ถ้ามีใครกลับไปเขียนปุ่มมือในการ์ด จะโผล่เป็น action ที่ไม่ได้มาจาก m.*
   const card = SRC.slice(SRC.indexOf("function buildMenuFlex"), SRC.indexOf("function staffAdminLink") + 1);
   assert.ok(!/label: "📦/.test(card), "ห้ามเขียน label ปุ่มด้วยมือในการ์ดเมนู");
@@ -55,6 +59,11 @@ ok("ทุกปุ่มมีครบ 4 ช่อง + label ไม่เก�
   const items = readMenuItems();
   assert.ok(items.length >= 6, "ควรมีอย่างน้อย 6 ปุ่ม · เจอ " + items.length);
   assert.ok(items.length <= 13, "ไลน์รับปุ่มลัดได้ไม่เกิน 13 ปุ่ม · เจอ " + items.length);
+  /* 🏢 ภูม 2026-10-22 *"ให้ทุกแผนกมีแค่ แจ้งเตือน กับ สรุปงานวันนี้ไปก่อน"* —
+        เมนูที่ทุกคนเห็นต้องเป็น 2 ปุ่มนี้เท่านั้น (เพิ่มปุ่มให้ทุกแผนก = ต้องถามภูมก่อน) */
+  const core = readMenuGroup("CORE_MENU");
+  assert.equal(core.length, 2, "เมนูหลักต้องมี 2 ปุ่ม · เจอ " + core.length + " = " + core.map((m) => m.text).join(","));
+  assert.deepEqual(core.map((m) => m.text), ["แจ้งเตือน", "สรุปงานวันนี้"], "เมนูหลัก = แจ้งเตือน + สรุปงานวันนี้");
   for (const m of items) {
     for (const k of ["label", "menuLabel", "text", "color"]) {
       assert.ok(m[k] && String(m[k]).trim(), "ปุ่ม " + JSON.stringify(m) + " ขาดช่อง " + k);
@@ -88,6 +97,7 @@ ok("ทุกปุ่มส่งคำที่บอทจับได้จ�
 ok("ทุกปุ่มมีคนรับงานจริงใน handleWorkAssistant", () => {
   const fn = fnBody("async function handleWorkAssistant");
   const CLAIMED = {
+    "แจ้งเตือน": /handleNotifyNow\(/,
     "อัพล่าสุด": /pacredGet\("uploads"\)/,
     "แทรคค้าง": /แทรคค้าง\|ยังไม่เข้า/,
     "รอตอบพิกัด": /รอตอบพิกัด\|รอพิกัด/,
@@ -107,7 +117,12 @@ console.log("\n⚙️ ปุ่มจัดการสิทธิ์");
 ok("โชว์เฉพาะเจ้าของบอท + ต้องมี ADMIN_KEY", () => {
   /* 🔒 ลิงก์พากุญแจของหน้าจัดการไปด้วย (ออกรหัสเชิญ/ตัดสิทธิ์คนอื่นได้)
         ⇒ หลุดถึงพนักงานทั่วไป = ยกสิทธิ์ผู้ดูแลให้ทั้งทีม */
-  assert.match(SRC, /if \(opts && opts\.isOwner && adminUrl\)/, "ต้องเช็คทั้งเจ้าของบอทและมีลิงก์");
+  /* 🔑 2026-10-22 การ์ดเมนูถอด `isOwner` ไว้ตัวแปรเดียวตั้งแต่ต้นฟังก์ชัน (ใช้เลือกชุดปุ่มด้วย)
+        ⇒ ยามตามไปดูที่ตัวนั้น · ของเดิม `opts && opts.isOwner` ก็ยังผ่าน (รับทั้ง 2 รูป) */
+  assert.match(SRC, /const isOwner = !!\(opts && opts\.isOwner\)|if \(opts && opts\.isOwner && adminUrl\)/,
+    "ต้องรู้ว่าใครเป็นเจ้าของบอทก่อนโชว์ลิงก์");
+  assert.match(SRC, /if \(isOwner && adminUrl\)|if \(opts && opts\.isOwner && adminUrl\)/,
+    "ต้องเช็คทั้งเจ้าของบอทและมีลิงก์");
   const link = SRC.slice(SRC.indexOf("function staffAdminLink"), SRC.indexOf("function buildMenuFlex"));
   assert.ok(link.includes("if (!base || !key) return \"\";"), "ไม่มีคีย์/ที่อยู่ = ต้องคืนค่าว่าง (ไม่โชว์ปุ่ม)");
   assert.ok(link.includes("encodeURIComponent(key)"), "คีย์ต้องถูก encode ก่อนต่อใน URL");
@@ -197,7 +212,10 @@ ok("🔴 พิมพ์ชื่อสินค้าเฉยๆ ต้อง�
 ok("🔙 กดปุ่มเมนูอื่นระหว่างรอพิมพ์ชื่อ = เปลี่ยนใจ ไม่ใช่ชื่อสินค้า", () => {
   /* เดิม: กด 🔍 ค้นพิกัด → เปลี่ยนใจกด ✨ Gemini ⇒ ไปค้นสินค้าชื่อ "Gemini" (ทางตัน) */
   assert.ok(SRC.includes('const WAIT_STATES = ["hs_search_wait", "gemini_wait"]'), "ต้องรู้ว่าโหมดรอพิมพ์มีอันไหน");
-  assert.match(SRC, /MENU_ITEMS\.some\(\(m\) => m\.text === keyword\)/, "ต้องเทียบกับรายการเมนูตัวจริง");
+  /* 🔴 ต้องเทียบ **ทั้ง 2 ชุด** — เทียบแค่เมนูหลัก = กดปุ่มเครื่องมือระหว่างรอพิมพ์
+        จะถูกอ่านเป็นชื่อสินค้า (ทางตันเดิมกลับมา) */
+  assert.match(SRC, /ALL_MENU\.some\(\(m\) => m\.text === keyword\)/, "ต้องเทียบกับปุ่มทั้งหมด (CORE + TOOL)");
+  assert.match(SRC, /const ALL_MENU = CORE_MENU\.concat\(TOOL_MENU\)/, "ALL_MENU ต้องรวม 2 ชุด ไม่เขียนรายการซ้ำ");
   assert.ok(
     SRC.indexOf("WAIT_STATES.includes(state.state)") < SRC.indexOf('state.state === "hs_search_wait"'),
     "ต้องล้างสถานะ **ก่อน** สายที่ถือว่าข้อความคือชื่อสินค้า",

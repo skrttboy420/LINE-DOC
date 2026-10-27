@@ -30,7 +30,7 @@ const NOTIFY_CATEGORIES = [
   { key: "arrive_cn",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงโกดังจีน",       scope: "customer", unit: "ราย" },
   { key: "arrive_th",   group: "📦 งานคลัง",   label: "ของลูกค้าถึงไทยแล้ว",        scope: "customer", unit: "ราย" },
   { key: "shop_pay",    group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอชำระเงิน",    scope: "customer", unit: "ใบ" },
-  { key: "shop_ship",   group: "🎧 ฝากสั่งซื้อ", label: "ออเดอร์เข้า รอร้านจีนจัดส่ง", scope: "customer", unit: "ใบ" },
+  { key: "shop_ship",   group: "🎧 ฝากสั่งซื้อ", label: "บัญชีโอนหยวนแล้ว · รอร้านจีนจัดส่ง", scope: "customer", unit: "ใบ" },
   { key: "acc_yuan",    group: "🧾 บัญชี",     label: "ฝากสั่งเข้า โอนหยวน/สลิปจีน", scope: "all",      unit: "ใบ" },
   { key: "acc_slip",    group: "🧾 บัญชี",     label: "รอตรวจสลิป (ทุกบริการ)",     scope: "all",      unit: "รายการ" },
   { key: "acc_wht",     group: "🧾 บัญชี",     label: "รอตรวจใบหัก ณ ที่จ่าย",      scope: "all",      unit: "รายการ" },

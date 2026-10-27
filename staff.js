@@ -60,23 +60,68 @@ const CATEGORIES = [
 const CATEGORY_KEYS = CATEGORIES.map((c) => c.key);
 
 /**
- * 💡 ชุดเริ่มต้นตามแผนก — "เดาให้ก่อน แล้วภูมติ๊กทับได้"
+ * 💡 ชุดเริ่มต้น — "เดาให้ก่อน แล้วภูมติ๊กทับได้"
  *
- * 🔑 ตั้งใจให้เป็นแค่ค่าเริ่มต้น ไม่ใช่กติกาตายตัว เพราะแผนกเดียวกันหน้าที่ต่างกันได้
- *    (ภูม: *"บัญชียังมีฝั่งรับกับฝั่งจ่ายซึ่งมันจะแจ้งเตือนต่างกัน"* — ผังตำแหน่งมีแค่
- *     Accounting Supervisor · Admin Accounting ⇒ แยกรับ/จ่ายจากตำแหน่งไม่ได้ ต้องติ๊กเอง)
+ * 🔄 **2026-10-27 เปลี่ยนจาก "ตามแผนก" → "ตามตำแหน่งในผัง"** (ภูมเคาะ)
+ *
+ * ทำไม: แผนกเดียวกันหน้าที่คนละเรื่องกันเลย — 📏 วัดผังจริง prod 27/10 (ทำงานอยู่ 32 คน):
+ *   · **Operations 9 คน = 4 ตำแหน่ง** → Customer Service (พลอย) · Pricing (มาร์ค · เว็บ) ·
+ *     Purchasing (มะนาว) · Sales (ใบเฟิร์น · แบม · บุษ · เมย์)
+ *     ⇒ ของเดิมแจก `shop_pay · shop_ship · arrive_th` ให้ **ทั้ง 9 คนเท่ากัน**:
+ *       มาร์ค/เว็บ (ตั้งราคา) ได้คิวเก็บเงินของ CS · มะนาว (จัดซื้อ) ได้ของถึงไทยของเซล
+ *   · **Logistics 7 คน = Driver 4 + Warehouse 3** ⇒ คนขับได้ "ของถึงโกดังจีน" ทั้งที่ไม่เกี่ยวเลย
+ *
+ * 🔑 ยังเป็นแค่ค่าเริ่มต้นเหมือนเดิม ไม่ใช่กติกาตายตัว — ภูมติ๊กทับได้ทุกคน
+ *    (ภูม: *"บัญชียังมีฝั่งรับกับฝั่งจ่ายซึ่งมันจะแจ้งเตือนต่างกัน"* — ผังมีแค่ Admin Accounting
+ *     ตำแหน่งเดียว ⇒ แยกรับ/จ่ายจากตำแหน่งไม่ได้ ต้องติ๊กเอง · เหมือนเดิมทุกประการ)
+ *
+ * 🪜 ถ้าตำแหน่งไม่อยู่ในตาราง (ตำแหน่งใหม่ · ยังไม่ผูกตำแหน่ง) → **ถอยไปใช้ของแผนก**
+ *    (ตารางล่าง) ⇒ คนใหม่ไม่เคยได้ศูนย์หมวดเงียบๆ
  */
+const DEFAULT_BY_POSITION = {
+  // ── 🎧 Operations — 4 ตำแหน่ง คนละงานกัน ────────────────────────────
+  "Customer Service":    ["shop_ship", "arrive_th"],          // แจ้งลูกค้า: ร้านจีนส่งแล้ว · ของถึงไทย
+  Sales:                 ["arrive_cn", "arrive_th"],          // ของลูกค้าตัวเองเดินถึงไหน (scope=customer อยู่แล้ว)
+  Purchasing:            ["shop_pay"],                        // ออเดอร์ตอบพิกัดแล้ว รอเก็บเงิน → สั่งซื้อ
+  Pricing:               [],                                  // งานเรท/Booking ยังไม่มีหมวด — ติ๊กเองถ้าต้องการ
+
+  // ── 🚚 Logistics — คนขับ vs โกดัง คนละเรื่อง ────────────────────────
+  Warehouse:             ["arrive_th", "acc_cnt"],            // ของเข้าโกดังไทย + ตู้ที่ยิงรับครบแล้ว
+  Driver:                [],                                  // งานส่งในประเทศยังไม่มีหมวดในบอท
+
+  // ── 🧾 บัญชี ────────────────────────────────────────────────────────
+  "Admin Accounting":    ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
+  "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
+
+  // ── 🧰 ทีมระบบ (ITDT) ───────────────────────────────────────────────
+  "Front End":           ["hs_pending", "track_stuck"],
+  "Back End":            ["hs_pending", "track_stuck"],
+  "Full Stack":          ["hs_pending", "track_stuck"],
+  "Project Manager":     ["hs_pending", "track_stuck"],
+
+  // ── 🛃 พิธีการ / เอกสาร ─────────────────────────────────────────────
+  Supervisor:            ["hs_pending"],                      // Customs Specialist — คิวรอตอบพิกัด
+  "Doc Shipping Import": ["arrive_cn", "arrive_th"],          // ตามของเพื่อเตรียมเอกสาร
+
+  // ── ที่เหลือ: ไม่เดาให้ (ติ๊กเองตามที่อยากได้) ───────────────────────
+  CEO:                   [],
+  "Data Analyst":        [],
+  "Graphic/Editing":     [],
+  PCS:                   [],
+};
+
+/** ถอยไปใช้ของแผนก เมื่อตำแหน่งยังไม่อยู่ในตารางข้างบน (คนใหม่ · ตำแหน่งใหม่) */
 const DEFAULT_BY_DEPARTMENT = {
   /* 🔄 2026-10-22 ภูม: *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด · งานอัพแทรคเข้าระบบ"*
      เดิมแจก "system" ซึ่ง**ไม่มีตัวนับงานค้าง** ⇒ กดปุ่มแล้วขึ้น "หมวดที่ติ๊กไว้ยังไม่มีตัวนับ" */
   ITDT:                 ["hs_pending", "track_stuck"],
   Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
-  Operations:           ["shop_pay", "shop_ship", "arrive_th"],
-  Logistics:            ["arrive_cn", "arrive_th"],
+  Operations:           [],                     // 4 ตำแหน่งคนละงาน — เดาจากแผนกไม่ได้ (ดูตารางตำแหน่ง)
+  Logistics:            [],                     // คนขับ vs โกดัง คนละเรื่อง
   "Freight Import":     ["arrive_cn", "arrive_th"],
   "Freight Export":     [],
-  "Customs Specialist": ["hs_pending", "shop_pay"],
-  Marketing:            ["arrive_th"],
+  "Customs Specialist": ["hs_pending"],
+  Marketing:            [],
   HR:                   [],
   Partner:              [],
   Pacred:               [],
@@ -93,8 +138,18 @@ const DEFAULT_BY_DEPARTMENT = {
  */
 const SENSITIVE = new Set(["system"]);
 
-function defaultNotifyFor(department) {
-  const base = DEFAULT_BY_DEPARTMENT[String(department || "").trim()] || [];
+/**
+ * หมวดเริ่มต้นของคนคนนี้ — **ตำแหน่งก่อน แล้วค่อยถอยไปแผนก** (ภูม 2026-10-27)
+ * @param {string|null} department แผนกในผัง
+ * @param {string|null} [position] ตำแหน่งในผัง — ตัวตัดสินหลัก
+ */
+function defaultNotifyFor(department, position) {
+  const pos = String(position || "").trim();
+  const dep = String(department || "").trim();
+  // ตำแหน่งที่ตั้งใจให้ว่าง ([]) ต้องชนะ ไม่ใช่ตกไปใช้ของแผนก ⇒ เช็คว่า "มีคีย์ไหม" ไม่ใช่ "ว่างไหม"
+  const base = Object.prototype.hasOwnProperty.call(DEFAULT_BY_POSITION, pos)
+    ? DEFAULT_BY_POSITION[pos]
+    : DEFAULT_BY_DEPARTMENT[dep] || [];
   return base.filter((k) => !SENSITIVE.has(k));
 }
 
@@ -204,7 +259,7 @@ function createStaffRegistry(supabase, pacredGet) {
       position: person.position,
       roles: person.roles || [],
       active: true,
-      notify: defaultNotifyFor(person.department),   // เดาให้ก่อน · ภูมติ๊กทับได้
+      notify: defaultNotifyFor(person.department, person.position),   // เดาจากตำแหน่งก่อน · ภูมติ๊กทับได้
       synced_at: nowIso(),
     };
     const { error: insErr } = await supabase.from("bot_staff").upsert(row, { onConflict: "line_user_id" });

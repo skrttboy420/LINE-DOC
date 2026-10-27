@@ -89,24 +89,55 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
 (async () => {
   console.log("\n🧪 staff.js\n");
 
-  // ── ค่าเริ่มต้นตามแผนก ────────────────────────────────────────────
+  // ── ค่าเริ่มต้น: ตำแหน่งก่อน แล้วถอยไปแผนก (ภูม 2026-10-27) ────────
   {
     const r = createStaffRegistry(fakeDb(), webOk);
-    ok("แผนกบัญชีได้ชุดเริ่มต้น แต่ไม่ได้หมวดที่เห็นเรื่องเงินอัตโนมัติ", () => {
-      const d = r.defaultNotifyFor("Accounting");
+    ok("บัญชีได้ชุดเริ่มต้น แต่ไม่ได้หมวดที่เห็นเรื่องเงินอัตโนมัติ", () => {
+      const d = r.defaultNotifyFor("Accounting", "Admin Accounting");
       assert.ok(d.includes("acc_slip"), "ควรได้ acc_slip (คิวตรวจสลิป = งานบัญชีเอง)");
       assert.ok(d.includes("acc_wht"), "ควรได้ acc_wht");
       assert.ok(!d.includes("system"), "system = เสียงรบกวนของ ITDT ต้องให้ภูมติ๊กเอง");
     });
-    ok("แผนกที่ไม่รู้จัก = ไม่ได้อะไรเลย (ไม่เดามั่ว)", () => {
-      assert.deepEqual(r.defaultNotifyFor("ไม่มีแผนกนี้"), []);
-      assert.deepEqual(r.defaultNotifyFor(null), []);
+    ok("ไม่รู้จักทั้งตำแหน่งและแผนก = ไม่ได้อะไรเลย (ไม่เดามั่ว)", () => {
+      assert.deepEqual(r.defaultNotifyFor("ไม่มีแผนกนี้", "ไม่มีตำแหน่งนี้"), []);
+      assert.deepEqual(r.defaultNotifyFor(null, null), []);
     });
     ok("คนขับไม่ได้หมวดที่เห็นต้นทุน/ระบบ", () => {
-      const d = r.defaultNotifyFor("Logistics");
+      const d = r.defaultNotifyFor("Logistics", "Driver");
       for (const k of ["system"]) {
         assert.ok(!d.includes(k), k + " ต้องไม่อยู่ในชุดเริ่มต้นของคนขับ");
       }
+    });
+
+    /* 🔑 เหตุผลที่เปลี่ยนมาใช้ตำแหน่ง — แผนกเดียวกันหน้าที่คนละเรื่อง
+       📏 ผังจริง prod 27/10: Operations 9 คน = CS 1 · Pricing 2 · Purchasing 1 · Sales 4 */
+    ok("👤 Operations แยกตามตำแหน่ง — ไม่ใช่ได้เหมือนกันหมดทั้งแผนก", () => {
+      const cs   = r.defaultNotifyFor("Operations", "Customer Service");
+      const sale = r.defaultNotifyFor("Operations", "Sales");
+      const buy  = r.defaultNotifyFor("Operations", "Purchasing");
+      const price= r.defaultNotifyFor("Operations", "Pricing");
+      assert.ok(cs.includes("shop_ship"), "CS = แจ้งลูกค้าว่าร้านจีนส่งแล้ว");
+      assert.ok(!sale.includes("shop_pay"), "เซลไม่ต้องได้คิวเก็บเงินของ CS");
+      assert.deepEqual(buy, ["shop_pay"], "จัดซื้อได้คิวออเดอร์รอสั่งซื้ออย่างเดียว");
+      assert.deepEqual(price, [], "ตั้งราคายังไม่มีหมวดของตัวเอง — ต้องไม่แจกของคนอื่นให้");
+      assert.notDeepEqual(cs, sale, "CS กับเซลต้องไม่ได้ชุดเดียวกัน");
+    });
+
+    ok("🚚 Logistics แยกโกดัง/คนขับ", () => {
+      assert.ok(r.defaultNotifyFor("Logistics", "Warehouse").includes("acc_cnt"), "โกดังควรรู้ว่าตู้ไหนยิงครบ");
+      assert.deepEqual(r.defaultNotifyFor("Logistics", "Driver"), [], "คนขับยังไม่มีหมวดของตัวเองในบอท");
+    });
+
+    ok("🪜 ตำแหน่งที่ยังไม่อยู่ในตาราง = ถอยไปใช้ของแผนก (คนใหม่ไม่เงียบ)", () => {
+      const d = r.defaultNotifyFor("Accounting", "ตำแหน่งใหม่ที่เพิ่งตั้ง");
+      assert.ok(d.includes("acc_slip"), "ต้องได้ชุดของแผนกบัญชี");
+    });
+
+    ok("ตำแหน่งที่ตั้งใจให้ว่างต้องชนะแผนก (ไม่ตกไปรับของแผนกแทน)", () => {
+      assert.deepEqual(
+        r.defaultNotifyFor("Customs Specialist", "CEO"), [],
+        "CEO ตั้งใจให้ว่าง — ห้ามถอยไปหยิบชุดของแผนกมาให้",
+      );
     });
   }
 

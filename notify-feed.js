@@ -35,6 +35,10 @@ const NOTIFY_CATEGORIES = [
   { key: "acc_slip",    group: "🧾 บัญชี",     label: "รอตรวจสลิป (ทุกบริการ)",     scope: "all",      unit: "รายการ" },
   { key: "acc_wht",     group: "🧾 บัญชี",     label: "รอตรวจใบหัก ณ ที่จ่าย",      scope: "all",      unit: "รายการ" },
   { key: "acc_cnt",     group: "🧾 บัญชี",     label: "ตู้ยิงรับครบแล้ว",            scope: "all",      unit: "ตู้" },
+  /* 📦 โกดัง (ภูม 2026-10-27) — *"ตู้ยิงครบ ของทางพี่เดฟที่ทำให้โกดัง เพิ่มมาในบอทเราด้วย
+     เป็นของแผนกโกดังได้เลย"* · ตู้เดียวกับ acc_cnt แต่ **ไม่ตัดตู้ที่บัญชีจ่ายค่าตู้แล้ว**
+     (โกดังอยากรู้แค่ "ตู้ไหนปิดงานยิงได้แล้ว" — ใครจ่ายเงินหรือยังเป็นเรื่องบัญชี) */
+  { key: "wh_cnt",      group: "📦 งานคลัง",   label: "ตู้ยิงเข้าโกดังครบ",          scope: "all",      unit: "ตู้" },
   /* 🧰 งานทีมระบบ (ภูม 2026-10-22) — *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด ว่ามีค้างอยู่ไหม ·
      งานอัพแทรคเข้าระบบ มีแทรคค้างอยู่กี่แทรค (พร้อมบอกเหตุผลด้วย เช่น ข้อมูลไม่ครบ)"* */
   { key: "hs_pending",  group: "🧰 ทีมระบบ",   label: "ออเดอร์รอตอบพิกัด",           scope: "all",      unit: "ใบ" },
@@ -98,6 +102,13 @@ function accSections(feed) {
   ];
 }
 
+/** หมวดงานโกดัง — ทุกคนที่ติ๊กเห็นชุดเดียวกัน (ภูม 2026-10-27) */
+function whSections(feed) {
+  return [
+    { key: "wh_cnt", rows: (feed.warehouse || {}).containersComplete || [] },
+  ];
+}
+
 /**
  * 📋 "งานค้างของฉัน" — ปุ่มเช็คงานค้าง (ภูม 2026-10-22)
  *
@@ -121,6 +132,7 @@ function summarizeBacklog(feed, person) {
     if (!picked.includes(cat.key)) continue;
     const sec = customerSections(feed).find((x) => x.key === cat.key)
              || accSections(feed).find((x) => x.key === cat.key)
+             || whSections(feed).find((x) => x.key === cat.key)
              || itdtSections(feed).find((x) => x.key === cat.key);
     if (!sec) continue;
     const rows = cat.scope === "customer" ? sec.rows.filter((r) => ownsRow(person, r)) : sec.rows;
@@ -167,8 +179,8 @@ function planNotifications(feed, staff, isNew, templates) {
     }
   }
 
-  /* ── ② งานบัญชี + งานทีมระบบ — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ── */
-  const ACC_SECTIONS = accSections(feed).concat(itdtSections(feed));
+  /* ── ② งานบัญชี + โกดัง + งานทีมระบบ — ทุกคนที่ติ๊กหมวดนั้นเห็นชุดเดียวกัน ── */
+  const ACC_SECTIONS = accSections(feed).concat(whSections(feed), itdtSections(feed));
 
   for (const sec of ACC_SECTIONS) {
     const people = listeners(sec.key);

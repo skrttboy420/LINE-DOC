@@ -124,7 +124,11 @@ const webOk = async () => JSON.parse(JSON.stringify(WEB));
     });
 
     ok("🚚 Logistics แยกโกดัง/คนขับ", () => {
-      assert.ok(r.defaultNotifyFor("Logistics", "Warehouse").includes("acc_cnt"), "โกดังควรรู้ว่าตู้ไหนยิงครบ");
+      const wh = r.defaultNotifyFor("Logistics", "Warehouse");
+      /* 🔄 2026-10-27 — โกดังได้ `wh_cnt` (คิวของโกดังเอง) ไม่ใช่ `acc_cnt` (คิวบัญชีที่ตัด
+         ตู้ซึ่งจ่ายค่าตู้แล้วออก) · ตู้เดียวกัน แต่โกดังต้องเห็นทุกตู้ที่ยิงครบ */
+      assert.ok(wh.includes("wh_cnt"), "โกดังควรรู้ว่าตู้ไหนยิงครบ");
+      assert.ok(!wh.includes("acc_cnt"), "อย่าให้โกดังคิวของบัญชี — ตู้ที่จ่ายค่าตู้แล้วจะหายจากจอโกดัง");
       assert.deepEqual(r.defaultNotifyFor("Logistics", "Driver"), [], "คนขับยังไม่มีหมวดของตัวเองในบอท");
     });
 

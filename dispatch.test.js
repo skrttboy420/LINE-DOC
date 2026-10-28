@@ -452,6 +452,16 @@ const POOM = {
     assert.ok(/57014/.test(t), "ต้องบอกเหตุ · ได้: " + t);
   });
 
+  await ok("🚧 กดก่อนเว็บ deploy = บอกว่ารอขึ้นเว็บ (ไม่ใช่ข้อความพัง)", async () => {
+    STAFF = POOM; STATE = null;
+    // เว็บจริงรุ่นก่อน deploy ตอบ 400 unknown q
+    PACRED = () => { const e = new Error("400"); e.response = { status: 400, data: { error: "unknown q (ใช้ ?q=uploads …)" } }; throw e; };
+    for (const text of ["ของขาด", "ชีต PW"]) {
+      await say(text, "Upoom");
+      assert.ok(/ยังไม่มีฟีเจอร์นี้/.test(replyText()), 'กด "' + text + '" ก่อน deploy ต้องบอกให้ชัด · ได้: ' + replyText());
+    }
+  });
+
   await ok("🧭 2 ปุ่มใหม่ไม่กินคำสั่งของปุ่มเดิม (ลำดับ if ถูก)", async () => {
     STAFF = POOM; STATE = null;
     PACRED = (q) => {

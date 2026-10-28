@@ -85,7 +85,7 @@ async function botCallerContext(userId) {
 // พิมพ์อะไรถึงเรียกผู้ช่วย (เมนู / อัพล่าสุด / แทรคค้าง / สรุปงานวันนี้)
 function isWorkCommand(text) {
   const t = (text || "").toLowerCase();
-  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน|^งานค้าง|^เช็คงาน/.test(t);
+  return /^เมนู|ผู้ช่วย|^ช่วย|อัพล่าสุด|อัปเดตล่าสุด|อัพเดทล่าสุด|^ล่าสุด|แทรคค้าง|^ค้าง|ยังไม่เข้า|งานค้าง|สรุปงาน|สถานะงาน|รอตอบพิกัด|รอพิกัด|ตอบพิกัด|งานพิกัด|^ค้นพิกัด|^หาพิกัด|^พิกัด|^แจ้งเตือน|^งานที่ต้องทำ|^คิวงาน|^งานค้าง|^เช็คงาน|ของขาด|ล็อตขาด|ของหาย|ล็อตหาย|ชีต ?pw|ชีท ?pw|เข้าชีต|เข้าชีท/.test(t);
 }
 
 // 🕒 เวลาไทย (Asia/Bangkok) — Render รันบน UTC · d.getHours() = UTC ไม่ใช่เวลาไทย
@@ -142,6 +142,13 @@ const TOOL_MENU = [
   { label: "🧾 รอตอบพิกัด",  menuLabel: "🧾 งานรอตอบพิกัด",       text: "รอตอบพิกัด",    color: "#f57c00" },
   { label: "🔍 ค้นพิกัด",    menuLabel: "🔍 ค้นพิกัดในคลัง",       text: "ค้นพิกัด",      color: "#00897b" },
   { label: "✨ Gemini",      menuLabel: "✨ ให้ Gemini เดาพิกัด",  text: "Gemini",       color: "#5e35b1" },
+  /* 🔴⚠️ 2 ปุ่มรีเช็คของหาย (ภูม 2026-10-28)
+   *    *"ส่วนของเราถ้าเจอเคสแบบนี้อีกต้องแจ้งเตือนภูมิมาเลยนะ แล้วทำปุ่ม
+   *      🔴 ของขาดจากที่ MOMO แจ้ง / ⚠️ แทรคเข้าชีต PW ไม่ได้ 2 ตัวนี้มาด้วยสิ จะได้กดรีเช็คได้ด้วยอะ"*
+   *    ⚠️ ป้ายปุ่มของไลน์ยาวได้ **20 ตัวอักษร** ⇒ ชื่อเต็มที่ภูมเขียนมา (24–25 ตัว) ใส่ไม่ได้
+   *       ⇒ ย่อป้าย แต่คำในหัวข้อความที่ตอบกลับใช้ชื่อเต็มตามที่ภูมเรียก */
+  { label: "🔴 ของขาด MOMO", menuLabel: "🔴 ของขาดจาก MOMO",     text: "ของขาด",        color: "#c62828" },
+  { label: "⚠️ ชีต PW",      menuLabel: "⚠️ ไม่เข้าชีต PW",       text: "ชีต PW",        color: "#ef6c00" },
 ];
 
 /* 🔑 "ปุ่มเมนูทั้งหมด" = หลัก + เครื่องมือ — ใช้ตัดสินว่าข้อความที่พิมพ์มาเป็น "ปุ่ม" หรือ "ชื่อสินค้า"
@@ -334,6 +341,108 @@ function buildHsPendingText(hsPending, opts = {}) {
   const more = p.count > list.length ? ["… และอีก " + (p.count - list.length) + " ใบ"] : [];
   const head = opts.isNew ? "🔔 งานใหม่เข้ามา — รอตอบพิกัด" : "🧾 งานรอตอบพิกัด " + p.count + " ใบ";
   return { type: "text", quickReply: QUICK, text: [head, "━━━━━━━━━━━━"].concat(rows, more).join("\n") };
+}
+
+// ============================================================
+// 🔴 ของที่ MOMO ประกาศมาแต่ในระบบไม่ครบ (ภูม 2026-10-28)
+//    ปุ่ม "🔴 ของขาด MOMO" — เว็บคิดสดทุกครั้ง (`?q=lots-missing`)
+// ============================================================
+const bahtOf = (n) =>
+  typeof n === "number" && isFinite(n)
+    ? "฿" + n.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : null;
+
+function buildLotsMissingText(sf) {
+  const s = sf || { total: 0, totalThb: 0, families: [], error: null };
+  // 🔑 ตรวจไม่ได้ ≠ ไม่มีของขาด — ต้องบอกให้ต่างกัน ไม่งั้นอ่านเป็น "เคลียร์แล้ว"
+  if (s.error)
+    return {
+      type: "text",
+      quickReply: QUICK_TOOLS,
+      text: "⚠️ ตรวจของขาดไม่สำเร็จ\n━━━━━━━━━━━━\n" + s.error + "\n\nลองกดอีกครั้ง — ถ้ายังไม่ได้ แจ้งทีมระบบ",
+    };
+  if (!s.total)
+    return {
+      type: "text",
+      quickReply: QUICK_TOOLS,
+      text: "✅ ไม่มีของขาด — ของที่ MOMO ประกาศมา มีแถวรับครบทุกล็อต",
+    };
+
+  const list = Array.isArray(s.families) ? s.families : [];
+  const rows = list.map((f, i) => {
+    const who = f.subuserid ? f.userid + " (ลูกค้า " + f.subuserid + ")" : f.userid;
+    const miss = Array.isArray(f.missingTracks) && f.missingTracks.length
+      ? "ไม่มีแถว: " + f.missingTracks.join(", ")
+      : "แถวในระบบถือของไม่ครบ";
+    const unit =
+      f.basis === "cbm"
+        ? "ขาด " + f.shortCbm + " คิว"
+        : f.basis === "weight"
+          ? "ขาด " + f.shortKg + " กก."
+          : "ขาด " + f.shortKg + " กก. (ไม่รู้ฐานคิดราคา)";
+    const money = bahtOf(f.shortThb) || "ยังไม่มีเรท ⇒ คิดยอดไม่ได้";
+    const where = Array.isArray(f.cabinets) && f.cabinets.length ? "\n   📦 ตู้ " + f.cabinets.join(", ") : "";
+    return i + 1 + ". " + f.base + " · " + who + "\n   " + miss + "\n   " + unit + " ≈ " + money + where;
+  });
+  const more = s.total > list.length ? ["… และอีก " + (s.total - list.length) + " ชุด"] : [];
+  const sum = bahtOf(s.totalThb);
+  return {
+    type: "text",
+    quickReply: QUICK_TOOLS,
+    text: [
+      "🔴 ของขาดจากที่ MOMO แจ้ง — " + s.total + " ชุด",
+      sum ? "ยอดที่เก็บไม่ได้รวม ≈ " + sum : "",
+      "━━━━━━━━━━━━",
+    ]
+      .filter(Boolean)
+      .concat(rows, more, [
+        "",
+        "💡 เปิดคิวนำเข้า MOMO แล้วกด “เพิ่มแถวที่ขาด” — ใบที่วางบิลแล้วต้องให้บัญชีเคาะก่อน",
+      ])
+      .join("\n"),
+  };
+}
+
+// ============================================================
+// ⚠️ แทรคของทีม PW ที่เข้าชีตไม่ได้ (ภูม 2026-10-28)
+//    ปุ่ม "⚠️ ชีต PW" — สแกนของจริงทุกครั้ง (`?q=pw-sheet`)
+//    ไม่ได้อ่านบันทึกท่อ (เก็บแค่ 20 รายการล่าสุด ⇒ แถวเก่าหลุดหาย)
+// ============================================================
+function buildPwSheetText(ps) {
+  const s = ps || { total: 0, rows: [], error: null };
+  if (s.error)
+    return {
+      type: "text",
+      quickReply: QUICK_TOOLS,
+      text: "⚠️ ตรวจแทรคเข้าชีต PW ไม่สำเร็จ\n━━━━━━━━━━━━\n" + s.error + "\n\nลองกดอีกครั้ง — ถ้ายังไม่ได้ แจ้งทีมระบบ",
+    };
+  if (!s.total)
+    return {
+      type: "text",
+      quickReply: QUICK_TOOLS,
+      text: "✅ ไม่มีแทรคติด — งานของทีม PW เข้าชีตได้ครบทุกแถว",
+    };
+
+  const host = (PACRED_API_URL || "https://pacred.co.th").replace(/^https?:\/\//, "");
+  const list = Array.isArray(s.rows) ? s.rows : [];
+  const rows = list.map((r, i) =>
+    [
+      i + 1 + ". " + r.tracking + (r.memberCode ? " · " + r.memberCode : " · (ยังไม่มีรหัสลูกค้า)"),
+      "   " + r.reason,
+      r.container ? "   📦 ตู้ " + r.container : "",
+      "   👉 " + host + r.path,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+  const more = s.total > list.length ? ["… และอีก " + (s.total - list.length) + " แทรค"] : [];
+  return {
+    type: "text",
+    quickReply: QUICK_TOOLS,
+    text: ["⚠️ แทรคเข้าชีต PW ไม่ได้ — " + s.total + " แทรค", "━━━━━━━━━━━━"]
+      .concat(rows, more)
+      .join("\n"),
+  };
 }
 
 // ── ใครรับแจ้งเตือน ─────────────────────────────────────────
@@ -840,6 +949,17 @@ async function handleWorkAssistant(event, keyword, ctx) {
       if (!hp || hp.count === 0)
         return lineClient.replyMessage(event.replyToken, { type: "text", quickReply: QUICK, text: "✅ ไม่มีงานรอตอบพิกัด — เคลียร์หมดแล้ว" });
       return lineClient.replyMessage(event.replyToken, buildHsPendingText(hp));
+    }
+    /* 🔴 ของที่ MOMO ประกาศมาแต่ในระบบไม่ครบ — รีเช็คสด (ภูม 2026-10-28)
+          เว็บคิดใหม่ทุกครั้งที่กด (ไม่อ่านผลเก่า) ⇒ กดแล้วได้คำตอบของเดี๋ยวนี้ */
+    if (/ของขาด|ล็อตขาด|ของหาย|ล็อตหาย/.test(t)) {
+      const { lotsMissing } = await pacredGet("lots-missing");
+      return lineClient.replyMessage(event.replyToken, buildLotsMissingText(lotsMissing));
+    }
+    /* ⚠️ แทรคของทีม PW ที่เข้าชีตไม่ได้ — รีเช็คสด (ภูม 2026-10-28) */
+    if (/ชีต ?pw|ชีท ?pw|เข้าชีต|เข้าชีท/.test(t)) {
+      const { pwSheet } = await pacredGet("pw-sheet");
+      return lineClient.replyMessage(event.replyToken, buildPwSheetText(pwSheet));
     }
     if (/แทรคค้าง|ยังไม่เข้า|งานค้าง|^ค้าง/.test(t)) {
       const { pending } = await pacredGet("pending");

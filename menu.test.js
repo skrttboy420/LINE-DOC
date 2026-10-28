@@ -107,6 +107,9 @@ ok("ทุกปุ่มมีคนรับงานจริงใน handle
     "รอตอบพิกัด": /รอตอบพิกัด\|รอพิกัด/,
     "สรุปงานวันนี้": /handleMyDay\(/,
     "ค้นพิกัด": /handleHsSearch\(/,
+    // 🔴⚠️ 2 ปุ่มรีเช็คของหาย (ภูม 2026-10-28) — ต้องยิงท่อ "คิดสด" ไม่ใช่อ่านผลเก่า
+    "ของขาด": /pacredGet\("lots-missing"\)/,
+    "ชีต PW": /pacredGet\("pw-sheet"\)/,
   };
   for (const m of readMenuItems()) {
     if (m.text === "Gemini") continue;  // จับก่อนถึง handleWorkAssistant

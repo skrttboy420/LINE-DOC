@@ -382,6 +382,95 @@ const POOM = {
     }
   });
 
+  console.log("\n🔴⚠️ 2 ปุ่มรีเช็คของหาย (ภูม 2026-10-28)");
+
+  await ok("🔴 ของขาด MOMO — ยิง ?q=lots-missing แล้วบอกเลข/รหัส/คิว/ยอด", async () => {
+    STAFF = POOM; STATE = null;
+    PACRED = (q) =>
+      q.q === "lots-missing"
+        ? { ok: true, lotsMissing: { at: "x", total: 1, totalThb: 29580, error: null, families: [{
+            base: "1792653363", userid: "PR823", subuserid: "",
+            missingTracks: ["1792653363-5"], liveKg: 476, stagingKg: 876, shortKg: 400,
+            liveCbm: 12.1, stagingCbm: 22.3, shortCbm: 10.2,
+            basis: "cbm", rateThb: 2900, shortThb: 29580, cabinets: ["GZS261025-1"], fstatus: "2",
+          }] } }
+        : {};
+    await say("ของขาด", "Upoom");
+    assert.ok(asked.some((a) => a.q === "lots-missing"), "ต้องยิง ?q=lots-missing · ถามไป: " + JSON.stringify(asked.map((a) => a.q)));
+    const t = replyText();
+    assert.ok(/1792653363-5/.test(t), "ต้องบอกเลขแทรคที่ขาด · ได้: " + t);
+    assert.ok(/PR823/.test(t), "ต้องบอกรหัสลูกค้า · ได้: " + t);
+    assert.ok(/10\.2 คิว/.test(t), "ต้องบอกคิวที่ขาด · ได้: " + t);
+    assert.ok(/29,580\.00/.test(t), "ต้องบอกยอดที่เก็บไม่ได้ · ได้: " + t);
+    assert.ok(/GZS261025-1/.test(t), "ต้องบอกตู้ · ได้: " + t);
+  });
+
+  await ok("🔴 ไม่มีของขาด ≠ ตรวจไม่ได้ (2 ข้อความต้องต่างกัน)", async () => {
+    STAFF = POOM; STATE = null;
+    PACRED = () => ({ ok: true, lotsMissing: { at: "x", total: 0, totalThb: 0, families: [], error: null } });
+    await say("ของขาด", "Upoom");
+    assert.ok(/ไม่มีของขาด/.test(replyText()), "ของครบต้องบอกว่าครบ · ได้: " + replyText());
+
+    PACRED = () => ({ ok: true, lotsMissing: { at: "x", total: 0, totalThb: 0, families: [], error: "อ่านฐานไม่ได้ 57014" } });
+    await say("ของขาด", "Upoom");
+    const t = replyText();
+    assert.ok(!/ไม่มีของขาด/.test(t), "🔴 ตรวจไม่ได้ ห้ามอ่านเป็น 'ของครบ' · ได้: " + t);
+    assert.ok(/57014/.test(t), "ต้องบอกเหตุที่ตรวจไม่ได้ · ได้: " + t);
+  });
+
+  await ok("⚠️ ชีต PW — ยิง ?q=pw-sheet แล้วบอกเหตุ + วิธีแก้ + ลิงก์งาน", async () => {
+    STAFF = POOM; STATE = null;
+    PACRED = (q) =>
+      q.q === "pw-sheet"
+        ? { ok: true, pwSheet: { at: "x", total: 2, error: null, rows: [
+            { tracking: "SF5141368028589", forwarderId: 59542, memberCode: "PW", kind: "team_leader_only",
+              reason: 'เจ้าของงานเป็น "PW" = หัวหน้าทีม — ใส่ช่องลูกค้าปลายทางก่อน', container: "GZS261025-1",
+              path: "/admin/forwarders/59542" },
+            { tracking: "79042625215706", forwarderId: 60006, memberCode: "PW", kind: "team_leader_only",
+              reason: "ใส่รหัสลูกค้าปลายทางก่อน", container: null, path: "/admin/forwarders/60006" },
+          ] } }
+        : {};
+    await say("ชีต PW", "Upoom");
+    assert.ok(asked.some((a) => a.q === "pw-sheet"), "ต้องยิง ?q=pw-sheet · ถามไป: " + JSON.stringify(asked.map((a) => a.q)));
+    const t = replyText();
+    assert.ok(/SF5141368028589/.test(t) && /79042625215706/.test(t), "ต้องบอกทั้ง 2 เลข · ได้: " + t);
+    assert.ok(/หัวหน้าทีม/.test(t), "ต้องบอกเหตุจริง (ไม่ใช่โทษช่องทางรถ/เรือ) · ได้: " + t);
+    assert.ok(/ลูกค้าปลายทาง/.test(t), "ต้องบอกวิธีแก้ · ได้: " + t);
+    assert.ok(/forwarders\/59542/.test(t), "ต้องมีลิงก์ไปงานในระบบ · ได้: " + t);
+  });
+
+  await ok("⚠️ ชีต PW ว่าง ≠ สแกนไม่ได้", async () => {
+    STAFF = POOM; STATE = null;
+    PACRED = () => ({ ok: true, pwSheet: { at: "x", total: 0, rows: [], error: null } });
+    await say("ชีต PW", "Upoom");
+    assert.ok(/เข้าชีตได้ครบ/.test(replyText()), "ครบต้องบอกว่าครบ · ได้: " + replyText());
+
+    PACRED = () => ({ ok: true, pwSheet: { at: "x", total: 0, rows: [], error: "tb_forwarder scan: 57014" } });
+    await say("ชีต PW", "Upoom");
+    const t = replyText();
+    assert.ok(!/เข้าชีตได้ครบ/.test(t), "🔴 สแกนไม่ได้ ห้ามอ่านเป็น 'ครบ' · ได้: " + t);
+    assert.ok(/57014/.test(t), "ต้องบอกเหตุ · ได้: " + t);
+  });
+
+  await ok("🧭 2 ปุ่มใหม่ไม่กินคำสั่งของปุ่มเดิม (ลำดับ if ถูก)", async () => {
+    STAFF = POOM; STATE = null;
+    PACRED = (q) => {
+      if (q.q === "pending") return { ok: true, pending: { count: 0 } };
+      if (q.q === "hs-pending") return { ok: true, hsPending: { count: 0 } };
+      if (q.q === "uploads") return { ok: true, uploads: [], systemImport: [] };
+      return {};
+    };
+    for (const [text, want] of [["แทรคค้าง", "pending"], ["งานค้าง", null], ["รอตอบพิกัด", "hs-pending"]]) {
+      asked.length = 0;
+      await say(text, "Upoom");
+      assert.ok(
+        !asked.some((a) => a.q === "lots-missing" || a.q === "pw-sheet"),
+        'กด "' + text + '" ต้องไม่ไหลเข้าปุ่มใหม่ · ถามไป: ' + JSON.stringify(asked.map((a) => a.q)),
+      );
+      if (want) assert.ok(asked.some((a) => a.q === want), 'กด "' + text + '" ต้องยิง ?q=' + want);
+    }
+  });
+
   await ok("🚪 คนที่ยังไม่ผูกบัญชีใช้บอทไม่ได้ (ด่านสิทธิ์ยังอยู่)", async () => {
     STAFF = null; STATE = null;
     await say("เมนู", "Ustranger");

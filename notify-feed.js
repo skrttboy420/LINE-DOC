@@ -43,6 +43,13 @@ const NOTIFY_CATEGORIES = [
      งานอัพแทรคเข้าระบบ มีแทรคค้างอยู่กี่แทรค (พร้อมบอกเหตุผลด้วย เช่น ข้อมูลไม่ครบ)"* */
   { key: "hs_pending",  group: "🧰 ทีมระบบ",   label: "ออเดอร์รอตอบพิกัด",           scope: "all",      unit: "ใบ" },
   { key: "track_stuck", group: "🧰 ทีมระบบ",   label: "แทรครออัพเข้าระบบ",           scope: "all",      unit: "แทรค" },
+  /* 🔴 ของหาย (ภูม 2026-10-28) — *"แทรคกิ้งมันตกหล่นไปได้ยังไง … แทรค -4 และ -5 หายไป"*
+     เคสที่ธงชี้ถูกแต่แถวแม่ถูกเขียนทับด้วยค่าของล็อตลูก ⇒ คิวไม่เห็น + เก็บเงินขาดเงียบ ๆ
+     ⇒ ภูมสั่ง: *"ถ้าเจอปุ๊ปก็แจ้งเตือนมาเลย"* (ไม่เอาหน้า /admin/data-health เพราะปอนจะลบ) */
+  { key: "lots_missing", group: "🧰 ทีมระบบ",  label: "ของขาดจากที่ MOMO แจ้ง",      scope: "all",      unit: "ชุด" },
+  /* ⚠️ ท่อชีตพาร์ทเนอร์ (ภูม 2026-10-28) — *"นี่ถ้าไม่มาเปิดดูก็ไม่รู้เลยนะเนี่ย
+     พาร์ตเนอร์หนีหมดแบบนี้ใครจะใช้งานกับเราหละ"* */
+  { key: "pw_sheet",    group: "🧰 ทีมระบบ",   label: "แทรคเข้าชีต PW ไม่ได้",        scope: "all",      unit: "แทรค" },
 ];
 const NOTIFY_KEYS = NOTIFY_CATEGORIES.map((c) => c.key);
 
@@ -60,8 +67,10 @@ const MAX_ROWS_PER_MESSAGE = 20;
 function itdtSections(feed) {
   const it = (feed && feed.itdt) || {};
   return [
-    { key: "hs_pending",  rows: it.hsPending   || [], total: it.hsPendingTotal },
-    { key: "track_stuck", rows: it.tracksStuck || [], total: it.tracksStuckTotal },
+    { key: "hs_pending",   rows: it.hsPending     || [], total: it.hsPendingTotal },
+    { key: "track_stuck",  rows: it.tracksStuck   || [], total: it.tracksStuckTotal },
+    { key: "lots_missing", rows: it.lotsMissing   || [], total: it.lotsMissingTotal },
+    { key: "pw_sheet",     rows: it.pwSheetFailed || [], total: it.pwSheetFailedTotal },
   ];
 }
 

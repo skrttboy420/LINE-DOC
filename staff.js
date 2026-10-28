@@ -59,6 +59,15 @@ const CATEGORIES = [
     label: "ออเดอร์รอตอบพิกัด",  hint: "ออเดอร์ที่ยังไม่มีพิกัด — คิวเดียวกับปุ่ม รอตอบพิกัด" },
   { key: "track_stuck", group: "🧰 ทีมระบบ", scope: "all",
     label: "แทรครออัพเข้าระบบ",   hint: "MOMO sync มาแล้วแต่ยังไม่ได้นำเข้า — บอกเหตุผลรายแทรค (รอน้ำหนัก/รอขนาด)" },
+  /* 🔴 ภูม 2026-10-28 — *"แทรคกิ้งมันตกหล่นไปได้ยังไง … แทรค -4 และ -5 หายไป"*
+     คนละเรื่องกับ track_stuck: อันนั้น "ยังไม่ได้นำเข้า (เห็นในคิว)" · อันนี้ "ธงบอกว่าเข้าแล้ว
+     แต่ของไม่ครบ" ⇒ **ไม่โผล่ในคิวเลย** = ของหายเงียบ + เก็บเงินขาด */
+  { key: "lots_missing", group: "🧰 ทีมระบบ", scope: "all",
+    label: "ของขาดจากที่ MOMO แจ้ง",
+    hint: "ธงบอกว่าเข้าระบบแล้ว แต่ Σ กล่อง/น้ำหนัก ในระบบไม่ครบตามที่ MOMO ประกาศ — เก็บเงินขาด ต้องไปเติมแถวเอง" },
+  { key: "pw_sheet",    group: "🧰 ทีมระบบ", scope: "all",
+    label: "แทรคเข้าชีต PW ไม่ได้",
+    hint: "ส่งเข้าชีตพาร์ทเนอร์ไม่สำเร็จ + เหตุผลจริง (ไม่มีรหัสลูกค้าปลายทาง · ช่องทางที่ชีตไม่มี ฯลฯ)" },
   { key: "system",      group: "🧰 ทีมระบบ", scope: "all",
     label: "ระบบมีปัญหา",        hint: "ท่อดันหาบอทพัง ฯลฯ — ยังไม่มีตัวนับในปุ่ม งานค้าง" },
 ];
@@ -99,10 +108,10 @@ const DEFAULT_BY_POSITION = {
   "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
 
   // ── 🧰 ทีมระบบ (ITDT) ───────────────────────────────────────────────
-  "Front End":           ["hs_pending", "track_stuck"],
-  "Back End":            ["hs_pending", "track_stuck"],
-  "Full Stack":          ["hs_pending", "track_stuck"],
-  "Project Manager":     ["hs_pending", "track_stuck"],
+  "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
+  "Back End":            ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
+  "Full Stack":          ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
+  "Project Manager":     ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
 
   // ── 🛃 พิธีการ / เอกสาร ─────────────────────────────────────────────
   Supervisor:            ["hs_pending"],                      // Customs Specialist — คิวรอตอบพิกัด
@@ -119,7 +128,7 @@ const DEFAULT_BY_POSITION = {
 const DEFAULT_BY_DEPARTMENT = {
   /* 🔄 2026-10-22 ภูม: *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด · งานอัพแทรคเข้าระบบ"*
      เดิมแจก "system" ซึ่ง**ไม่มีตัวนับงานค้าง** ⇒ กดปุ่มแล้วขึ้น "หมวดที่ติ๊กไว้ยังไม่มีตัวนับ" */
-  ITDT:                 ["hs_pending", "track_stuck"],
+  ITDT:                 ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
   Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
   Operations:           [],                     // 4 ตำแหน่งคนละงาน — เดาจากแผนกไม่ได้ (ดูตารางตำแหน่ง)
   Logistics:            [],                     // คนขับ vs โกดัง คนละเรื่อง

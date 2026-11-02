@@ -55,6 +55,11 @@ const CATEGORIES = [
     label: "ตู้ยิงเข้าโกดังครบ",          hint: "ยิงรับครบทุกกล่องในตู้แล้ว — ปิดงานตู้นั้นได้" },
 
   // 🧰 งานทีมระบบ (ITDT)
+  /* 💳 ภูม 2026-11-02 (งาน T-101 ข้อ 4) — เรื่องเครดิตไม่เคยมีการแจ้งเตือนเลยสักทาง
+     ⇒ ถึงรอบเก็บเงินแล้วต้องเปิดจอไล่เอง · แจ้งเฉพาะใบที่ถึงวันแล้ว ไม่กวนล่วงหน้าทุกวัน */
+  { key: "acc_credit",  group: "🧾 บัญชี", scope: "all",
+    label: "เครดิตถึงกำหนดชำระ",
+    hint: "งานเครดิตที่ครบกำหนดวันนี้หรือเลยกำหนดแล้ว + ยังไม่ปิดยอด — ไปเก็บเงิน/วางบิล" },
   { key: "hs_pending",  group: "🧰 ทีมระบบ", scope: "all",
     label: "ออเดอร์รอตอบพิกัด",  hint: "ออเดอร์ที่ยังไม่มีพิกัด — คิวเดียวกับปุ่ม รอตอบพิกัด" },
   { key: "track_stuck", group: "🧰 ทีมระบบ", scope: "all",
@@ -104,8 +109,8 @@ const DEFAULT_BY_POSITION = {
   Driver:                [],                                  // งานส่งในประเทศยังไม่มีหมวดในบอท
 
   // ── 🧾 บัญชี ────────────────────────────────────────────────────────
-  "Admin Accounting":    ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
-  "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
+  "Admin Accounting":    ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt", "acc_credit"],
+  "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt", "acc_credit"],
 
   // ── 🧰 ทีมระบบ (ITDT) ───────────────────────────────────────────────
   "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],

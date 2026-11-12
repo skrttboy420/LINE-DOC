@@ -1,0 +1,289 @@
+// ============================================================
+// 🧪 เทสโกดัง 3D — ผัง + สีบนจอ (ภูม 2026-11-12)
+//
+// รัน:  node warehouse.test.js
+//
+// 🔑 ทำไมต้องมี: สีบนจอ 3D คือตัวบอกพนักงานว่า **หยิบได้/ห้ามหยิบ**
+//    ภูม: *"พนักงานแม่งเอาของที่ลูกค้ายังไม่ชำระ ไปส่งลูกค้า"*
+//    ⇒ ถ้าสีเพี้ยนแม้ครั้งเดียว = ของออกจากโกดังผิดคน (เงินจริง ลูกค้าจริง)
+//    ยามที่นี่ล็อกกติกาสีไว้ทุกข้อ
+//
+// 🚫 ไม่ต่อไลน์/Supabase/เว็บ Pacred — คณิตศาสตร์กับกติกาเท่านั้น
+// ============================================================
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+
+let pass = 0, fail = 0;
+function ok(name, fn) {
+  try { fn(); pass++; console.log("  ✓ " + name); }
+  catch (e) { fail++; console.error("  ✗ " + name); console.error("    " + (e.message || e)); }
+}
+const section = (s) => console.log("\n" + s);
+
+const L = require("./warehouse-layout");
+const W = require("./warehouse");
+
+/* ════ ① ผังตรงกับไฟล์ที่ภูมส่งมา ════════════════════════════════════ */
+section("ผังโกดัง (ตามไฟล์ของภูม)");
+
+ok("ขนาดช่อง 250 × 120 × 165 · คาน 10 · เสา 7 · ทางเดิน 300", () => {
+  assert.deepEqual(L.CELL, { w: 250, d: 120, h: 165 });
+  assert.equal(L.STRUCT.beam, 10);
+  assert.equal(L.STRUCT.post, 7);
+  assert.equal(L.STRUCT.aisle, 300);
+});
+
+ok("3 แถว — ซ้าย 6 · กลาง 10 · ขวา 10 ล็อก · 4 ชั้น", () => {
+  assert.equal(L.LEVELS, 4);
+  assert.deepEqual(L.ROWS.map((r) => r.key), ["A", "B", "C"]);
+  assert.deepEqual(L.ROWS.map((r) => r.bays), [6, 10, 10]);
+});
+
+ok("รวม 26 ล็อก · 104 ช่องชั้น · 208 ช่องวาง (2 ฝั่งต่อช่อง)", () => {
+  const t = L.buildLayout().totals;
+  assert.deepEqual(t, { bays: 26, cells: 104, slots: 208 });
+});
+
+/* ════ ② รหัสโลเคชั่น [Row][Bay][Level] ═══════════════════════════════ */
+section("รหัสโลเคชั่น");
+
+ok("A0101 = แถว A ล็อก 1 ชั้น 1 (ตามตัวอย่างในไฟล์)", () => {
+  assert.equal(L.locationCode("A", 1, 1), "A0101");
+  assert.deepEqual(L.parseLocation("A0101"), { row: "A", bay: 1, level: 1, code: "A0101" });
+});
+
+ok("อ่านได้แม้พิมพ์ตัวเล็ก/มีขีด/มีเว้นวรรค (พนักงานพิมพ์มือ)", () => {
+  assert.equal(L.parseLocation("a0101").code, "A0101");
+  assert.equal(L.parseLocation(" A-01-01 ").code, "A0101");
+  assert.equal(L.parseSlot("a0101-l").slot, "A0101-L");
+});
+
+ok("🔴 ช่องที่ไม่มีในผังต้องไม่ผ่าน (กันคีย์ช่องผี)", () => {
+  assert.equal(L.parseLocation("A0701"), null, "แถว A มีแค่ 6 ล็อก");
+  assert.equal(L.parseLocation("B1101"), null, "แถว B มีแค่ 10 ล็อก");
+  assert.equal(L.parseLocation("A0105"), null, "มีแค่ 4 ชั้น");
+  assert.equal(L.parseLocation("D0101"), null, "ไม่มีแถว D");
+  assert.throws(() => L.locationCode("A", 7, 1), /ล็อกที่ 7 ไม่มีอยู่/);
+  assert.throws(() => L.locationCode("A", 1, 5), /ชั้นที่ 5 ไม่มีอยู่/);
+});
+
+ok("ฝั่งรับแค่ L / R", () => {
+  assert.equal(L.slotCode("A0101", "r"), "A0101-R");
+  assert.throws(() => L.slotCode("A0101", "X"), /ฝั่งต้องเป็น/);
+  assert.equal(L.parseSlot("A0101-X"), null);
+});
+
+ok("ชื่อที่คนอ่านรู้เรื่อง", () => {
+  assert.equal(L.slotLabel("A0101-L"), "โซนซ้าย ล็อก 1 ชั้น 1 (ฝั่งซ้าย)");
+  assert.equal(L.slotLabel("C1004"), "โซนริมขวา ล็อก 10 ชั้น 4");
+});
+
+/* ════ ③ พิกัด XYZ ════════════════════════════════════════════════════ */
+section("พิกัด XYZ (หน่วยเซนติเมตรของจริง)");
+
+ok("แถวห่างกัน = ลึกชั้นวาง 120 + ทางเดิน 300", () => {
+  assert.equal(L.rowOriginX("A"), 0);
+  assert.equal(L.rowOriginX("B"), 420);
+  assert.equal(L.rowOriginX("C"), 840);
+});
+
+ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา 7) · ชั้นถัดไปสูงขึ้น 175 (165 + คาน 10)", () => {
+  assert.equal(L.BAY_PITCH, 257);
+  assert.equal(L.LEVEL_PITCH, 175);
+  const b1 = L.slotBox("B0101", "L"), b2 = L.slotBox("B0201", "L");
+  assert.equal(b2.z - b1.z, 257);
+  const l1 = L.slotBox("B0101", "L"), l2 = L.slotBox("B0102", "L");
+  assert.equal(l2.y - l1.y, 175);
+});
+
+ok("2 ฝั่งในช่องเดียวกันไม่ทับกัน (กว้างครึ่งช่องคนละครึ่ง)", () => {
+  const l = L.slotBox("A0101", "L"), r = L.slotBox("A0101", "R");
+  assert.equal(l.w, 125);
+  assert.equal(r.z - l.z, 125, "ฝั่งขวาต้องขยับไป 125 ซม.");
+  assert.equal(l.x, r.x);
+  assert.equal(l.y, r.y);
+});
+
+ok("ของวางอยู่บนคาน ไม่จมพื้น", () => {
+  const b = L.slotBox("A0101", "L");
+  assert.equal(b.y - b.h / 2, L.STRUCT.beam, "ท้องของต้องอยู่สูงเท่าคาน");
+});
+
+ok("ขนาดโกดังรวม = 960 × 700 × 2570 ซม.", () => {
+  assert.deepEqual(L.layoutExtent(), { x: 960, y: 700, z: 2570 });
+});
+
+/* ════ ④ 🔴 สีบนจอ = หยิบได้/ห้ามหยิบ (หัวใจของงานนี้) ════════════════ */
+section("สีบนจอ 3D");
+
+const job = (o) => Object.assign({ tracking: "T1", status: 6, paid: true, arrivedAt: "2026-11-10" }, o);
+
+ok("🟢 ชำระแล้ว + ถึงไทยแล้ว = หยิบส่งได้", () => {
+  const s = W.pickStateOf(job({}), true);
+  assert.equal(s.pick, "ready");
+  assert.equal(s.color, "#16a34a");
+});
+
+ok("🔴🟡 ยังไม่ชำระ = ห้ามหยิบ (เคสที่พนักงานหยิบผิดจริง)", () => {
+  const s = W.pickStateOf(job({ status: 5, paid: false }), true);
+  assert.equal(s.pick, "wait");
+  assert.match(s.why, /ยังไม่ชำระ/);
+  assert.match(s.why, /ห้ามหยิบ/);
+});
+
+ok("🟡 ชำระแล้วแต่ของมาไม่ครบทุกกล่อง = รอให้ครบ", () => {
+  const s = W.pickStateOf(job({ boxesIn: 7, boxesTotal: 10 }), true);
+  assert.equal(s.pick, "wait");
+  assert.match(s.why, /7\/10/);
+});
+
+ok("ครบแล้ว = เขียว", () => {
+  assert.equal(W.pickStateOf(job({ boxesIn: 10, boxesTotal: 10 }), true).pick, "ready");
+});
+
+ok("🔴 ระบบบอกส่งแล้ว แต่ของยังอยู่บนชั้น = มีคนหยิบกล่องอื่นไปส่งแทน", () => {
+  const s = W.pickStateOf(job({ status: 7 }), true);
+  assert.equal(s.pick, "problem");
+  assert.match(s.why, /ส่งแล้ว/);
+});
+
+ok("🔴 ของอยู่บนชั้นไทย แต่ระบบยังเป็นกำลังส่งมาไทย = ยังไม่ได้ยิงรับเข้า", () => {
+  const s = W.pickStateOf(job({ status: 3, paid: false, arrivedAt: null }), true);
+  assert.equal(s.pick, "problem");
+  assert.match(s.why, /ยังไม่ได้ยิงรับเข้า/);
+});
+
+ok("🔴 งานถูกระงับ = แดงเสมอ แม้ชำระแล้ว", () => {
+  assert.equal(W.pickStateOf(job({ hold: true }), true).pick, "problem");
+});
+
+ok("⬛ มีของแต่หาแทรคในระบบไม่เจอ = เตือน ไม่ใช่เขียว", () => {
+  const s = W.pickStateOf(null, true);
+  assert.equal(s.pick, "unknown");
+  assert.notEqual(s.color, "#16a34a");
+});
+
+ok("⬜ ไม่มีของวาง = ว่าง", () => {
+  assert.equal(W.pickStateOf(null, false).pick, "empty");
+  assert.equal(W.pickStateOf(job({}), false).pick, "empty", "ช่องว่างต้องว่าง แม้งานจะชำระแล้ว");
+});
+
+ok("🔴 งานเครดิตที่ถูกดันเป็นสถานะ 6 ก่อนของถึงไทย ต้องไม่เขียว", () => {
+  /* เว็บดันเครดิตเป็น 6 ตอนอนุมัติ ⇒ paid=true ทั้งที่ของยังไม่ถึง
+     ถ้าตัดสินด้วยตัวเลขสถานะเดียว จะได้เขียว = พนักงานออกไปหาของที่ยังอยู่จีน
+     วัดจริงบน prod 11-12: งานเครดิตสถานะ 6 ที่ยังไม่มีวันชำระ มีอยู่จริง */
+  assert.equal(W.pickStateOf(job({ status: 3, paid: true, arrivedAt: null }), true).pick, "problem");
+  assert.equal(W.pickStateOf(job({ status: 6, paid: true, arrivedAt: null }), true).pick, "problem",
+    "สถานะ 6 แต่ยังไม่ลงวันถึงไทย = ของยังไม่ถึง ห้ามเขียว");
+  assert.equal(W.pickStateOf(job({ status: 6, paid: true, arrivedAt: "  " }), true).pick, "problem",
+    "วันถึงไทยเป็นช่องว่าง = ยังไม่ถึง");
+});
+
+ok("🔴 ช่องที่มีหลายกล่อง เอาสีที่ \"แรงสุด\" ไม่ใช่เสียงส่วนมาก", () => {
+  assert.equal(W.worstOf(["ready", "ready", "wait"]), "wait", "มี 1 กล่องห้ามหยิบ ต้องเห็นว่าเตือน");
+  assert.equal(W.worstOf(["ready", "wait", "problem"]), "problem");
+  assert.equal(W.worstOf(["ready", "unknown"]), "unknown");
+  assert.equal(W.worstOf(["ready", "ready"]), "ready");
+  assert.equal(W.worstOf([]), "empty");
+});
+
+/* ════ ⑤ รวมข้อมูลทั้งโกดัง ═══════════════════════════════════════════ */
+section("รวมผัง + ของที่วาง + งานจากเว็บ");
+
+const PL = (t, slot, extra) => Object.assign({ tracking: t, slot: slot, boxes: 1, placed_by: "u1" }, extra);
+
+ok("ช่องที่มีของได้สีตามงาน · ช่องที่เหลือว่าง", () => {
+  const v = W.mergeView(
+    [PL("TA", "A0101-L"), PL("TB", "B0503-R")],
+    [job({ tracking: "TA" }), job({ tracking: "TB", status: 5, paid: false })],
+  );
+  const a = v.layout.slots.find((s) => s.slot === "A0101-L");
+  const b = v.layout.slots.find((s) => s.slot === "B0503-R");
+  assert.equal(a.status, "ready");
+  assert.equal(b.status, "wait");
+  assert.equal(v.counts.ready, 1);
+  assert.equal(v.counts.wait, 1);
+  assert.equal(v.counts.empty, 206, "ที่เหลือจาก 208 ต้องว่าง");
+});
+
+ok("ช่องเดียววางได้หลายแทรค · นับกล่องรวม", () => {
+  const v = W.mergeView(
+    [PL("T1", "A0101-L", { boxes: 3 }), PL("T2", "A0101-L", { boxes: 2 })],
+    [job({ tracking: "T1" }), job({ tracking: "T2" })],
+  );
+  const s = v.layout.slots.find((x) => x.slot === "A0101-L");
+  assert.equal(s.items.length, 2);
+  assert.equal(s.boxes, 5);
+});
+
+ok("🔴 รายการเตือน — ช่องที่ขัดกับระบบต้องโผล่ในลิสต์ให้กดดูได้", () => {
+  const v = W.mergeView([PL("TX", "C1004-R")], [job({ tracking: "TX", status: 7 })]);
+  assert.equal(v.alerts.length, 1);
+  assert.equal(v.alerts[0].slot, "C1004-R");
+  assert.equal(v.alerts[0].tracking, "TX");
+});
+
+ok("🔴 งานพร้อมส่งที่ยังไม่มีใครคีย์ช่อง ต้องขึ้นเตือน (ไม่งั้นพนักงานหาไม่เจอแล้วหยิบมั่ว)", () => {
+  const v = W.mergeView([], [job({ tracking: "TZ", memberCode: "PR001" })]);
+  assert.equal(v.unplaced.length, 1);
+  assert.equal(v.unplaced[0].tracking, "TZ");
+  assert.equal(v.unplaced[0].memberCode, "PR001");
+});
+
+ok("งานที่ยังไม่ชำระและไม่มีช่อง ไม่ต้องเตือน (ยังไม่ถึงคิวหยิบ)", () => {
+  const v = W.mergeView([], [job({ tracking: "TY", status: 5, paid: false })]);
+  assert.equal(v.unplaced.length, 0);
+});
+
+ok("ของที่คีย์ช่องผี (ช่องไม่มีในผัง) ไม่ทำให้ทั้งจอล้ม — แยกไว้ให้แก้", () => {
+  const v = W.mergeView([PL("TP", "Z9999-L"), PL("TQ", "A0101-L")], [job({ tracking: "TQ" })]);
+  assert.equal(v.orphans.length, 1);
+  assert.equal(v.orphans[0].tracking, "TP");
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").status, "ready");
+});
+
+ok("อ่านงานจากเว็บไม่ได้ = ช่องที่มีของขึ้น \"หาในระบบไม่เจอ\" ไม่ใช่เขียวหลอก", () => {
+  const v = W.mergeView([PL("T1", "A0101-L")], []);
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").status, "unknown");
+});
+
+/* ════ ⑥ 🔒 ขอบเขต — ห้ามแตะระบบ Pacred ═════════════════════════════ */
+section("ขอบเขต (ภูม: อย่าไปยุ่งกับระบบ pacred)");
+
+ok("🔒 โค้ดโกดังเขียนได้แค่ตารางของบอท (wh_*) ห้ามแตะตารางของ Pacred", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  for (const t of ["tb_forwarder", "tb_users", "momo_import_tracks", "tb_address", "tb_order"])
+    assert.ok(!src.includes(t), "ห้ามอ้างตารางของ Pacred: " + t);
+  const writes = src.match(/\.from\("([^"]+)"\)/g) || [];
+  for (const w of writes)
+    assert.ok(/wh_(placement|move_log)/.test(w), "ตารางที่แตะต้องเป็น wh_* เท่านั้น — เจอ " + w);
+});
+
+ok("🔒 อ่านเว็บ Pacred ผ่านท่อ pacredGet เท่านั้น (ไม่ยิงฐานตรง)", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  assert.ok(src.includes('pacredGet("warehouse"'), "ต้องอ่านผ่าน /api/bot?q=warehouse");
+  assert.ok(!/SUPABASE_URL|createClient/.test(src), "ห้ามสร้างตัวต่อฐานเอง — รับเข้ามาจาก index.js");
+});
+
+ok("🔴 ต้องส่งเลขแทรคที่อยู่บนชั้นไปถามเว็บ (ไม่งั้นเคส \"ส่งแล้วแต่ยังอยู่บนชั้น\" ขึ้นเทา)", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  assert.ok(src.includes("jobsFromPacred(placements.map"), "view() ต้องส่งเลขแทรคไปด้วย");
+  assert.ok(src.includes("slice(0, 400)"), "ต้องมีเพดานจำนวนที่ถาม");
+});
+
+ok("ตัวอ่านไล่เกิน 1000 แถว (PostgREST ตัดเงียบที่ 1000)", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  assert.ok(src.includes(".range("), "ต้องอ่านเป็นช่วง");
+  assert.ok(/length < 1000/.test(src), "ต้องวนจนครบ");
+});
+
+ok("ทุกการวาง/ย้าย/เอาออก ลงประวัติ", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  for (const a of ['"place"', '"move"', '"remove"'])
+    assert.ok(src.includes(a), "ต้องลงประวัติชนิด " + a);
+});
+
+/* ════ สรุป ═══════════════════════════════════════════════════════════ */
+console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
+process.exit(fail ? 1 : 0);

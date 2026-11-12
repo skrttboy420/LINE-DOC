@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>คีย์ตำแหน่งของ — โกดัง Pacred</title>
+<!--
+  📥 หน้าคีย์ตำแหน่งของ — ภูม 2026-11-12
+  ใช้บนมือถือในโกดัง: พิมพ์เลขแทรค → กดเลือก โซน/ล็อก/ชั้น/ฝั่ง → บันทึก
+  🔑 โชว์สถานะจริงจากเว็บ **ตอนคีย์** ⇒ เห็นทันทีว่ากล่องนี้ "ห้ามหยิบ" (ต้นเหตุที่ส่งผิด)
+  🔒 เขียนลงฐานของบอทเท่านั้น — ไม่แตะระบบ Pacred
+-->
+<style>
+  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280;--bg:#f8fafc;
+        --ready:#16a34a;--wait:#f59e0b;--problem:#dc2626}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
+       background:var(--bg);color:#111;padding-bottom:84px}
+  header{background:var(--red);color:#fff;padding:12px 14px;position:sticky;top:0;z-index:5;
+         display:flex;align-items:center;gap:10px}
+  header b{font-size:16px}
+  header .sub{font-size:11px;opacity:.85}
+  header a{margin-left:auto;color:#fff;text-decoration:none;background:rgba(255,255,255,.2);
+           border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap}
+  main{padding:14px;max-width:620px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:14px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 5px}
+  input{width:100%;padding:13px;border:1px solid var(--line);border-radius:10px;font-size:17px}
+  input.mono{font-family:ui-monospace,Menlo,monospace;letter-spacing:.5px}
+  .opts{display:flex;flex-wrap:wrap;gap:7px}
+  .opt{border:1px solid var(--line);background:#fff;border-radius:10px;padding:11px 0;
+       font-size:15px;cursor:pointer;min-width:46px;text-align:center;flex:1 0 46px;font-weight:600}
+  .opt.on{background:var(--red);color:#fff;border-color:var(--red)}
+  .opt:disabled{opacity:.3}
+  .code{font-family:ui-monospace,Menlo,monospace;font-size:26px;font-weight:800;
+        text-align:center;padding:14px;background:#f1f5f9;border-radius:12px;letter-spacing:2px}
+  .code.bad{background:#fef2f2;color:#b91c1c;font-size:15px;letter-spacing:0}
+  .save{width:100%;background:var(--red);color:#fff;border:0;border-radius:12px;
+        padding:16px;font-size:17px;font-weight:700;cursor:pointer;margin-top:12px}
+  .save:disabled{opacity:.45}
+  .ghost{background:#fff;color:#111;border:1px solid var(--line)}
+  .muted{color:var(--muted);font-size:12px;line-height:1.6}
+  .state{border-radius:12px;padding:12px;margin-top:10px;font-size:14px;line-height:1.6;display:none}
+  .state b{display:block;font-size:15px;margin-bottom:3px}
+  .box{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px;font-size:13px;line-height:1.6}
+  .box .mono{font-family:ui-monospace,Menlo,monospace}
+  .rm{background:#fff;border:1px solid #fecaca;color:#b91c1c;border-radius:9px;padding:7px 11px;font-size:12px;cursor:pointer}
+  .msg{padding:12px;border-radius:10px;font-size:13px;margin-bottom:12px;display:none;line-height:1.6}
+  .msg.ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#047857}
+  .msg.err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c}
+  .hist{font-size:12px;border-top:1px solid var(--line);padding-top:8px;margin-top:4px}
+  .hist div{padding:5px 0;border-bottom:1px solid #f1f5f9;display:flex;gap:8px}
+  .hist .m{font-family:ui-monospace,Menlo,monospace}
+  .hist .s{margin-left:auto;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div><b>📥 คีย์ตำแหน่งของ</b><div class="sub" id="who">โกดังสมุทรสาคร</div></div>
+  <a id="view3d" href="#">🏭 ดูจอ 3D</a>
+</header>
+
+<main>
+  <div class="msg" id="msg"></div>
+
+  <div class="card">
+    <h2>คุณคือใคร</h2>
+    <input id="by" placeholder="ชื่อเล่นของคุณ (จำไว้ในเครื่องนี้)" autocomplete="off">
+    <div class="muted" style="margin-top:6px">ใส่ชื่อไว้เพื่อให้ตามได้ว่าใครคีย์/ย้ายของตอนไหน</div>
+  </div>
+
+  <div class="card">
+    <h2>① กล่องไหน</h2>
+    <label for="tracking">เลขแทรค (พิมพ์หรือวาง)</label>
+    <input id="tracking" class="mono" placeholder="เช่น SF5151823978859" autocomplete="off" inputmode="latin">
+    <div class="state" id="jobState"></div>
+  </div>
+
+  <div class="card">
+    <h2>② วางช่องไหน</h2>
+    <label>โซน</label><div class="opts" id="zones"></div>
+    <label>ล็อกที่</label><div class="opts" id="bays"></div>
+    <label>ชั้นที่</label><div class="opts" id="levels"></div>
+    <label>ฝั่ง</label><div class="opts" id="sides"></div>
+    <div class="code" id="code" style="margin-top:12px">— เลือกให้ครบ —</div>
+    <div class="muted" id="codeLabel" style="text-align:center;margin-top:6px"></div>
+    <div id="slotNow"></div>
+    <label for="boxes">จำนวนกล่องที่วางช่องนี้</label>
+    <input id="boxes" type="number" min="1" value="1" inputmode="numeric">
+    <label for="note">หมายเหตุ (ไม่ใส่ก็ได้)</label>
+    <input id="note" placeholder="เช่น วางซ้อนบนพาเลทเดียวกัน">
+    <button class="save" id="save" disabled>บันทึกตำแหน่ง</button>
+  </div>
+
+  <div class="card">
+    <h2>🔎 หาของ / เอาของออก</h2>
+    <input id="find" placeholder="เลขแทรค · รหัสลูกค้า · A0101" autocomplete="off">
+    <button class="save ghost" id="findBtn">ค้นหา</button>
+    <div id="findOut"></div>
+  </div>
+</main>
+
+<script type="module">
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+$("view3d").href = api("/warehouse");
+
+/* จำชื่อคนคีย์ไว้ในเครื่องนี้ — ไลน์ไม่ได้บอกเราว่าใครเปิดลิงก์ */
+const BY_KEY = "pacred-wh-by";
+try { $("by").value = localStorage.getItem(BY_KEY) || ""; } catch {}
+$("by").addEventListener("change", () => {
+  try { localStorage.setItem(BY_KEY, $("by").value.trim()); } catch {}
+});
+const byName = () => $("by").value.trim();
+
+let LAYOUT = null, JOBS = new Map(), PLACED = new Map(), COLOR = {}, LEGEND = {};
+const sel = { zone: null, bay: null, level: null, side: null };
+
+function msg(text, kind) {
+  const m = $("msg");
+  m.className = "msg " + (kind || "ok");
+  m.innerHTML = text;
+  m.style.display = "block";
+  scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ── โหลดผัง + ของที่วางอยู่ + สถานะงาน ── */
+async function boot() {
+  const r = await fetch(api("/warehouse/api/view"));
+  const v = await r.json();
+  if (!r.ok) return msg(esc(v.error || "เปิดหน้านี้ไม่ได้"), "err");
+  LAYOUT = v.layout; COLOR = v.pickColor; LEGEND = v.pickLegend;
+  for (const s of LAYOUT.slots) for (const i of s.items) {
+    PLACED.set(i.tracking, { slot: s.slot, label: s.label });
+    JOBS.set(i.tracking, i);
+  }
+  if (!v.live.ok) msg("⚠️ อ่านสถานะงานจากเว็บ Pacred ไม่ได้ — คีย์ตำแหน่งได้ปกติ แต่จะไม่เห็นว่าชำระแล้วหรือยัง", "err");
+  renderOpts();
+}
+
+function pills(host, items, key) {
+  host.innerHTML = "";
+  for (const it of items) {
+    const b = document.createElement("button");
+    b.className = "opt" + (sel[key] === it.v ? " on" : "");
+    b.textContent = it.t;
+    b.onclick = () => {
+      sel[key] = sel[key] === it.v ? null : it.v;
+      if (key === "zone") sel.bay = null;
+      renderOpts();
+    };
+    host.appendChild(b);
+  }
+}
+
+function renderOpts() {
+  pills($("zones"), LAYOUT.rows.map((r) => ({ v: r.key, t: r.key + " · " + r.name })), "zone");
+  const row = LAYOUT.rows.find((r) => r.key === sel.zone);
+  pills($("bays"), row ? Array.from({ length: row.bays }, (_, i) => ({ v: i + 1, t: String(i + 1) })) : [], "bay");
+  if (!row) $("bays").innerHTML = '<span class="muted">เลือกโซนก่อน</span>';
+  pills($("levels"), Array.from({ length: LAYOUT.levels }, (_, i) => ({ v: i + 1, t: String(i + 1) })), "level");
+  pills($("sides"), [{ v: "L", t: "ซ้าย" }, { v: "R", t: "ขวา" }], "side");
+  refreshCode();
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+function currentSlot() {
+  if (!sel.zone || !sel.bay || !sel.level || !sel.side) return null;
+  return sel.zone + pad2(sel.bay) + pad2(sel.level) + "-" + sel.side;
+}
+
+function refreshCode() {
+  const slot = currentSlot();
+  const c = $("code");
+  if (!slot) {
+    c.className = "code bad"; c.textContent = "— เลือก โซน/ล็อก/ชั้น/ฝั่ง ให้ครบ —";
+    $("codeLabel").textContent = ""; $("slotNow").innerHTML = "";
+  } else {
+    const s = LAYOUT.slots.find((x) => x.slot === slot);
+    c.className = "code"; c.textContent = slot;
+    $("codeLabel").textContent = s ? s.label : "";
+    $("slotNow").innerHTML = s && s.items.length
+      ? '<div class="box"><b>ช่องนี้มีของอยู่แล้ว ' + s.items.length + " รายการ</b>" +
+        s.items.map((i) => '<div class="mono">· ' + esc(i.tracking) + " — " + esc(i.memberCode || "—") +
+          ' <span style="color:' + COLOR[i.pick] + '">' + esc(i.pickLabel) + "</span></div>").join("") +
+        '<div class="muted">วางเพิ่มได้ ถ้าช่องยังมีที่</div></div>'
+      : "";
+  }
+  $("save").disabled = !slot || !$("tracking").value.trim();
+}
+
+/* ── สถานะงานของแทรคที่พิมพ์ — เตือนตอนคีย์เลย ── */
+let lookupT = null;
+$("tracking").addEventListener("input", () => {
+  refreshCode();
+  clearTimeout(lookupT);
+  lookupT = setTimeout(lookup, 350);
+});
+
+async function lookup() {
+  const t = $("tracking").value.trim();
+  const box = $("jobState");
+  if (!t) { box.style.display = "none"; return; }
+
+  const r = await fetch(api("/warehouse/api/job?tracking=" + encodeURIComponent(t))).catch(() => null);
+  const j = r && r.ok ? await r.json() : null;
+  const st = j && j.state;
+  if (!st) {
+    box.style.display = "block";
+    box.style.background = "#f1f5f9"; box.style.border = "1px solid var(--line)"; box.style.color = "#475569";
+    box.innerHTML = "<b>หาแทรคนี้ในระบบไม่เจอ</b>คีย์ตำแหน่งได้ แต่เช็คเลขอีกครั้งนะ";
+    return;
+  }
+  const c = COLOR[st.pick] || "#475569";
+  box.style.display = "block";
+  box.style.background = st.pick === "ready" ? "#ecfdf5" : st.pick === "wait" ? "#fffbeb" : "#fef2f2";
+  box.style.border = "1px solid " + c;
+  box.style.color = "#111";
+  const was = j.placement;
+  box.innerHTML = '<b style="color:' + c + '">' + esc(st.label) + "</b>" + esc(st.why) +
+    (j.job ? '<div class="muted">ลูกค้า ' + esc(j.job.memberCode || "—") +
+      (j.job.customer ? " · " + esc(j.job.customer) : "") + "</div>" : "") +
+    (was ? '<div class="muted">⚠️ ตอนนี้ระบบจดว่าอยู่ช่อง <b>' + esc(was.slot) +
+      "</b> — บันทึกใหม่ = ย้ายช่อง</div>" : "");
+}
+
+/* ── บันทึก ── */
+$("save").addEventListener("click", async () => {
+  const slot = currentSlot(), tracking = $("tracking").value.trim();
+  if (!slot || !tracking) return;
+  $("save").disabled = true;
+  try {
+    const r = await fetch(api("/warehouse/api/place"), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tracking, slot, by: byName(),
+        boxes: Number($("boxes").value) || 1, note: $("note").value.trim() }),
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || "บันทึกไม่สำเร็จ");
+    msg("✅ บันทึกแล้ว — <b class='mono'>" + esc(tracking) + "</b> อยู่ที่ <b>" + esc(j.slot) + "</b> (" + esc(j.label) + ")" +
+        (j.moved ? "<br>ย้ายมาจาก " + esc(j.from) : ""), "ok");
+    $("tracking").value = ""; $("note").value = ""; $("boxes").value = "1";
+    $("jobState").style.display = "none";
+    await boot();
+  } catch (e) { msg("❌ " + esc(e.message), "err"); }
+  $("save").disabled = false;
+});
+
+/* ── ค้นหา / เอาออก ── */
+$("findBtn").addEventListener("click", find);
+$("find").addEventListener("keydown", (e) => { if (e.key === "Enter") find(); });
+
+async function find() {
+  const q = $("find").value.trim();
+  if (!q) return;
+  const r = await fetch(api("/warehouse/api/find?q=" + encodeURIComponent(q)));
+  const j = await r.json();
+  const rows = (j && j.rows) || [];
+  $("findOut").innerHTML = rows.length
+    ? rows.map((p) => {
+        const job = JOBS.get(p.tracking);
+        return '<div class="box"><div><b class="mono">' + esc(p.tracking) + "</b> — " +
+          esc(p.member_code || "—") + "</div><div>อยู่ที่ <b>" + esc(p.slot) + "</b> · " + esc(p.boxes) + " กล่อง</div>" +
+          (job ? '<div style="color:' + COLOR[job.pick] + '">' + esc(job.pickLabel) + "</div>" : "") +
+          '<div style="margin-top:7px"><button class="rm" data-t="' + esc(p.tracking) + '">เอาของออกจากชั้น</button></div></div>';
+      }).join("")
+    : '<div class="muted" style="margin-top:8px">ไม่เจอ — ของอาจยังไม่ถูกคีย์ตำแหน่ง</div>';
+  for (const b of $("findOut").querySelectorAll(".rm"))
+    b.addEventListener("click", async () => {
+      if (!confirm("เอา " + b.dataset.t + " ออกจากชั้นวาง?")) return;
+      const rr = await fetch(api("/warehouse/api/remove"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tracking: b.dataset.t, by: byName() }),
+      });
+      const jj = await rr.json();
+      if (!rr.ok || jj.error) return msg("❌ " + esc(jj.error || "เอาออกไม่สำเร็จ"), "err");
+      msg("✅ เอา <b class='mono'>" + esc(b.dataset.t) + "</b> ออกจากชั้นแล้ว", "ok");
+      await boot(); find();
+    });
+}
+
+boot().catch((e) => msg("โหลดไม่สำเร็จ: " + esc(e.message), "err"));
+</script>
+</body>
+</html>

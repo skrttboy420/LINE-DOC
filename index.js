@@ -55,7 +55,12 @@ const { planNotifications, summarizeBacklog } = require("./notify-feed");
 const { renderNotification } = require("./notify-template");
 const { createTemplateStore } = require("./notify-template-store");
 const { mountStaffAdmin } = require("./staff-admin");
+/* 🏭 โกดัง 3D (Digital Twin · ภูม 2026-11-12) — ตำแหน่งของเก็บในฐานของบอท
+      สถานะงานอ่านสดจากเว็บผ่าน /api/bot?q=warehouse · ไม่แตะระบบ Pacred */
+const { createWarehouse } = require("./warehouse");
+const { mountWarehouse, warehouseLink } = require("./warehouse-page");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
+const warehouse = createWarehouse(supabase, pacredGet);
 /** ✏️ ข้อความแจ้งเตือนที่ภูมแก้เอง — อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด (ไม่เคยทำให้แจ้งเตือนเงียบ) */
 const templateStore = createTemplateStore(supabase);
 
@@ -196,6 +201,18 @@ function isToolDept(me) {
 }
 
 /**
+ * 🏭 แผนกที่ได้ปุ่ม "โกดัง 3D" (ภูม 2026-11-12)
+ * 🔧 รหัสแผนกของโกดังในเว็บเป็นอะไร ให้เติมที่นี่ที่เดียว (ตอนนี้ใส่ไว้ 2 แบบที่น่าจะตรง)
+ *    ⚠️ ถ้าไม่ตรง พนักงานโกดังจะไม่เห็นปุ่ม — แต่ยังเข้าได้ด้วยการพิมพ์ลิงก์
+ *    (ภูม: *"ทำทางเข้ามีปุ่มเข้าทางบอทไลน์ภูมิได้ หรือพิมพ์ลิงค์เข้าไปได้"*)
+ */
+const WAREHOUSE_DEPARTMENTS = ["WAREHOUSE", "โกดัง"];
+function isWarehouseDept(me) {
+  const d = String((me && me.department) || "").trim().toUpperCase();
+  return WAREHOUSE_DEPARTMENTS.some((x) => d === x.toUpperCase());
+}
+
+/**
  * การ์ดเมนู — ปุ่มครบทุกหัวข้อจาก MENU_ITEMS
  * @param {{isOwner?: boolean}} [opts] เจ้าของบอทได้ปุ่ม "จัดการสิทธิ์" เพิ่ม
  */
@@ -228,6 +245,18 @@ function buildMenuFlex(opts) {
     contents.push({ type: "separator", margin: "md" });
     contents.push({ type: "button", style: "secondary", height: "sm",
       action: { type: "uri", label: "⚙️ จัดการสิทธิ์พนักงาน", uri: adminUrl } });
+  }
+
+  /* 🏭 ปุ่มเข้าจอโกดัง 3D (ภูม 2026-11-12) — เจ้าของบอท · ทีมระบบ · แผนกโกดัง
+     🔒 ลิงก์พากุญแจไปด้วย ⇒ ไม่โชว์ให้คนที่ไม่เกี่ยว · ไม่ได้ตั้งคีย์ = ไม่โชว์ (หน้านั้นปิดอยู่) */
+  const whUrl = warehouseLink();
+  if (whUrl && (isOwner || showTools || isWarehouseDept(opts && opts.me))) {
+    contents.push({ type: "separator", margin: "md" });
+    contents.push({ type: "text", text: "โกดังสินค้า", size: "xs", color: "#999999", margin: "sm" });
+    contents.push({ type: "button", style: "primary", color: "#0f766e", height: "sm",
+      action: { type: "uri", label: "🏭 จอโกดัง 3D", uri: whUrl } });
+    contents.push({ type: "button", style: "secondary", height: "sm",
+      action: { type: "uri", label: "📥 คีย์ตำแหน่งของ", uri: warehouseLink("assign") } });
   }
 
   return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: showTools ? QUICK_TOOLS : QUICK, contents: {
@@ -2133,6 +2162,9 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 // 🛠 หน้าจัดการสิทธิ์ (ภูม 2026-10-20) — ต้องต่อ "หลัง" /webhook
 //    เพราะ /webhook ต้องได้ body ดิบไปตรวจลายเซ็น LINE ก่อนที่ express.json() จะแตะ
 mountStaffAdmin(app, staffRegistry, templateStore);
+
+// 🏭 หน้าโกดัง 3D (ภูม 2026-11-12) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
+mountWarehouse(app, warehouse);
 
 app.use(express.json());
 

@@ -44,7 +44,12 @@ const SIDE_TH = Object.freeze({ L: "ซ้าย", R: "ขวา" });
 const ROWS = Object.freeze([
   Object.freeze({ key: "A", name: "โซนขวา",  bays: 10, note: "ตั้งยาวเต็มพื้นที่" }),
   Object.freeze({ key: "B", name: "โซนกลาง", bays: 10, note: "ตั้งยาวเต็มพื้นที่" }),
-  Object.freeze({ key: "C", name: "โซนซ้าย", bays: 6,  note: "ช่วงท้ายติดกับตัวออฟฟิศของโกดัง" }),
+  /* 🔴 ภูม 12/11: *"แกย้ายแถว C มาติดฝั่งหน้าโกดังทำไม มันอยู่ติดฝั่งหลังโกดังก็ถูกแล้ว"*
+     ⇒ ชั้นวาง C สั้น 6 ล็อก และ **ตั้งชิดผนังด้านหลัง** · ช่วงที่ว่างอยู่ทางฝั่งประตู */
+  Object.freeze({
+    key: "C", name: "โซนซ้าย", bays: 6, alignBack: true,
+    note: "ชั้นวางตั้งชิดด้านหลังโกดัง · ช่วงติดประตูเว้นไว้ (ออฟฟิศ)",
+  }),
 ]);
 
 /* 🧭 ทิศทาง — ยืนที่ "หน้าโกดัง" แล้วมองเข้าไปข้างใน
@@ -163,21 +168,33 @@ function rowOriginX(rowKey) {
   return n * (CELL.d + STRUCT.aisle);
 }
 
-/** ขอบของล็อกนั้นบนแกน Z — ล็อก 1 อยู่ติดหน้าโกดัง แล้วนับลึกเข้าไป */
+/** ชั้นวางแถวนี้ตั้งชิดด้านหลังโกดังไหม (แถวที่สั้นกว่าเพื่อน) */
+function alignsBack(rowKey) {
+  const r = ROWS.find((x) => x.key === String(rowKey || "").trim().toUpperCase());
+  return !!(r && r.alignBack);
+}
+
+/** ช่วง Z ที่ชั้นวางของแถวนี้กินจริง (ไว้วาดเสา/คาน + ป้าย — จะได้ไม่ต้องคิดเองซ้ำ) */
+function rowZSpan(rowKey) {
+  const bays = baysOf(rowKey);
+  if (!bays) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
+  const len = bays * BAY_PITCH;
+  /* แถวที่ตั้งชิดด้านหลัง = ดันไปสุดผนังลึก · ที่เหลือเว้นไว้ทางฝั่งประตู */
+  const gap = alignsBack(rowKey) ? fullZ() - len : 0;
+  const start = DOOR.bayOneAtFarZ ? fullZ() - len - gap : gap;
+  return { start: start, len: len, end: start + len };
+}
+
+/** ขอบของล็อกนั้นบนแกน Z — ล็อก 1 = ล็อกที่อยู่ใกล้ประตูที่สุดของแถวนั้น */
 function bayZ0(rowKey, bay) {
   const bays = baysOf(rowKey);
   if (!bays) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
   if (!Number.isInteger(bay) || bay < 1 || bay > bays)
     throw new Error("แถว " + rowKey + " มี " + bays + " ล็อก — ล็อกที่ " + bay + " ไม่มีอยู่");
-  return DOOR.bayOneAtFarZ ? fullZ() - bay * BAY_PITCH : (bay - 1) * BAY_PITCH;
-}
-
-/** ช่วง Z ที่ชั้นวางของแถวนี้กินจริง (ไว้วาดเสา/คาน — จะได้ไม่ต้องคิดเองซ้ำ) */
-function rowZSpan(rowKey) {
-  const bays = baysOf(rowKey);
-  const len = bays * BAY_PITCH;
-  const start = DOOR.bayOneAtFarZ ? fullZ() - len : 0;
-  return { start: start, len: len, end: start + len };
+  const span = rowZSpan(rowKey);
+  return DOOR.bayOneAtFarZ
+    ? span.end - bay * BAY_PITCH
+    : span.start + (bay - 1) * BAY_PITCH;
 }
 
 /**

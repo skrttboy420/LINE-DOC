@@ -133,14 +133,15 @@ const demo = {
     return { ok: true, moved: !!from, from, slot: s.slot, label: slotLabel(s.slot) };
   },
 
-  remove: async (tracking, who, note) => {
+  remove: async (tracking, who, note, kind) => {
     const t = String(tracking || "").trim();
     const i = shelf.findIndex((p) => p.tracking === t);
     if (i < 0) return { ok: true, missing: true };
     const from = shelf[i].slot;
     shelf.splice(i, 1);
-    LOG.unshift({ tracking: t, action: "remove", from_slot: from, to_slot: null, by_who: String(who || "ลองดู"), note, at: now() });
-    return { ok: true, from };
+    const action = kind === "load" ? "load" : "remove";
+    LOG.unshift({ tracking: t, action, from_slot: from, to_slot: null, by_who: String(who || "ลองดู"), note, at: now() });
+    return { ok: true, from, action };
   },
 
   history: async (tracking) => LOG.filter((l) => l.tracking === String(tracking || "").trim()),

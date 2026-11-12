@@ -255,8 +255,13 @@ function buildMenuFlex(opts) {
     contents.push({ type: "text", text: "โกดังสินค้า", size: "xs", color: "#999999", margin: "sm" });
     contents.push({ type: "button", style: "primary", color: "#0f766e", height: "sm",
       action: { type: "uri", label: "🏭 จอโกดัง 3D", uri: whUrl } });
+    /* 📷 ยิงบาร์โค้ดรับเข้าชั้น (ภูม 2026-11-12) — ปุ่มที่พนักงานโกดังใช้บ่อยสุด */
+    contents.push({ type: "button", style: "primary", color: "#b45309", height: "sm",
+      action: { type: "uri", label: "📷 ยิงรับเข้าชั้น", uri: warehouseLink("scan") } });
     contents.push({ type: "button", style: "secondary", height: "sm",
-      action: { type: "uri", label: "📥 คีย์ตำแหน่งของ", uri: warehouseLink("assign") } });
+      action: { type: "uri", label: "🖨 พิมพ์ป้ายโลเคชั่น", uri: warehouseLink("labels") } });
+    contents.push({ type: "button", style: "secondary", height: "sm",
+      action: { type: "uri", label: "📥 คีย์ตำแหน่งเอง", uri: warehouseLink("assign") } });
   }
 
   return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: showTools ? QUICK_TOOLS : QUICK, contents: {

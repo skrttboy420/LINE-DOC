@@ -5,7 +5,9 @@
 //        เหมือนหน้าจัดการสิทธิ์ ของบอทไลน์ภูมิอะ"*
 //
 // เปิดที่:  https://<บอทบน Render>/warehouse?key=<คีย์>        ← จอ 3D
-//          https://<บอทบน Render>/warehouse/assign?key=<คีย์>  ← คีย์ตำแหน่ง (มือถือ)
+//          https://<บอทบน Render>/warehouse/scan?key=<คีย์>    ← ยิงบาร์โค้ดรับเข้าชั้น
+//          https://<บอทบน Render>/warehouse/labels?key=<คีย์>  ← พิมพ์ป้ายโลเคชั่น
+//          https://<บอทบน Render>/warehouse/assign?key=<คีย์>  ← คีย์เอง (มือถือ)
 //
 // 🔑 คีย์ 2 ใบ (ตั้งใบไหนก็เปิดได้):
 //      WAREHOUSE_KEY = ของพนักงานโกดัง — เปิดได้แค่หน้าโกดัง
@@ -101,6 +103,8 @@ function mountWarehouse(app, warehouse, whoOf) {
 
   app.get("/warehouse", servePage("warehouse-3d.html"));
   app.get("/warehouse/assign", servePage("warehouse-assign.html"));
+  app.get("/warehouse/scan", servePage("warehouse-scan.html"));
+  app.get("/warehouse/labels", servePage("warehouse-labels.html"));
 
   /* ── ท่อข้อมูล ─────────────────────────────────────────────── */
 
@@ -160,13 +164,65 @@ function mountWarehouse(app, warehouse, whoOf) {
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
-  /** 📤 เอาของออกจากชั้น */
+  /**
+   * 📤 เอาของออกจากชั้น
+   * body.kind = "load" (เอาขึ้นรถ · จ่ายออกให้ลูกค้า) หรือเว้นว่าง (เอาออกเฉยๆ)
+   */
   app.post("/warehouse/api/remove", json, async (req, res) => {
     if (!guard(req, res)) return;
     try {
       if (!(await requireTables(res))) return;
       const b = req.body || {};
-      res.json(await warehouse.remove(b.tracking, who(req), b.note));
+      res.json(await warehouse.remove(b.tracking, who(req), b.note, b.kind));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  /**
+   * 📷 ยิงรับเข้าชั้น — ลงตำแหน่ง + ตอบกลับทุกอย่างที่คนยิงต้องเห็นในครั้งเดียว
+   *
+   * ภูม 2026-11-12: *"พอพนักงานจะยิงรับเข้า ต้องพิมพ์ล็อกที่จะเอาเข้าหรือยิงบาโค้ดล็อกนั้นๆ
+   * ก่อนนะ ถึงค่อยยิงรับเข้าตามปกติ"* — หน้าเว็บคุมลำดับ (ต้องมีช่องก่อน) · ที่นี่เขียนจริง
+   *
+   * 🔑 ตอบ tone กลับไปให้หน้าเว็บเลือกสี+เสียง: ok (เขียว) · warn (ส้ม) · bad (แดง)
+   *    กล่องที่ "ห้ามหยิบ/ต้องเช็ค" ต้องดังไม่เหมือนกล่องปกติ ⇒ คนยิงรู้ตั้งแต่ตอนวางของ
+   */
+  app.post("/warehouse/api/scan", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireTables(res))) return;
+      const b = req.body || {};
+      const tracking = String(b.tracking || "").trim();
+      if (!tracking) return res.status(400).json({ error: "ไม่ได้ส่งเลขแทรคมา" });
+      const parsed = LAYOUT.parseSlot(b.slot);
+      if (!parsed) return res.status(400).json({ error: 'ช่อง "' + b.slot + '" ไม่มีในผังโกดัง' });
+
+      /* หางานจากเว็บก่อน — เอารหัสลูกค้าติดไปด้วย + เอาไว้บอกสถานะคนยิง */
+      let job = null, liveOk = true;
+      try {
+        const live = await warehouse.jobsFromPacred([tracking]);
+        liveOk = live.ok;
+        job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === tracking) || null;
+      } catch { liveOk = false; }
+
+      const saved = await warehouse.place(tracking, parsed.slot, who(req), {
+        boxes: b.boxes, note: b.note, memberCode: job ? job.memberCode : null,
+      });
+
+      const st = pickStateOf(job, true);
+      /* ⬛ หาในระบบไม่เจอ = ส้ม (ไม่ใช่แดง) — ของวางได้ แค่ต้องไปเช็คว่าเลขถูกไหม */
+      const tone = !job ? "warn"
+        : st.pick === "ready" ? "ok"
+        : st.pick === "wait" ? "warn"
+        : "bad";
+      const headline = !liveOk ? "บันทึกตำแหน่งแล้ว (เช็คสถานะกับเว็บไม่ได้)"
+        : !job ? "บันทึกตำแหน่งแล้ว — แต่หาแทรคนี้ในระบบไม่เจอ"
+        : saved.moved ? "ย้ายช่องแล้ว" : "รับเข้าชั้นแล้ว";
+
+      res.json({
+        ok: true, tracking: tracking, slot: parsed.slot, label: LAYOUT.slotLabel(parsed.slot),
+        movedFrom: saved.moved ? saved.from : null, unchanged: !!saved.unchanged,
+        job: job, pickLabel: st.label, why: st.why, tone: tone, headline: headline, liveOk: liveOk,
+      });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 
@@ -197,7 +253,8 @@ function warehouseLink(sub) {
   const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
   const key = keyOf("WAREHOUSE_KEY") || keyOf("ADMIN_KEY");
   if (!base || !key) return "";
-  return base + "/warehouse" + (sub === "assign" ? "/assign" : "") + "?key=" + encodeURIComponent(key);
+  const path = sub && ["assign", "scan", "labels"].includes(sub) ? "/" + sub : "";
+  return base + "/warehouse" + path + "?key=" + encodeURIComponent(key);
 }
 
 module.exports = { mountWarehouse, warehouseLink, checkKey };

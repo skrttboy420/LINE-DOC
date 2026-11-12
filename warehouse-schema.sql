@@ -66,8 +66,17 @@ create table if not exists public.wh_move_log (
   by_who     text not null,
   note       text,
   at         timestamptz not null default now(),
-  constraint wh_move_action_rng check (action in ('place','move','remove'))
+  constraint wh_move_action_rng check (action in ('place','move','remove','load'))
 );
+
+-- 🔄 ของเดิมที่ลงไปแล้วก่อน 2026-11-12 ยังไม่มีชนิด 'load' (เอาขึ้นรถ)
+--    บล็อกนี้อัปเดตด่านให้ — รันซ้ำได้ ไม่พัง
+do $
+begin
+  alter table public.wh_move_log drop constraint if exists wh_move_action_rng;
+  alter table public.wh_move_log
+    add constraint wh_move_action_rng check (action in ('place','move','remove','load'));
+end $;
 
 comment on table public.wh_move_log is
   'โกดัง 3D: ประวัติวาง/ย้าย/เอาออก ทุกครั้ง (ไล่ย้อนได้ว่าใครทำตอนไหน)';

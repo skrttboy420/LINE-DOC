@@ -61,7 +61,8 @@
 <header>
   <div><b>📥 คีย์ตำแหน่งของ</b><div class="sub" id="who">โกดังสมุทรสาคร</div></div>
   <span class="demo" id="demoTag">🔬 โหมดลองดู</span>
-  <a id="view3d" href="#">🏭 ดูจอ 3D</a>
+  <a id="scanLink" href="#" style="margin-left:auto">📷 ยิงบาร์โค้ด</a>
+  <a id="view3d" href="#" style="margin-left:0">🏭 จอ 3D</a>
 </header>
 
 <main>
@@ -111,6 +112,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 $("view3d").href = api("/warehouse");
+$("scanLink").href = api("/warehouse/scan");
 
 /* จำชื่อคนคีย์ไว้ในเครื่องนี้ — ไลน์ไม่ได้บอกเราว่าใครเปิดลิงก์ */
 const BY_KEY = "pacred-wh-by";
@@ -275,19 +277,27 @@ async function find() {
         return '<div class="box"><div><b class="mono">' + esc(p.tracking) + "</b> — " +
           esc(p.member_code || "—") + "</div><div>อยู่ที่ <b>" + esc(p.slot) + "</b> · " + esc(p.boxes) + " กล่อง</div>" +
           (job ? '<div style="color:' + COLOR[job.pick] + '">' + esc(job.pickLabel) + "</div>" : "") +
-          '<div style="margin-top:7px"><button class="rm" data-t="' + esc(p.tracking) + '">เอาของออกจากชั้น</button></div></div>';
+          '<div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">' +
+          '<button class="rm" data-load="' + esc(p.tracking) + '">🚚 เอาขึ้นรถ</button>' +
+          '<button class="rm" data-t="' + esc(p.tracking) + '">เอาออกเฉยๆ</button></div></div>';
       }).join("")
     : '<div class="muted" style="margin-top:8px">ไม่เจอ — ของอาจยังไม่ถูกคีย์ตำแหน่ง</div>';
+  /* 🚚 เอาขึ้นรถ (จ่ายออกให้ลูกค้า) vs เอาออกเฉยๆ — ลงประวัติคนละชนิด
+     ภูม: *"ทำให้มีปุ่ม … เอาของขึ้นรถ มันจะได้เคลียร์สินค้าได้"* */
   for (const b of $("findOut").querySelectorAll(".rm"))
     b.addEventListener("click", async () => {
-      if (!confirm("เอา " + b.dataset.t + " ออกจากชั้นวาง?")) return;
+      const t = b.dataset.load || b.dataset.t;
+      const load = !!b.dataset.load;
+      if (!confirm((load ? "เอา " + t + " ขึ้นรถ (จ่ายออกให้ลูกค้า)?" : "เอา " + t + " ออกจากชั้นวาง?") +
+        "\n\nของจะหายจากจอ 3D และลงประวัติว่าใครทำตอนไหน")) return;
       const rr = await fetch(api("/warehouse/api/remove"), {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tracking: b.dataset.t, by: byName() }),
+        body: JSON.stringify({ tracking: t, by: byName(), kind: load ? "load" : undefined }),
       });
       const jj = await rr.json();
       if (!rr.ok || jj.error) return msg("❌ " + esc(jj.error || "เอาออกไม่สำเร็จ"), "err");
-      msg("✅ เอา <b class='mono'>" + esc(b.dataset.t) + "</b> ออกจากชั้นแล้ว", "ok");
+      msg((load ? "🚚 " : "✅ ") + "<b class='mono'>" + esc(t) + "</b> " +
+        (load ? "ขึ้นรถแล้ว — เคลียร์ออกจากชั้น" : "เอาออกจากชั้นแล้ว"), "ok");
       await boot(); find();
     });
 }

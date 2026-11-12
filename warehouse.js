@@ -294,16 +294,23 @@ function createWarehouse(supabase, pacredGet) {
     return { ok: true, moved: !!fromSlot, from: fromSlot, slot: s.slot, label: LAYOUT.slotLabel(s.slot) };
   }
 
-  /** 📤 เอาของออกจากชั้น (จ่ายออก/ย้ายออก) */
-  async function remove(tracking, who, note) {
+  /**
+   * 📤 เอาของออกจากชั้น
+   * @param {"load"|"remove"} [kind] "load" = เอาขึ้นรถ (จ่ายออกให้ลูกค้า) · "remove" = เอาออกเฉยๆ
+   *   🔑 ภูม 2026-11-12: *"ทำให้มีปุ่ม ย้ายของไปพาเรทอื่น กับ ปุ่ม เอาของขึ้นรถ"*
+   *      แยกชนิดไว้เพื่อให้ประวัติบอกได้ว่ากล่องนี้ "ขึ้นรถไปแล้ว" หรือ "แค่ยกลงมา"
+   *      — คือหัวใจของการไล่ว่าใครเอาของผิดไปส่ง
+   */
+  async function remove(tracking, who, note, kind) {
     const t = String(tracking || "").trim();
     if (!t) throw new Error("ยังไม่ได้ใส่เลขแทรค");
     const { data: before } = await supabase.from("wh_placement").select("slot").eq("tracking", t).maybeSingle();
     if (!before) return { ok: true, missing: true };
     const { error } = await supabase.from("wh_placement").delete().eq("tracking", t);
     if (error) throw new Error(error.message);
-    await log(t, "remove", before.slot, null, String(who || "").trim() || "unknown", note);
-    return { ok: true, from: before.slot };
+    const action = kind === "load" ? "load" : "remove";
+    await log(t, action, before.slot, null, String(who || "").trim() || "unknown", note);
+    return { ok: true, from: before.slot, action };
   }
 
   /** ประวัติการย้ายของแทรคนี้ */
@@ -336,11 +343,24 @@ function createWarehouse(supabase, pacredGet) {
 
   async function log(tracking, action, fromSlot, toSlot, by, note) {
     /* บันทึกประวัติพลาด ไม่ควรทำให้การคีย์ตำแหน่งล้ม — แต่ต้องเห็นใน log ของ Render */
-    const { error } = await supabase.from("wh_move_log").insert({
+    const row = {
       tracking: tracking, action: action, from_slot: fromSlot, to_slot: toSlot,
       by_who: by, note: note ? String(note).trim() : null,
-    });
-    if (error) console.error("[wh_move_log] เขียนประวัติไม่สำเร็จ", { action, tracking, message: error.message });
+    };
+    const { error } = await supabase.from("wh_move_log").insert(row);
+    if (!error) return;
+    /* 🔁 ฐานที่ลง SQL ไว้ก่อน 2026-11-12 ยังไม่รู้จักชนิด 'load' (ด่าน check ปฏิเสธ 23514)
+       ⇒ ลงเป็น 'remove' แล้วเขียนเหตุไว้ในหมายเหตุแทน — ประวัติไม่หาย
+       (ลง warehouse-schema.sql ซ้ำอีกรอบแล้วจะเก็บเป็น 'load' ได้ตรงๆ) */
+    if (String(error.code) === "23514" && action === "load") {
+      const alt = Object.assign({}, row, {
+        action: "remove",
+        note: ["ขึ้นรถ", row.note].filter(Boolean).join(" · "),
+      });
+      const retry = await supabase.from("wh_move_log").insert(alt);
+      if (!retry.error) return;
+    }
+    console.error("[wh_move_log] เขียนประวัติไม่สำเร็จ", { action, tracking, code: error.code, message: error.message });
   }
 
   return { isReady, listPlacements, jobsFromPacred, view, place, remove, history, find };

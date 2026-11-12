@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ป้ายโลเคชั่น — โกดัง Pacred</title>
+<!--
+  🖨 ป้ายโลเคชั่นสำหรับติดชั้นวาง — ภูม 2026-11-12
+  *"ถ้าจะปริ้นกระดาษโลเคชั่นมาติดแต่ละล็อกหละ … ในกระดาษที่ปริ้นมาต้องมีบาร์โค้ด
+   ที่ยิงแล้วก็ขึ้นล็อกนั้นๆนะ"*
+
+  บาร์โค้ด = Code128 เก็บรหัสช่องเต็ม (เช่น A0101-L)
+  ยิงที่หน้า "ยิงรับเข้าชั้น" แล้วระบบจะจำช่องนั้นให้ทันที
+-->
+<style>
+  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
+       background:#f1f5f9;color:#111}
+
+  /* ── แถบตั้งค่า (ไม่พิมพ์) ── */
+  .bar{background:var(--red);color:#fff;padding:11px 14px;display:flex;gap:10px;
+       align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+  .bar b{font-size:16px}
+  .bar .sub{font-size:11px;opacity:.85}
+  .bar select,.bar button,.bar a{font-family:inherit;font-size:13px;border-radius:8px;
+       border:0;padding:8px 12px;cursor:pointer;text-decoration:none}
+  .bar select{background:#fff;color:#111}
+  .bar .go{background:#fff;color:var(--red);font-weight:700}
+  .bar a{background:rgba(255,255,255,.2);color:#fff}
+  .bar .sp{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .note{max-width:960px;margin:14px auto 0;padding:0 14px;color:var(--muted);font-size:12.5px;line-height:1.7}
+
+  /* ── แผ่นป้าย ── */
+  #sheet{max-width:960px;margin:14px auto;padding:0 14px 30px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .lbl{background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px;
+       text-align:center;break-inside:avoid;page-break-inside:avoid}
+  .lbl .zone{font-size:11px;color:var(--muted);letter-spacing:.3px}
+  .lbl .code{font-family:ui-monospace,Menlo,monospace;font-size:26px;font-weight:800;
+       letter-spacing:1.5px;line-height:1.15;margin:1px 0 3px}
+  .lbl svg{width:100%;height:46px;display:block}
+  .lbl .foot{font-size:10.5px;color:var(--muted);margin-top:2px}
+  .empty{background:#fff;border:1px dashed #cbd5e1;border-radius:10px;padding:26px;text-align:center;color:var(--muted)}
+
+  @media print{
+    .bar,.note{display:none!important}
+    body{background:#fff}
+    #sheet{max-width:none;margin:0;padding:0}
+    .grid{grid-template-columns:repeat(3,1fr);gap:4mm}
+    .lbl{border:1px solid #94a3b8;border-radius:0;padding:3mm}
+    @page{size:A4 portrait;margin:8mm}
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div><b>🖨 ป้ายโลเคชั่น</b><div class="sub">ติดที่ชั้นวาง แล้วยิงตอนรับของเข้า</div></div>
+  <div class="sp">
+    <select id="row"><option value="">ทุกโซน</option></select>
+    <select id="bay"><option value="">ทุกล็อก</option></select>
+    <select id="mode">
+      <option value="slot">ป้ายต่อช่องวาง (ซ้าย/ขวาแยกกัน)</option>
+      <option value="cell">ป้ายต่อช่องชั้น (ไม่แยกซ้าย/ขวา)</option>
+    </select>
+    <button class="go" id="print">🖨 พิมพ์</button>
+    <a id="back" href="#">← กลับ</a>
+  </div>
+</div>
+
+<div class="note" id="note"></div>
+<div id="sheet"><div class="empty">กำลังโหลดผังโกดัง…</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script type="module">
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+$("back").href = api("/warehouse/scan");
+
+let LAYOUT = null;
+
+function rowsOf() { return LAYOUT ? LAYOUT.rows : []; }
+
+function fillPickers() {
+  $("row").innerHTML = '<option value="">ทุกโซน</option>' +
+    rowsOf().map((r) => '<option value="' + r.key + '">' + esc(r.key + " · " + r.name) + "</option>").join("");
+  $("row").addEventListener("change", () => { fillBays(); render(); });
+  $("bay").addEventListener("change", render);
+  $("mode").addEventListener("change", render);
+  fillBays();
+}
+function fillBays() {
+  const k = $("row").value;
+  const row = rowsOf().find((r) => r.key === k);
+  const max = row ? row.bays : Math.max(...rowsOf().map((r) => r.bays));
+  let html = '<option value="">ทุกล็อก</option>';
+  for (let b = 1; b <= max; b++) html += '<option value="' + b + '">ล็อก ' + b + "</option>";
+  $("bay").innerHTML = html;
+}
+
+/** ป้ายที่จะพิมพ์ตามตัวกรอง */
+function labels() {
+  const rk = $("row").value, bay = Number($("bay").value) || 0, mode = $("mode").value;
+  let list = LAYOUT.slots.filter((s) => (!rk || s.row === rk) && (!bay || s.bay === bay));
+  if (mode === "cell") {
+    /* ป้ายต่อช่องชั้น = เอาด้านซ้ายเป็นตัวแทน แล้วพิมพ์รหัสโดยไม่มีฝั่ง */
+    list = list.filter((s) => s.side === LAYOUT.sides[0]);
+    return list.map((s) => ({ code: s.location, title: s.location, sub: labelName(s, true) }));
+  }
+  return list.map((s) => ({ code: s.slot, title: s.slot, sub: labelName(s, false) }));
+}
+
+function labelName(s, noSide) {
+  const row = rowsOf().find((r) => r.key === s.row);
+  const base = (row ? row.name : s.row) + " · ล็อก " + s.bay + " · ชั้น " + s.level;
+  return noSide ? base : base + " · ฝั่ง" + (s.side === "L" ? "ซ้าย" : "ขวา");
+}
+
+function render() {
+  const list = labels();
+  $("note").innerHTML = "จะพิมพ์ <b>" + list.length + " ป้าย</b> (A4 แนวตั้ง 3 ป้ายต่อแถว ≈ " +
+    Math.ceil(list.length / 24) + " แผ่น) · บาร์โค้ดเป็น Code128 เก็บรหัสช่อง — " +
+    "ยิงที่หน้า “ยิงรับเข้าชั้น” แล้วระบบจะจำช่องนั้นให้ทันที";
+  if (!list.length) { $("sheet").innerHTML = '<div class="empty">ไม่มีป้ายตามตัวกรองนี้</div>'; return; }
+
+  $("sheet").innerHTML = '<div class="grid">' + list.map((l, i) =>
+    '<div class="lbl"><div class="zone">' + esc(l.sub) + "</div>" +
+    '<div class="code">' + esc(l.title) + "</div>" +
+    '<svg id="bc' + i + '"></svg>' +
+    '<div class="foot">โกดัง Pacred · สมุทรสาคร</div></div>').join("") + "</div>";
+
+  /* วาดบาร์โค้ด — ล้มทีละอันไม่ทำให้ทั้งแผ่นพัง */
+  list.forEach((l, i) => {
+    try {
+      window.JsBarcode("#bc" + i, l.code, {
+        format: "CODE128", displayValue: false, margin: 0, height: 46, width: 1.6,
+      });
+    } catch (e) {
+      const n = document.getElementById("bc" + i);
+      if (n) n.outerHTML = '<div style="font-size:10px;color:#b91c1c">วาดบาร์โค้ดไม่ได้</div>';
+    }
+  });
+}
+
+$("print").addEventListener("click", () => window.print());
+
+(async () => {
+  const r = await fetch(api("/warehouse/api/layout"));
+  if (!r.ok) {
+    $("sheet").innerHTML = '<div class="empty">เปิดหน้านี้ไม่ได้ — ' +
+      esc((await r.json().catch(() => ({}))).error || r.status) + "</div>";
+    return;
+  }
+  LAYOUT = await r.json();
+  if (!window.JsBarcode) {
+    $("sheet").innerHTML = '<div class="empty">โหลดตัววาดบาร์โค้ดไม่ได้ — ต้องต่อเน็ตตอนเปิดหน้านี้ครั้งแรก</div>';
+    return;
+  }
+  fillPickers();
+  render();
+})().catch((e) => { $("sheet").innerHTML = '<div class="empty">โหลดไม่สำเร็จ: ' + esc(e.message) + "</div>"; });
+</script>
+</body>
+</html>

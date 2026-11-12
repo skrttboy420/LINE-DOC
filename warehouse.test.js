@@ -314,6 +314,130 @@ ok("ทุกการวาง/ย้าย/เอาออก ลงประ�
     assert.ok(src.includes(a), "ต้องลงประวัติชนิด " + a);
 });
 
+/* ════ ⑦ ยิงบาร์โค้ด · ป้ายโลเคชั่น · เอาของออก (ภูม 2026-11-12) ════ */
+section("ยิงบาร์โค้ด · ป้ายโลเคชั่น · เอาของออก");
+
+const readFile = (p) => fs.readFileSync(p, "utf8");
+
+ok("🔴 ต้องมีช่องก่อนถึงยิงแทรคได้ (ลำดับเดียวกับจอ Pacred)", () => {
+  const src = readFile("warehouse-scan.html");
+  assert.ok(src.includes("ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค"), "ต้องเตือนให้ยิงช่องก่อน");
+  assert.ok(/if \(!fullSlot\(\)\)/.test(src), "ต้องมีด่านเช็คว่ามีช่องแล้วหรือยัง");
+});
+
+ok("ยิงโดนรหัสช่อง = จำไว้เฉยๆ ไม่เขียนอะไร (ลอกจาก Pacred)", () => {
+  const src = readFile("warehouse-scan.html");
+  const i = src.indexOf("① ยิงโดนรหัสช่อง");
+  const j = src.indexOf("② ต้องมีช่องก่อน");
+  assert.ok(i > 0 && j > i, "ต้องเช็ครหัสช่องก่อนถึงจะไปทางเขียน");
+  assert.ok(!src.slice(i, j).includes("/warehouse/api/scan"), "ทางจำรหัสช่องต้องไม่ยิง API เขียน");
+});
+
+ok("ยิงเสร็จต้องเคลียร์ช่อง + โฟกัสกลับ (ยิงรัวได้ไม่ต้องแตะจอ)", () => {
+  const src = readFile("warehouse-scan.html");
+  assert.ok(src.includes("focusScan()"), "ต้องมีตัวโฟกัสกลับ");
+  assert.ok(src.includes('$("scan").value = "";'), "ต้องเคลียร์ช่องหลังยิง");
+});
+
+ok("🔴 รหัสช่องที่ไม่มีในผัง = เตือน ไม่เอาไปยิงเป็นเลขแทรค", () => {
+  const src = readFile("warehouse-scan.html");
+  assert.ok(src.includes("ไม่มีช่อง"), "ต้องมีข้อความเตือน");
+  assert.ok(src.includes("slotExists("), "ต้องเช็คกับผังจริง");
+});
+
+ok("ป้ายโลเคชั่นใช้บาร์โค้ด Code128 เก็บรหัสช่อง", () => {
+  const src = readFile("warehouse-labels.html");
+  assert.ok(src.includes('format: "CODE128"'), "ต้องเป็น Code128");
+  assert.ok(src.includes("l.code"), "บาร์โค้ดต้องเก็บรหัสช่อง");
+  assert.ok(src.includes("@media print"), "ต้องมีกติกาสำหรับพิมพ์");
+  assert.ok(src.includes("size:A4"), "ต้องตั้งขนาดกระดาษ");
+});
+
+ok("🔴 ป้ายต้องเก็บรหัสที่ \"ยิงแล้วเข้าช่องนั้นจริง\" — รูปแบบตรงกับตัวแกะของหน้ายิง", () => {
+  /* ป้ายพิมพ์ A0101-L (ต่อช่องวาง) หรือ A0101 (ต่อช่องชั้น) — ทั้ง 2 แบบหน้ายิงต้องอ่านออก */
+  const scan = readFile("warehouse-scan.html");
+  assert.ok(/\^\(\[A-Z\]\)\(\\d\{2\}\)\(\\d\{2\}\)\(\[LR\]\)\$/.test(scan), "ต้องอ่าน A0101-L ได้");
+  assert.ok(/\^\(\[A-Z\]\)\(\\d\{2\}\)\(\\d\{2\}\)\$/.test(scan), "ต้องอ่าน A0101 ได้");
+  const lbl = readFile("warehouse-labels.html");
+  assert.ok(lbl.includes("s.slot"), "โหมดต่อช่องวางต้องพิมพ์รหัสเต็ม");
+  assert.ok(lbl.includes("s.location"), "โหมดต่อช่องชั้นต้องพิมพ์รหัสไม่มีฝั่ง");
+});
+
+ok("🚚 เอาของออกแยก 2 ชนิด — ขึ้นรถ กับ เอาออกเฉยๆ", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(src.includes('kind === "load" ? "load" : "remove"'), "ต้องแยกชนิดตามที่ส่งมา");
+  const d3 = readFile("warehouse-3d.html");
+  assert.ok(d3.includes("data-out="), "จอ 3D ต้องมีปุ่มเอาขึ้นรถ");
+  assert.ok(d3.includes("data-mv="), "จอ 3D ต้องมีปุ่มย้ายช่อง");
+  assert.ok(d3.includes('kind: "load"'), "ปุ่มเอาขึ้นรถต้องส่ง kind=load");
+});
+
+ok("🔴 ฐานรุ่นเก่าที่ยังไม่รู้จักชนิด 'load' ต้องไม่ทำให้ประวัติหาย", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(src.includes('String(error.code) === "23514"'), "ต้องจับด่าน check ที่ปฏิเสธ");
+  assert.ok(/action: "remove"/.test(src), "ต้องลงเป็น remove แทน");
+  assert.ok(src.includes('"ขึ้นรถ"'), "ต้องเขียนเหตุไว้ในหมายเหตุ");
+});
+
+ok("ไฟล์ SQL รองรับชนิด 'load' และรันซ้ำได้", () => {
+  const sql = readFile("warehouse-schema.sql");
+  assert.ok(sql.includes("'place','move','remove','load'"), "ด่านต้องรับ load");
+  assert.ok(sql.includes("drop constraint if exists"), "ต้องรันซ้ำได้ไม่พัง");
+});
+
+ok("🔒 หน้าใหม่ทั้ง 2 หน้าอยู่หลังด่านคีย์เหมือนหน้าอื่น", () => {
+  const page = readFile("warehouse-page.js");
+  assert.ok(page.includes('app.get("/warehouse/scan", servePage('), "หน้ายิงต้องผ่าน servePage (มีด่านคีย์)");
+  assert.ok(page.includes('app.get("/warehouse/labels", servePage('), "หน้าป้ายต้องผ่าน servePage");
+  assert.ok(/app\.post\("\/warehouse\/api\/scan", json, async \(req, res\) => \{\s*if \(!guard\(req, res\)\) return;/.test(page),
+    "ท่อยิงต้องมี guard บรรทัดแรก");
+});
+
+/* ════ ⑧ 🛡 ยามไวยากรณ์ของสคริปต์ในหน้าเว็บ ════════════════════════
+   🪤 เจอจริง 2026-11-12: หน้า "ยิงรับเข้าชั้น" มีเครื่องหมายคำพูดไม่คู่กัน 1 จุด
+      ⇒ ทั้งสคริปต์ไม่ทำงาน (กด Enter แล้วเงียบสนิท) แต่หน้าเปิดได้ปกติ ไม่มีอะไรฟ้อง
+      node --check ตรวจได้แค่ไฟล์ .js — สคริปต์ที่ฝังในไฟล์ .html ไม่มีใครตรวจ
+   ⇒ ยามนี้ดึงสคริปต์ออกมาจากทุกหน้า แล้วให้ node ตรวจไวยากรณ์ให้ */
+section("ไวยากรณ์สคริปต์ในหน้าเว็บ");
+
+const { execFileSync } = require("node:child_process");
+const os = require("node:os");
+const path = require("node:path");
+
+const PAGES = ["warehouse-3d.html", "warehouse-assign.html", "warehouse-scan.html", "warehouse-labels.html"];
+
+for (const page of PAGES) {
+  ok("สคริปต์ใน " + page + " ไวยากรณ์ถูก", () => {
+    const html = fs.readFileSync(page, "utf8");
+    const blocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
+      .filter((m) => !/\bsrc=/.test(m[1]));        // ข้ามสคริปต์ที่โหลดจากข้างนอก
+    assert.ok(blocks.length > 0, "ต้องมีสคริปต์อย่างน้อย 1 ก้อน");
+    blocks.forEach((m, i) => {
+      const isModule = /type\s*=\s*["\']module["\']/.test(m[1]);
+      const tmp = path.join(os.tmpdir(), "wh-syntax-" + page.replace(/\W/g, "") + "-" + i + (isModule ? ".mjs" : ".js"));
+      fs.writeFileSync(tmp, m[2]);
+      try {
+        execFileSync(process.execPath, ["--check", tmp], { stdio: "pipe" });
+      } catch (e) {
+        const out = String((e.stderr || e.stdout || e.message) || "").split("\n").slice(0, 6).join("\n");
+        throw new Error("สคริปต์ก้อนที่ " + (i + 1) + " พัง:\n" + out);
+      } finally {
+        try { fs.unlinkSync(tmp); } catch {}
+      }
+    });
+  });
+}
+
+ok("🔴 ยามนี้จับของพังได้จริง (พิสูจน์ด้วยสคริปต์ที่ตั้งใจเขียนผิด)", () => {
+  const tmp = path.join(os.tmpdir(), "wh-syntax-proof.mjs");
+  fs.writeFileSync(tmp, 'const a = "ยังไม่ปิด;\n');
+  let threw = false;
+  try { execFileSync(process.execPath, ["--check", tmp], { stdio: "pipe" }); }
+  catch { threw = true; }
+  finally { try { fs.unlinkSync(tmp); } catch {} }
+  assert.ok(threw, "node --check ต้องฟ้องสคริปต์ที่ผิด ไม่งั้นยามนี้เขียวหลอก");
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

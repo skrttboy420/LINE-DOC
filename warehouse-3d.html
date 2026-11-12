@@ -135,6 +135,18 @@
   #pop .addr.none{background:#450a0a;border:1px solid #991b1b;color:#fecaca;font-weight:600}
   #pop .addr .who{color:#cbd5e1;font-size:12px}
   #pop .none{color:#64748b;font-size:12px}
+  /* 🚚 ปุ่มจัดการของในช่อง (ภูม 2026-11-12: *"ทำให้มีปุ่ม ย้ายของไปพาเรทอื่น กับ ปุ่ม เอาของขึ้นรถ"*) */
+  #pop .acts{display:flex;gap:7px;margin-top:10px;flex-wrap:wrap}
+  #pop .acts button{flex:1;min-width:132px;border:1px solid var(--line);background:#1e293b;color:#e2e8f0;
+    border-radius:9px;padding:9px;font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:600}
+  #pop .acts button:hover{border-color:#94a3b8}
+  #pop .acts button.out{background:#7f1d1d;border-color:#991b1b;color:#fecaca}
+  #pop .acts button:disabled{opacity:.5;cursor:default}
+  #pop .mvbox{margin-top:9px;display:none;gap:7px;align-items:center;flex-wrap:wrap}
+  #pop .mvbox input{flex:1;min-width:130px;padding:9px;border:1px solid var(--line);border-radius:9px;
+    background:#0f172a;color:#e2e8f0;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  #pop .mvbox button{background:var(--red);color:#fff;border:0;border-radius:9px;padding:9px 13px;
+    font-size:12.5px;cursor:pointer;font-family:inherit;font-weight:700}
   .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff}
 
   #views{position:fixed;right:12px;bottom:12px;z-index:10;display:flex;flex-direction:column;gap:1px;
@@ -184,7 +196,8 @@
     <input id="q" placeholder="ค้นหา: A0101 · เลขแทรค · รหัสลูกค้า" autocomplete="off">
     <button id="go" type="submit">ค้นหา</button>
   </form>
-  <a class="btn" id="assignLink" href="#">📥 คีย์ตำแหน่ง</a>
+  <a class="btn" id="scanLink" href="#">📷 ยิงรับเข้า</a>
+  <a class="btn" id="assignLink" href="#">📥 คีย์เอง</a>
 </header>
 
 <div id="summary"></div>
@@ -224,6 +237,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 $("assignLink").href = api("/warehouse/assign");
+$("scanLink").href = api("/warehouse/scan");
 
 let toastT = null;
 function toast(msg, ms) {
@@ -586,10 +600,19 @@ function openSlot(code, zoom) {
         i.placedBy ? '<div class="k">คีย์โดย</div><div class="v">' + esc(i.placedBy) +
           (i.placedAt ? " · " + esc(new Date(i.placedAt).toLocaleString("th-TH")) : "") + "</div>" : "",
         i.note ? '<div class="k">หมายเหตุ</div><div class="v">' + esc(i.note) + "</div>" : "",
+        '<div class="acts">',
+        '<button data-mv="', esc(i.tracking), '">🔄 ย้ายไปช่องอื่น</button>',
+        '<button class="out" data-out="', esc(i.tracking), '">🚚 เอาขึ้นรถ</button>',
+        "</div>",
+        '<div class="mvbox" data-box="', esc(i.tracking), '">',
+        '<input placeholder="ช่องใหม่ เช่น B0503-R" data-in="', esc(i.tracking), '">',
+        '<button data-go="', esc(i.tracking), '">ย้าย</button>',
+        "</div>",
         "</div>",
       ].join("")).join("")
     : '<div class="none">ช่องนี้ยังว่าง — กด “📥 คีย์ตำแหน่ง” เพื่อบันทึกว่ามีของวางที่ช่องนี้</div>';
 
+  wireActions();
   $("pop").style.display = "block";
   openCode = s.slot;
   focusSlot(s, zoom);
@@ -597,6 +620,64 @@ function openSlot(code, zoom) {
   paintMapSelection();
 }
 window.closePop = () => { $("pop").style.display = "none"; openCode = null; highlight(null); paintMapSelection(); };
+
+/* 🚚 ปุ่มจัดการของในช่อง — ย้ายไปช่องอื่น / เอาขึ้นรถ
+   ภูม: *"ตอนนี้เห็นมีแต่สามารถเพิ่มของเข้าได้ แต่กดเอาของออกไม่ได้ … มันจะได้เคลียร์สินค้าได้"*
+   🔒 ทั้ง 2 ปุ่มเขียนผ่านท่อของบอทเท่านั้น และลงประวัติว่าใครทำตอนไหน */
+function wireActions() {
+  const by = () => { try { return localStorage.getItem("pacred-wh-by") || ""; } catch { return ""; } };
+
+  for (const b of $("popBody").querySelectorAll("[data-mv]"))
+    b.addEventListener("click", () => {
+      const box = $("popBody").querySelector('[data-box="' + CSS.escape(b.dataset.mv) + '"]');
+      if (!box) return;
+      const show = box.style.display !== "flex";
+      box.style.display = show ? "flex" : "none";
+      if (show) box.querySelector("input").focus();
+    });
+
+  for (const b of $("popBody").querySelectorAll("[data-go]"))
+    b.addEventListener("click", () => doMove(b.dataset.go));
+  for (const inp of $("popBody").querySelectorAll("[data-in]"))
+    inp.addEventListener("keydown", (e) => { if (e.key === "Enter") doMove(inp.dataset.in); });
+
+  for (const b of $("popBody").querySelectorAll("[data-out]"))
+    b.addEventListener("click", () => doLoadOut(b.dataset.out, b));
+
+  async function doMove(tracking) {
+    const inp = $("popBody").querySelector('[data-in="' + CSS.escape(tracking) + '"]');
+    const to = (inp && inp.value || "").trim();
+    if (!to) return toast("ใส่รหัสช่องใหม่ก่อน");
+    try {
+      const r = await fetch(api("/warehouse/api/place"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tracking, slot: to, by: by() }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || "ย้ายไม่สำเร็จ");
+      toast("✅ ย้าย " + tracking + " ไป " + j.slot + " แล้ว", 3500);
+      closePop();
+      await load(true);
+      openSlot(j.slot);
+    } catch (e) { toast("❌ " + e.message, 4500); }
+  }
+
+  async function doLoadOut(tracking, btn) {
+    if (!confirm("เอา " + tracking + " ขึ้นรถ (ออกจากชั้นวาง)?\n\nของจะหายจากจอนี้ และลงประวัติว่าใครเอาออกตอนไหน")) return;
+    btn.disabled = true;
+    try {
+      const r = await fetch(api("/warehouse/api/remove"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tracking, kind: "load", by: by() }),
+      });
+      const j = await r.json();
+      if (!r.ok || j.error) throw new Error(j.error || "เอาออกไม่สำเร็จ");
+      toast("🚚 " + tracking + " ขึ้นรถแล้ว — เคลียร์ออกจากชั้น", 3500);
+      closePop();
+      await load(true);
+    } catch (e) { toast("❌ " + e.message, 4500); btn.disabled = false; }
+  }
+}
 
 /**
  * 🎥 Smart Camera Focus — ภูม: *"ให้ระบบคำนวณตำแหน่งกล้องอัตโนมัติ · ปรับระยะ Zoom ให้เหมาะสม

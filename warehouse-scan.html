@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ยิงรับเข้าชั้น — โกดัง Pacred</title>
+<!--
+  📷 ยิงบาร์โค้ดรับของเข้าชั้นวาง — ภูม 2026-11-12
+  *"ถ้าภูมิอยากให้สามารถยิงบารโค้ดได้เหมือนในระบบ pacred เลย … พอพนักงานจะยิงรับเข้า
+   ต้องพิมพ์ล็อกที่จะเอาเข้าหรือยิงบาโค้ดล็อกนั้นๆก่อนนะ ถึงค่อยยิงรับเข้าตามปกติ"*
+
+  🔑 ขั้นตอนลอกมาจากจอยิงนำเข้าของ Pacred (/admin/barcode/driver/import) เป๊ะ:
+     ① ยิง/พิมพ์รหัสช่องก่อน → ระบบจำไว้ (100 นาที) ไม่เขียนอะไร
+     ② ยิงเลขแทรคไปเรื่อยๆ → ลงช่องที่จำไว้ทีละใบ
+     ③ ยิงเสร็จช่องเคลียร์เอง + โฟกัสกลับ ⇒ ยิงรัวได้ไม่ต้องแตะจอ
+  🔒 เขียนลงฐานของบอทเท่านั้น — ยังไม่เกี่ยวกับระบบ Pacred
+-->
+<style>
+  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280;--bg:#f8fafc;
+        --ok:#16a34a;--warn:#f59e0b;--bad:#dc2626}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
+       background:var(--bg);color:#111;padding-bottom:30px}
+  header{background:var(--red);color:#fff;padding:11px 14px;position:sticky;top:0;z-index:5;
+         display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  header b{font-size:16px}
+  header .sub{font-size:11px;opacity:.85}
+  header .demo{background:#7c3aed;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700;display:none}
+  header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);
+           border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap}
+  header .sp{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+  main{padding:14px;max-width:620px;margin:0 auto}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:14px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 6px}
+  input{width:100%;padding:14px;border:1px solid var(--line);border-radius:12px;font-size:18px}
+  input.scan{font-family:ui-monospace,Menlo,monospace;letter-spacing:.5px;height:58px;
+             border:2px solid var(--line)}
+  input.scan:focus{outline:0;border-color:var(--red)}
+
+  /* ── ช่องที่จำไว้ (sticky) ── */
+  .slot{border-radius:14px;padding:13px 15px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+  .slot.set{background:#ecfdf5;border:2px solid #6ee7b7}
+  .slot.none{background:#fffbeb;border:2px solid #fcd34d}
+  .slot .big{font-family:ui-monospace,Menlo,monospace;font-size:27px;font-weight:800;line-height:1}
+  .slot .lb{font-size:11.5px;color:var(--muted)}
+  .slot .nm{font-size:13px;color:#334155}
+  .slot button{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:9px;
+               padding:7px 11px;font-size:12px;cursor:pointer;font-family:inherit}
+  .sides{display:flex;gap:7px;margin-top:9px}
+  .sides button{flex:1;padding:11px;border:1px solid var(--line);background:#fff;border-radius:10px;
+                font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+  .sides button.on{background:var(--red);color:#fff;border-color:var(--red)}
+
+  /* ── การ์ดผลการยิง ── */
+  .res{border-radius:14px;border:2px solid;padding:14px;margin-bottom:14px;line-height:1.65}
+  .res.ok{background:#ecfdf5;border-color:#6ee7b7}
+  .res.warn{background:#fffbeb;border-color:#fcd34d}
+  .res.bad{background:#fef2f2;border-color:#fecaca}
+  .res .h{font-size:16px;font-weight:800;margin-bottom:5px}
+  .res .mono{font-family:ui-monospace,Menlo,monospace}
+  .res .k{color:var(--muted);font-size:11.5px;margin-top:7px}
+  .res .addr{background:rgba(255,255,255,.75);border-radius:9px;padding:9px;margin-top:7px;font-size:13px}
+  .res .addr.none{background:#fee2e2;color:#991b1b;font-weight:700}
+
+  .log{font-size:12.5px}
+  .log h3{margin:0 0 8px;font-size:13px}
+  .log .r{display:flex;gap:9px;padding:7px 0;border-bottom:1px solid #f1f5f9;align-items:baseline}
+  .log .r:last-child{border-bottom:0}
+  .log .m{font-family:ui-monospace,Menlo,monospace}
+  .log .s{margin-left:auto;color:var(--muted);white-space:nowrap}
+  .log .dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px}
+  .muted{color:var(--muted);font-size:12px;line-height:1.65}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;padding:12px;border-radius:11px;
+       font-size:14px;margin-bottom:14px;font-weight:600}
+  .ghost{width:100%;background:#fff;color:#111;border:1px solid var(--line);border-radius:11px;
+         padding:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-top:9px}
+</style>
+</head>
+<body>
+<header>
+  <div><b>📷 ยิงรับเข้าชั้น</b><div class="sub">ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค</div></div>
+  <span class="demo" id="demoTag">🔬 โหมดลองดู</span>
+  <div class="sp">
+    <a id="lblLink" href="#">🖨 ป้ายโลเคชั่น</a>
+    <a id="keyLink" href="#">⌨️ คีย์เอง</a>
+    <a id="v3dLink" href="#">🏭 จอ 3D</a>
+  </div>
+</header>
+
+<main>
+  <div class="err" id="err" style="display:none"></div>
+
+  <div class="slot none" id="slotBox">
+    <div>
+      <div class="lb">ช่องที่กำลังรับเข้า</div>
+      <div class="big" id="slotCode">— ยังไม่ได้เลือก —</div>
+      <div class="nm" id="slotName">ยิงบาร์โค้ดป้ายโลเคชั่น หรือพิมพ์รหัสช่องลงช่องข้างล่าง</div>
+    </div>
+    <button id="clearSlot" style="display:none">เปลี่ยน</button>
+  </div>
+  <div class="sides" id="sides" style="display:none">
+    <button data-s="L">ฝั่งซ้าย</button><button data-s="R">ฝั่งขวา</button>
+  </div>
+
+  <div class="card">
+    <label for="scan">ยิงบาร์โค้ด / พิมพ์แล้วกด Enter</label>
+    <input id="scan" class="scan" autocomplete="off" autocapitalize="off" autocorrect="off"
+           spellcheck="false" inputmode="latin" placeholder="รหัสช่อง หรือ เลขแทรค">
+    <div class="muted" style="margin-top:8px">
+      เครื่องยิงบาร์โค้ดส่ง Enter ให้เอง — ยิงต่อกันรัวๆ ได้เลย ไม่ต้องแตะจอ
+    </div>
+    <button class="ghost" id="go">บันทึก</button>
+  </div>
+
+  <div id="result"></div>
+
+  <div class="card">
+    <label for="by">คุณคือใคร (จำไว้ในเครื่องนี้)</label>
+    <input id="by" placeholder="ชื่อเล่นของคุณ" autocomplete="off">
+  </div>
+
+  <div class="card log">
+    <h3>ยิงไปแล้วรอบนี้ <span id="n" class="muted"></span></h3>
+    <div id="logRows"><div class="muted">ยังไม่ได้ยิงอะไร</div></div>
+  </div>
+</main>
+
+<script type="module">
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+$("lblLink").href = api("/warehouse/labels");
+$("keyLink").href = api("/warehouse/assign");
+$("v3dLink").href = api("/warehouse");
+
+/* ── จำชื่อคนยิง ── */
+const BY_KEY = "pacred-wh-by";
+try { $("by").value = localStorage.getItem(BY_KEY) || ""; } catch {}
+$("by").addEventListener("change", () => {
+  try { localStorage.setItem(BY_KEY, $("by").value.trim()); } catch {}
+});
+const byName = () => $("by").value.trim();
+
+/* ── 🔊 เสียง — สร้างเอง ไม่ใช้ไฟล์ (โกดังเน็ตไม่ดีก็ยังดัง) ────────
+   ลอกแนวจาก Pacred: สำเร็จ = ติ๊ดสั้นสูง · ไม่สำเร็จ = ตู้ดต่ำยาว · เตือน = ติ๊ด 3 ครั้ง */
+let actx = null;
+function beep(kind) {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return;
+    actx = actx || new C();
+    if (actx.state === "suspended") actx.resume();
+    const plan = kind === "ok" ? [[880, 0, 0.1]]
+      : kind === "slot" ? [[660, 0, 0.08], [990, 0.09, 0.1]]
+      : kind === "warn" ? [[1200, 0, 0.07], [1200, 0.15, 0.07], [1200, 0.3, 0.07]]
+      : [[200, 0, 0.42]];
+    for (const [hz, at, dur] of plan) {
+      const t = actx.currentTime + 0.02 + at;
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = kind === "bad" ? "sawtooth" : "square";
+      o.frequency.value = hz;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.22, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+  } catch { /* เล่นเสียงไม่ได้ = ไม่เป็นไร การยิงต้องไม่ล้ม */ }
+}
+
+/* ── ช่องที่จำไว้ (sticky 100 นาที เท่าระบบ Pacred) ─────────────── */
+const SLOT_KEY = "pacred-wh-slot";
+const SLOT_TTL_MIN = 100;
+let LAYOUT = null, slot = null;                 // slot = { code, side, label }
+
+function loadSticky() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SLOT_KEY) || "null");
+    if (raw && raw.at && Date.now() - raw.at < SLOT_TTL_MIN * 60000) return raw;
+  } catch {}
+  return null;
+}
+function saveSticky() {
+  try {
+    if (slot) localStorage.setItem(SLOT_KEY, JSON.stringify({ ...slot, at: Date.now() }));
+    else localStorage.removeItem(SLOT_KEY);
+  } catch {}
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+/** แกะรหัสที่ยิงมา — รับทั้ง A0101-L (ตรงช่อง) และ A0101 (ยังไม่บอกฝั่ง) */
+function parseCode(text) {
+  const up = String(text || "").trim().toUpperCase().replace(/[\s-]/g, "");
+  let m = /^([A-Z])(\d{2})(\d{2})([LR])$/.exec(up);
+  if (m) return { code: m[1] + m[2] + m[3], side: m[4] };
+  m = /^([A-Z])(\d{2})(\d{2})$/.exec(up);
+  if (m) return { code: m[1] + m[2] + m[3], side: null };
+  return null;
+}
+/** รหัสนี้มีอยู่จริงในผังไหม */
+function slotExists(code, side) {
+  if (!LAYOUT) return false;
+  return LAYOUT.slots.some((s) => s.location === code && (!side || s.side === side));
+}
+const fullSlot = () => (slot && slot.side ? slot.code + "-" + slot.side : null);
+
+function paintSlot() {
+  const box = $("slotBox");
+  if (!slot) {
+    box.className = "slot none";
+    $("slotCode").textContent = "— ยังไม่ได้เลือก —";
+    $("slotName").textContent = "ยิงบาร์โค้ดป้ายโลเคชั่น หรือพิมพ์รหัสช่องลงช่องข้างล่าง";
+    $("clearSlot").style.display = "none";
+    $("sides").style.display = "none";
+    return;
+  }
+  const full = fullSlot();
+  box.className = "slot " + (full ? "set" : "none");
+  $("slotCode").textContent = full || slot.code;
+  const s = LAYOUT && LAYOUT.slots.find((x) => x.location === slot.code && (!slot.side || x.side === slot.side));
+  $("slotName").textContent = full
+    ? (s ? s.label : "")
+    : "ยังไม่ได้บอกฝั่ง — กดเลือกซ้าย/ขวาข้างล่าง";
+  $("clearSlot").style.display = "block";
+  $("sides").style.display = "flex";
+  for (const b of $("sides").querySelectorAll("button"))
+    b.classList.toggle("on", slot.side === b.dataset.s);
+}
+
+$("clearSlot").addEventListener("click", () => { slot = null; saveSticky(); paintSlot(); focusScan(); });
+for (const b of $("sides").querySelectorAll("button"))
+  b.addEventListener("click", () => {
+    if (!slot) return;
+    slot.side = b.dataset.s;
+    saveSticky(); paintSlot(); beep("slot"); focusScan();
+  });
+
+/* ── ยิง ───────────────────────────────────────────────────────── */
+function focusScan() {
+  queueMicrotask(() => { $("scan").focus(); $("scan").select(); });
+}
+function showErr(msg) {
+  $("err").textContent = msg;
+  $("err").style.display = msg ? "block" : "none";
+}
+
+let busy = false;
+$("go").addEventListener("click", submit);
+$("scan").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  submit();
+});
+
+async function submit() {
+  if (busy) return;
+  /* 🔑 อ่านค่าจากช่องโดยตรง — เครื่องยิงพิมพ์เร็วมาก (ลอกบทเรียนจากจอ Pacred) */
+  const text = $("scan").value.trim();
+  if (!text) return;
+  showErr("");
+
+  /* ① ยิงโดนรหัสช่อง = จำไว้ ไม่เขียนอะไร */
+  const loc = parseCode(text);
+  if (loc && slotExists(loc.code, loc.side)) {
+    slot = { code: loc.code, side: loc.side };
+    saveSticky(); paintSlot();
+    $("scan").value = "";
+    beep("slot");
+    focusScan();
+    return;
+  }
+  /* รหัสที่ดูเหมือนช่องแต่ไม่มีในผัง = เตือน ไม่เอาไปยิงเป็นเลขแทรค */
+  if (loc && !slotExists(loc.code, loc.side)) {
+    $("scan").value = "";
+    beep("bad");
+    showErr('ไม่มีช่อง "' + text.toUpperCase() + '" ในผังโกดัง — ยิงป้ายใหม่อีกที');
+    focusScan();
+    return;
+  }
+
+  /* ② ต้องมีช่องก่อนถึงจะยิงของเข้าได้ */
+  if (!fullSlot()) {
+    beep("bad");
+    showErr(slot ? "เลือกฝั่งซ้าย/ขวาก่อน" : "ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค");
+    focusScan();
+    return;
+  }
+
+  busy = true;
+  $("scan").disabled = true;
+  try {
+    const r = await fetch(api("/warehouse/api/scan"), {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ tracking: text, slot: fullSlot(), by: byName() }),
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || "บันทึกไม่สำเร็จ");
+    showResult(j);
+    addLog(j);
+    beep(j.tone || "ok");
+  } catch (e) {
+    beep("bad");
+    showErr("❌ " + e.message);
+    $("result").innerHTML = "";
+  }
+  $("scan").value = "";
+  $("scan").disabled = false;
+  busy = false;
+  focusScan();                                  // ⌨️ ยิงต่อได้ทันทีโดยไม่ต้องแตะจอ
+}
+
+function showResult(j) {
+  const cls = j.tone === "bad" ? "bad" : j.tone === "warn" ? "warn" : "ok";
+  const i = j.job;
+  $("result").innerHTML =
+    '<div class="res ' + cls + '"><div class="h">' + esc(j.headline) + "</div>" +
+    '<div class="mono" style="font-size:15px">' + esc(j.tracking) + "</div>" +
+    '<div class="k">เข้าช่อง</div><div><b class="mono">' + esc(j.slot) + "</b> · " + esc(j.label) + "</div>" +
+    (j.movedFrom ? '<div class="k">ย้ายมาจาก</div><div class="mono">' + esc(j.movedFrom) + "</div>" : "") +
+    (i
+      ? '<div class="k">ลูกค้า</div><div>' + esc(i.memberCode || "—") + "</div>" +
+        '<div class="k">สถานะในระบบ</div><div style="font-weight:700">' + esc(j.pickLabel) + "</div>" +
+        '<div>' + esc(j.why) + "</div>" +
+        (i.selfPickup
+          ? '<div class="addr">🏬 ลูกค้ารับเองหน้าโกดัง</div>'
+          : i.needsAddress || !i.address
+            ? '<div class="addr none">🔴 ยังไม่มีที่อยู่จัดส่ง</div>'
+            : '<div class="addr">📍 ' + esc(i.address) + "</div>")
+      : '<div class="k">ระบบ</div><div>หาแทรคนี้ในระบบไม่เจอ — เช็คว่ายิงถูกใบไหม</div>') +
+    "</div>";
+}
+
+const rows = [];
+function addLog(j) {
+  rows.unshift({ t: j.tracking, slot: j.slot, tone: j.tone, at: new Date() });
+  $("n").textContent = "(" + rows.length + ")";
+  const col = { ok: "#16a34a", warn: "#f59e0b", bad: "#dc2626" };
+  $("logRows").innerHTML = rows.slice(0, 40).map((r) =>
+    '<div class="r"><span class="dot" style="background:' + (col[r.tone] || "#94a3b8") + '"></span>' +
+    '<span class="m">' + esc(r.t) + '</span><span class="s">' + esc(r.slot) + " · " +
+    r.at.toLocaleTimeString("th-TH", { hour12: false }) + "</span></div>").join("");
+}
+
+/* ── เริ่ม ──────────────────────────────────────────────────────── */
+(async () => {
+  const r = await fetch(api("/warehouse/api/view"));
+  const v = await r.json();
+  if (!r.ok) return showErr(v.error || "เปิดหน้านี้ไม่ได้");
+  LAYOUT = v.layout;
+  if (v.demo) {
+    $("demoTag").style.display = "inline-block";
+    document.querySelector("header .sub").textContent = "ข้อมูลตัวอย่าง — ไม่ได้บันทึกลงฐานจริง";
+  }
+  const sticky = loadSticky();
+  if (sticky && slotExists(sticky.code, sticky.side)) slot = { code: sticky.code, side: sticky.side };
+  paintSlot();
+  focusScan();
+})().catch((e) => showErr("โหลดไม่สำเร็จ: " + e.message));
+
+/* แตะที่ไหนก็กลับไปโฟกัสช่องยิง (เครื่องยิงต้องการโฟกัสเสมอ) */
+document.addEventListener("click", (e) => {
+  if (e.target.closest("input,button,a")) return;
+  focusScan();
+});
+</script>
+</body>
+</html>

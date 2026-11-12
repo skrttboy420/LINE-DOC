@@ -162,6 +162,12 @@
     text-align:right;line-height:1.8}
   #hint kbd{background:#1e293b;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:#cbd5e1}
 
+  /* ⚠️ แถบเตือนตอนอ่านสถานะจากเว็บไม่ได้ — ต้องเห็นชัด ไม่ใช่ตัวเล็กๆ บนหัว
+     (ไม่งั้นพนักงานเห็นกล่องเทาหมดแล้วนึกว่าระบบพัง หรือนึกว่าของไม่มีในระบบจริง) */
+  #offline{position:fixed;left:12px;right:12px;z-index:11;display:none;
+    background:#78350f;border:1px solid #b45309;color:#fde68a;border-radius:11px;
+    padding:9px 13px;font-size:12.5px;line-height:1.6}
+  #offline b{color:#fff}
   #toast{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:20;
     background:#111827;border:1px solid var(--line);color:#fff;padding:8px 14px;border-radius:9px;
     font-size:13px;display:none;max-width:90vw;text-align:center}
@@ -239,6 +245,7 @@
 </div>
 <div id="views"></div>
 
+<div id="offline"></div>
 <div id="toast"></div>
 <div id="load">กำลังโหลดผังโกดัง…</div>
 
@@ -411,9 +418,12 @@ function resize() {
   const headH = document.querySelector("header").getBoundingClientRect().height;
   $("summary").style.top = headH + "px";
   const below = headH + $("summary").getBoundingClientRect().height + 8;
-  $("alerts").style.top = below + "px";
+  $("offline").style.top = below + "px";
+  const offH = $("offline").style.display === "block"
+    ? $("offline").getBoundingClientRect().height + 8 : 0;
+  $("alerts").style.top = (below + offH) + "px";
   const narrow = innerWidth <= 880;
-  $("views").style.top = narrow ? below + "px" : "auto";
+  $("views").style.top = narrow ? (below + offH) + "px" : "auto";
   /* 📱 ป๊อปอัพต้องอยู่เหนือแผนผังเสมอ — แผนผังย่อ/ขยายได้ ความสูงเลยไม่คงที่
      ⇒ วัดของจริงทุกครั้ง ไม่ใช้เลขตายตัว (ที่ทำให้กรอบทับกันรอบก่อน) */
   $("pop").style.bottom = narrow
@@ -942,8 +952,15 @@ function applyData(v) {
   tickClock();
 
   const t = v.layout.totals;
-  $("meta").textContent = t.bays + " ล็อก · " + t.slots + " ช่องวาง · ว่าง " + (v.counts.empty || 0) +
-    (v.live.ok ? "" : " · ⚠️ อ่านสถานะจากเว็บไม่ได้");
+  $("meta").textContent = t.bays + " ล็อก · " + t.slots + " ช่องวาง · ว่าง " + (v.counts.empty || 0);
+
+  /* ⚠️ อ่านสถานะจากเว็บไม่ได้ = ทุกกล่องจะเป็นสีเทา — ต้องบอกว่าทำไม ไม่ใช่ปล่อยให้เดา */
+  $("offline").style.display = v.live.ok ? "none" : "block";
+  if (!v.live.ok)
+    $("offline").innerHTML = "⚠️ <b>ยังอ่านสถานะงานจากเว็บ Pacred ไม่ได้</b> — " +
+      "ตำแหน่งที่คีย์/ยิงเข้ามา <b>บันทึกครบปกติ</b> แต่ยังไม่มีสีบอกว่าหยิบได้/ห้ามหยิบ และยังไม่มีที่อยู่จัดส่ง" +
+      "<br>พอเว็บขึ้น deploy แล้วสีจะมาเอง ของที่คีย์ไว้ไม่หาย" +
+      (v.live.error ? "<br><span style=\"opacity:.7\">เหตุ: " + esc(v.live.error) + "</span>" : "");
   $("demoTag").style.display = v.demo ? "inline-block" : "none";
 
   renderMap();

@@ -438,6 +438,42 @@ ok("🔴 ยามนี้จับของพังได้จริง (พ
   assert.ok(threw, "node --check ต้องฟ้องสคริปต์ที่ผิด ไม่งั้นยามนี้เขียวหลอก");
 });
 
+/* ════ ⑨ 🛡 ยามไฟล์ SQL ════════════════════════════════════════════
+   🪤 เจอจริง 2026-11-12: ไฟล์ออกมาเป็น `do $` แทน `do $$` ⇒ Supabase ฟ้อง
+      "syntax error at or near \"$\"" ภูมรันไม่ผ่าน
+      ต้นเหตุ = ตอนเขียนไฟล์ผ่าน String.replace() ของ JS ข้อความแทนที่มองว่า $$ = $ ตัวเดียว
+      (ตระกูลเดียวกับบทเรียน backslash หลุดตอนเขียนผ่าน shell)
+   ⇒ ยามนี้กันไม่ให้ไฟล์ SQL หลุดออกไปแบบนั้นอีก */
+section("ไฟล์ SQL");
+
+const SQL_TEXT = fs.readFileSync("warehouse-schema.sql", "utf8");
+
+ok("🔴 ไม่มีบล็อก do ที่เปิดด้วย $ ตัวเดียว (Supabase รันไม่ผ่าน)", () => {
+  assert.ok(!/\bdo\s*\$(?!\$)/i.test(SQL_TEXT),
+    "เจอ do $ แบบ $ เดียว — ต้องเป็น $$ หรือเลิกใช้บล็อก do ไปเลย");
+});
+
+ok("เครื่องหมาย $$ (ถ้ามี) ต้องคู่กัน", () => {
+  const n = (SQL_TEXT.match(/\$\$/g) || []).length;
+  assert.equal(n % 2, 0, "$$ ไม่คู่กัน = dollar-quote ไม่ปิด");
+});
+
+ok("ทุกคำสั่งปิดด้วย ; (ไม่มีคำสั่งค้าง)", () => {
+  /* ตัดคอมเมนต์ออกก่อน แล้วดูว่าเนื้อ SQL จบด้วย ; */
+  const body = SQL_TEXT.split("\n").filter((l) => !l.trim().startsWith("--")).join("\n").trim();
+  assert.ok(body.endsWith(";"), "ไฟล์ต้องจบด้วย ;");
+});
+
+ok("รันซ้ำได้ — ทุกคำสั่งที่สร้างของใหม่ต้องมี if not exists / if exists", () => {
+  const lines = SQL_TEXT.split("\n").map((l) => l.trim()).filter((l) => !l.startsWith("--"));
+  for (const l of lines) {
+    if (/^create (table|index)\b/i.test(l))
+      assert.ok(/if not exists/i.test(l), "ต้องมี if not exists → " + l.slice(0, 60));
+    if (/^alter table .* drop constraint/i.test(l))
+      assert.ok(/if exists/i.test(l), "ต้องมี if exists → " + l.slice(0, 60));
+  }
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

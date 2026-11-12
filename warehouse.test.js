@@ -37,7 +37,7 @@ ok("ขนาดช่อง 250 × 120 × 165 · คาน 10 · เสา 7 ·
 ok("3 แถว — ซ้าย 6 · กลาง 10 · ขวา 10 ล็อก · 4 ชั้น", () => {
   assert.equal(L.LEVELS, 4);
   assert.deepEqual(L.ROWS.map((r) => r.key), ["A", "B", "C"]);
-  assert.deepEqual(L.ROWS.map((r) => r.bays), [6, 10, 10]);
+  assert.deepEqual(L.ROWS.map((r) => r.bays), [10, 10, 6], "แถวที่สั้น 6 ล็อก คือ C (ภูมยืนยัน 12/11)");
 });
 
 ok("รวม 26 ล็อก · 104 ช่องชั้น · 208 ช่องวาง (2 ฝั่งต่อช่อง)", () => {
@@ -60,12 +60,12 @@ ok("อ่านได้แม้พิมพ์ตัวเล็ก/มีข
 });
 
 ok("🔴 ช่องที่ไม่มีในผังต้องไม่ผ่าน (กันคีย์ช่องผี)", () => {
-  assert.equal(L.parseLocation("A0107"), null, "แถว A มีแค่ 6 ล็อก");
-  assert.equal(L.parseLocation("B0111"), null, "แถว B มีแค่ 10 ล็อก");
+  assert.equal(L.parseLocation("C0107"), null, "แถว C มีแค่ 6 ล็อก");
+  assert.equal(L.parseLocation("A0111"), null, "แถว A มีแค่ 10 ล็อก");
   assert.equal(L.parseLocation("A0501"), null, "มีแค่ 4 ชั้น");
   assert.equal(L.parseLocation("A0105").bay, 5, "A0105 = ชั้น 1 ล็อก 5 (รูปใหม่ ชั้นก่อนล็อก)");
   assert.equal(L.parseLocation("D0101"), null, "ไม่มีแถว D");
-  assert.throws(() => L.locationCode("A", 7, 1), /ล็อกที่ 7 ไม่มีอยู่/);
+  assert.throws(() => L.locationCode("C", 7, 1), /ล็อกที่ 7 ไม่มีอยู่/);
   assert.throws(() => L.locationCode("A", 1, 5), /ชั้นที่ 5 ไม่มีอยู่/);
 });
 
@@ -76,8 +76,8 @@ ok("ฝั่งรับแค่ L / R", () => {
 });
 
 ok("ชื่อที่คนอ่านรู้เรื่อง", () => {
-  assert.equal(L.slotLabel("A0101-L"), "โซนซ้าย ชั้น 1 ล็อก 1 (ฝั่งซ้าย)");
-  assert.equal(L.slotLabel("C0410"), "โซนริมขวา ชั้น 4 ล็อก 10");
+  assert.equal(L.slotLabel("A0101-L"), "โซนขวา ชั้น 1 ล็อก 1 (ฝั่งซ้าย)");
+  assert.equal(L.slotLabel("B0410"), "โซนกลาง ชั้น 4 ล็อก 10");
 });
 
 /* ════ ③ พิกัด XYZ ════════════════════════════════════════════════════ */
@@ -98,11 +98,14 @@ ok("🔴 ทิศของผัง — ยืนยันกับภูมแ
   assert.equal(L.bayZ0("B", 1), 0, "ล็อก 1 ชิดขอบฝั่งประตู");
   assert.ok(L.bayZ0("B", 10) > L.bayZ0("B", 1), "ล็อกเลขมากกว่า = ลึกเข้าไปจากประตู");
 
-  /* แถว A สั้นกว่าเพื่อน — ส่วนที่หายอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
-  const a = L.rowZSpan("A"), b = L.rowZSpan("B");
-  assert.equal(a.start, b.start, "ปลายฝั่งประตูต้องเสมอกันทุกแถว");
-  assert.ok(a.end < b.end, "แถว A ต้องสั้นเข้ามาจากด้านใน");
-  assert.equal(L.bayZ0("A", 1), L.bayZ0("B", 1), "ล็อก 1 ของทุกแถวอยู่แนวเดียวกัน");
+  /* 🔴 แถว C สั้นกว่าเพื่อน (ภูม: *"ล็อก A ที่ 6 ล็อกต้องเป็น C"*)
+     ส่วนที่หายอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
+  assert.equal(L.baysOf("C"), 6, "แถวสั้นคือ C");
+  assert.equal(L.baysOf("A"), 10, "แถว A ยาวเต็มพื้นที่");
+  const c = L.rowZSpan("C"), b = L.rowZSpan("B");
+  assert.equal(c.start, b.start, "ปลายฝั่งประตูต้องเสมอกันทุกแถว");
+  assert.ok(c.end < b.end, "แถว C ต้องสั้นเข้ามาจากด้านใน");
+  assert.equal(L.bayZ0("C", 1), L.bayZ0("B", 1), "ล็อก 1 ของทุกแถวอยู่แนวเดียวกัน");
 });
 
 ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา 7) · ชั้นถัดไปสูงขึ้น 175 (165 + คาน 10)", () => {
@@ -265,9 +268,9 @@ ok("ช่องเดียววางได้หลายแทรค · น
 });
 
 ok("🔴 รายการเตือน — ช่องที่ขัดกับระบบต้องโผล่ในลิสต์ให้กดดูได้", () => {
-  const v = W.mergeView([PL("TX", "C0410-R")], [job({ tracking: "TX", status: 7 })]);
+  const v = W.mergeView([PL("TX", "A0410-R")], [job({ tracking: "TX", status: 7 })]);
   assert.equal(v.alerts.length, 1);
-  assert.equal(v.alerts[0].slot, "C0410-R");
+  assert.equal(v.alerts[0].slot, "A0410-R");
   assert.equal(v.alerts[0].tracking, "TX");
 });
 
@@ -648,7 +651,7 @@ ok("🔴 รหัสเรียง ชั้นก่อน แล้วค่
 
 ok("🔴 แปลงรหัสรุ่นก่อนได้ (ของที่คีย์ไว้แล้วต้องไม่หาย)", () => {
   assert.equal(L.convertOldCode("A0501-R"), "A0105-R", "เดิม ล็อก5 ชั้น1");
-  assert.equal(L.convertOldCode("C1004"), "C0410", "เดิม ล็อก10 ชั้น4");
+  assert.equal(L.convertOldCode("A1004"), "A0410", "เดิม ล็อก10 ชั้น4");
   assert.equal(L.convertOldCode("A0107"), null, "เดิมแถว A ไม่มีชั้น 7");
   assert.equal(L.convertOldCode("ไม่ใช่รหัส"), null);
 });
@@ -721,6 +724,18 @@ ok("ป้าย “หน้าโกดัง” ต้องอยู่ฝ�
   const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
   assert.ok(D3.includes("L.door && L.door.bayOneAtFarZ"), "ตำแหน่งป้ายต้องอ่านจากผัง ไม่ใช่ฝังเลข");
   assert.ok(D3.includes("หน้าโกดัง"), "ต้องมีป้ายบอกทิศในฉาก");
+});
+
+ok("🔴 รหัสช่องที่ฝังไว้ในโค้ด ต้องมีอยู่จริงในผังทุกตัว", () => {
+  /* 🪤 ตอนย้ายว่าแถวไหนมี 6 ล็อก ข้อมูลตัวอย่างชี้ไป C ล็อก 8/10 ที่ไม่มีแล้ว
+     ⇒ ของหายจากจอเงียบๆ (กลายเป็น orphan) โดยไม่มีอะไรฟ้อง */
+  for (const file of ["warehouse-demo.js", "warehouse-3d.html", "warehouse-assign.html", "warehouse-scan.html", "SETUP-WAREHOUSE.md"]) {
+    const src = fs.readFileSync(file, "utf8");
+    for (const m of src.match(/\b[A-C]\d{4}(-[LR])?\b/g) || []) {
+      const okCode = m.includes("-") ? L.parseSlot(m) : L.parseLocation(m);
+      assert.ok(okCode, "รหัสผีใน " + file + " → " + m);
+    }
+  }
 });
 
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */

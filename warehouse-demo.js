@@ -34,8 +34,8 @@ const PLACEMENTS = [
   { tracking: "SF5141868962437", slot: "A0101-R", boxes: 1,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
   { tracking: "1792477204-2",    slot: "B0205-L", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
   { tracking: "772085135477267", slot: "B0205-R", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "KY4001198485063", slot: "C0308-L", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "SHIPPED-ALREADY", slot: "C0410-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
+  { tracking: "KY4001198485063", slot: "C0305-L", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SHIPPED-ALREADY", slot: "A0410-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
   { tracking: "NOT-IN-SYSTEM",   slot: "A0403-L", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
   { tracking: "CREDIT-NOT-HERE", slot: "B0110-R", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
 

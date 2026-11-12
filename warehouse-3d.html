@@ -105,6 +105,20 @@
   .cell .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cell.full{color:#f1f5f9;font-weight:600}
 
+  /* 🔒 ล็อกแถว (ภูม 2026-11-13) — ปุ่มแม่กุญแจหน้าแถว · แถวอื่นจาง · แถบปลดล็อกลอยบนกลาง */
+  .mrow .lk{width:23px;height:23px;border-radius:6px;border:1px solid var(--line);background:#1e293b;
+    color:#94a3b8;font-size:12px;cursor:pointer;display:grid;place-items:center;flex:none;padding:0;
+    font-family:inherit;margin-top:2px}
+  .mrow .lk:hover{border-color:#94a3b8;color:#fff}
+  .mrow.locked .lk{background:var(--ready);border-color:var(--ready);color:#fff}
+  .mrow.locked .rk{color:var(--ready)}
+  .mrow.dim{opacity:.35}
+  #lockbar{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:13;display:none;
+    align-items:center;gap:12px;background:var(--ready);color:#fff;border-radius:999px;
+    padding:9px 17px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.5);max-width:92vw}
+  #lockbar button{background:var(--red);color:#fff;border:0;border-radius:999px;padding:6px 15px;
+    font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;flex:none}
+
   #alerts{right:12px;width:min(330px,calc(100vw - 24px));max-height:calc(100vh - 210px);
     overflow:auto;padding:0;font-size:12px}
   #alerts h4{margin:0;padding:10px 12px;font-size:12px;position:sticky;top:0;
@@ -217,6 +231,7 @@
   </form>
   <a class="btn" id="scanLink" href="#">📷 ยิงรับเข้า</a>
   <a class="btn" id="assignLink" href="#">📥 คีย์เอง</a>
+  <a class="btn" id="bellLink" href="#" title="ต้องเช็ค — เปิด/ปิดรายการ">🔔<b id="bellN" style="margin-left:5px;color:#fff"></b></a>
 </header>
 
 <div id="summary"></div>
@@ -246,6 +261,7 @@
 <div id="views"></div>
 
 <div id="offline"></div>
+<div id="lockbar"></div>
 <div id="toast"></div>
 <div id="load">กำลังโหลดผังโกดัง…</div>
 
@@ -526,11 +542,8 @@ function buildScene(view) {
       addLabel(String(i + 1), (row.originX + C.d / 2) * S, 0.02, z * S, 0.8));
   }
 
-  /* 🚪 ป้าย "หน้าโกดัง" — บอกทิศให้ชัดบนจอ จะได้ไม่ต้องเดาว่าล็อก 1 อยู่ฝั่งไหน
-     (ภูม 12/11: *"หน้าโกดังอยู่ฝั่งนี้ ไม่ใช่อีกฝั่งที่แกใส่มา"*) */
-  const doorZ = L.door && L.door.bayOneAtFarZ ? EXTENT.z + 340 : -340;
-  addLabel("🚪 หน้าโกดัง — ล็อก 1 อยู่ฝั่งนี้", (EXTENT.x / 2) * S, 0.02, doorZ * S, 2.2,
-    { wide: 5.2, color: "#fbbf24" });
+  /* 🚪 ป้าย "หน้าโกดัง" ถอดออกแล้ว (ภูม 2026-11-13: *"ดูไม่สวย ลบออกไปเลย"*)
+     ทิศทางยังถูกต้องจากผัง (DOOR ใน warehouse-layout.js) + ป้ายเลขล็อก/แถว */
   built = true;
   setView("3D", true);
 }
@@ -558,7 +571,8 @@ const ZERO = new THREE.Vector3(0, 0, 0);
 function paintSlots() {
   if (!boxIM) return;
   slotList.forEach((s, i) => {
-    const show = s.items.length > 0 && !hidden.has(s.status);
+    // 🔒 ล็อกแถว = ซ่อนกล่องของแถวอื่น (โฟกัสเฉพาะแถวที่ล็อก)
+    const show = s.items.length > 0 && !hidden.has(s.status) && (!lockedRow || s.row === lockedRow);
     const b = s.box;
     M4.compose(V3.set(b.x * S, b.y * S, b.z * S), QUAT.identity(),
       show ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
@@ -630,6 +644,7 @@ function pickSlot(clientX, clientY) {
   for (const h of hits) {
     const s = slotList[h.instanceId];
     if (!s) continue;
+    if (lockedRow && s.row !== lockedRow) continue;  // 🔒 ล็อกแถว = คลิกข้ามแถวไม่ได้
     if (!firstAny) firstAny = s;
     if (s.items.length && !hidden.has(s.status)) return s;
   }
@@ -815,6 +830,7 @@ function highlight(code) {
    ภูม: *"แก้ปัญหาการเลือกพาเลทที่ทำได้ยาก เวลาใช้ต้องหมุนกล้อง ซูม และลากกล้องเป็นเวลานาน"*
    ⇒ เลือกจากผัง 2 มิติ แล้วให้กล้องบินไปเอง — ไม่ต้องสู้กับกล้องอีก */
 let openBay = null;
+let lockedRow = null;                             // 🔒 แถวที่ล็อกอยู่ (null = ไม่ล็อก)
 
 $("mapHead").addEventListener("click", () => {
   const min = $("map").classList.toggle("min");
@@ -845,11 +861,17 @@ function renderMap() {
         (boxes ? ' style="background:' + col + '22;border-color:' + col + '"' : "") + ">" + bay +
         (boxes ? '<span class="pin" style="background:' + col + '">' + boxes + "</span>" : "") + "</button>");
     }
-    return '<div class="mrow"><div class="rk">' + row.key + '</div><div class="bays">' +
+    return '<div class="mrow' + (lockedRow === row.key ? " locked" : "") +
+      (lockedRow && lockedRow !== row.key ? " dim" : "") + '">' +
+      '<button class="lk" data-lock="' + row.key + '" title="ล็อกแถว ' + row.key +
+      ' (ดู/กดได้เฉพาะแถวนี้)">' + (lockedRow === row.key ? "🔒" : "🔓") + "</button>" +
+      '<div class="rk">' + row.key + '</div><div class="bays">' +
       cells.join("") + "</div></div>";
   }).join("");
   for (const b of $("mapRows").querySelectorAll(".bay"))
     b.addEventListener("click", () => openBayDetail(b.dataset.r, Number(b.dataset.b)));
+  for (const b of $("mapRows").querySelectorAll(".lk"))
+    b.addEventListener("click", (e) => { e.stopPropagation(); toggleLockRow(b.dataset.lock); });
   renderBayDetail();
 }
 
@@ -900,6 +922,46 @@ function renderBayDetail() {
 function paintMapSelection() {
   for (const c of document.querySelectorAll("#mapDetail .cell"))
     c.classList.toggle("on", c.dataset.slot === openCode);
+}
+
+/* ══ 🔒 ล็อกแถว (ภูม 2026-11-13) ═══════════════════════════════════════
+   กดแม่กุญแจหน้าแถว ⇒ กล้องสไลด์มามุมข้าง (Side Elevation) ของแถวนั้น ·
+   แถวอื่นจางหาย (ซ่อนกล่อง) · คลิกได้เฉพาะแถวที่ล็อก · แถบ "ปลดล็อก" ลอยบนกลางจอ */
+function toggleLockRow(key) {
+  lockedRow = lockedRow === key ? null : key;
+  closePop();
+  updateLockUI();
+  paintSlots();          // แถวอื่นจางหาย
+  renderMap();           // อัปเดตปุ่ม/สถานะ locked · dim
+  if (lockedRow) focusRowSide(lockedRow);
+  else setView("3D");    // ปลดล็อก = กลับภาพรวม
+}
+
+function updateLockUI() {
+  const bar = $("lockbar");
+  if (!lockedRow || !DATA) { bar.style.display = "none"; return; }
+  const name = (DATA.layout.rows.find((r) => r.key === lockedRow) || {}).name || lockedRow;
+  bar.innerHTML = "🔒 กำลังล็อกแถว " + esc(lockedRow) + " (" + esc(name) +
+    ") — กดได้เฉพาะแถวนี้<button id='unlockBtn'>ปลดล็อก</button>";
+  bar.style.display = "flex";
+  $("unlockBtn").addEventListener("click", () => toggleLockRow(lockedRow));
+}
+
+/* 🎥 กล้องมุมข้างของแถวที่ล็อก — มองจากฝั่งทางเดินเข้าหน้าชั้น เห็นความยาวแถว (Z) × สูง (Y) เต็มตา */
+function focusRowSide(key) {
+  const row = DATA.layout.rows.find((r) => r.key === key);
+  if (!row || !EXTENT) return;
+  const C = DATA.layout.cell, Y = EXTENT.y * S;
+  const cx = (row.originX + C.d / 2) * S;
+  const cz = (row.zStart + row.zLen / 2) * S;
+  const rows = DATA.layout.rows.map((r) => r.key);
+  const i = rows.indexOf(key);
+  /* แถวซ้ายสุด ⇒ ทางเดินอยู่ทางขวา (มองจาก +X) · ขวาสุด ⇒ มองจาก -X · กลาง = ฝั่งที่กล้องอยู่ (ขยับน้อยสุด) */
+  const fromRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > cx;
+  const r = fitRadius(row.zLen * S, Y * 1.12, 1.12) + (C.d / 2) * S;
+  pushHistory();
+  markView(null);
+  flyTo(new THREE.Vector3(cx, Y / 2, cz), r, fromRight ? 0 : Math.PI, 1.4);
 }
 
 /* ══ ⑧ ค้นหา ════════════════════════════════════════════════════════ */
@@ -1040,6 +1102,7 @@ function renderAlerts(rows, title, force) {
     });
   if (force) alertsClosed = false;
   alertRows = rows;
+  updateBell();
   showAlerts();
 }
 
@@ -1052,6 +1115,15 @@ function showAlerts() {
   $("alerts").style.display = wide && alertRows.length && !alertsClosed ? "block" : "none";
 }
 addEventListener("resize", showAlerts);
+
+/* 🔔 ปุ่มระฆัง (ภูม 2026-11-13) — เดิมกด X ปิดรายการ "ต้องเช็ค" แล้วหายถาวร เปิดคืนไม่ได้
+   ⇒ ระฆังบนแถบแดงขวาบน กดสลับเปิด/ปิด + โชว์จำนวนที่ต้องเช็ค */
+$("bellLink").addEventListener("click", (e) => { e.preventDefault(); alertsClosed = !alertsClosed; showAlerts(); });
+function updateBell() {
+  const n = alertRows.length;
+  $("bellN").textContent = n ? (n > 99 ? "99+" : String(n)) : "";
+  $("bellLink").style.background = n ? "rgba(220,38,38,.92)" : "rgba(255,255,255,.18)";
+}
 
 let filter = null;
 function toggleFilter(k) {

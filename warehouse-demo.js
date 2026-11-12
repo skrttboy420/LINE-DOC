@@ -38,6 +38,13 @@ const PLACEMENTS = [
   { tracking: "SHIPPED-ALREADY", slot: "C1004-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
   { tracking: "NOT-IN-SYSTEM",   slot: "A0304-L", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
   { tracking: "CREDIT-NOT-HERE", slot: "B1001-R", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
+
+  /* 🔴 ช่องเดียว 3 แทรค จาก 2 ลูกค้า (ภูม 2026-11-12 *"อยากเห็นภาพว่าพาเลทนึงมันมีหลายแทรคกิ้ง
+     หลายรหัสลูกค้า จะทำยังไง"*) — 2 ใบของ PR930 ชำระแล้ว · 1 ใบของ PR455 ยังไม่ชำระ
+     ⇒ ช่องต้องขึ้น **ส้ม** (เอาตัวแรงสุด) ไม่ใช่เขียวตามเสียงส่วนมาก */
+  { tracking: "SF5160011122233", slot: "A0202-L", boxes: 4, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SF5160044455566", slot: "A0202-L", boxes: 2, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "JT5577788899900", slot: "A0202-L", boxes: 1, member_code: "PR455", placed_by: "ออม",   placed_at: now() },
 ];
 
 const JOBS = [
@@ -65,6 +72,17 @@ const JOBS = [
     selfPickup: true, carrier: "PCS", receiver: "รับที่โกดัง Pacred", tel: "0224213325",
     address: "48/2 หมู่ 12 อ้อมน้อย กระทุ่มแบน สมุทรสาคร 74130" },
   { tracking: "READY-NO-SLOT-2", memberCode: "PR10634", status: 6, paid: true, arrivedAt: "2026-11-12", boxes: 4, container: "GZE261110-1" },
+  /* 📦 3 แทรคที่อยู่ช่องเดียวกัน (A0202-L) — คนละลูกค้า คนละสถานะ */
+  { tracking: "SF5160011122233", memberCode: "PR930", status: 6, paid: true,  arrivedAt: "2026-11-10", boxes: 4, container: "GZE261105-2",
+    receiver: "อนันต์ พานทอง", tel: "0867778888", carrier: "2",
+    address: "222/8 ถนนสุขุมวิท 71 พระโขนงเหนือ วัฒนา กรุงเทพมหานคร 10110" },
+  { tracking: "SF5160044455566", memberCode: "PR930", status: 6, paid: true,  arrivedAt: "2026-11-10", boxes: 2, container: "GZE261105-2",
+    receiver: "อนันต์ พานทอง", tel: "0867778888", carrier: "2",
+    address: "222/8 ถนนสุขุมวิท 71 พระโขนงเหนือ วัฒนา กรุงเทพมหานคร 10110" },
+  { tracking: "JT5577788899900", memberCode: "PR455", status: 5, paid: false, arrivedAt: "2026-11-11", boxes: 1, container: "GZS261101-2",
+    receiver: "กนกวรรณ แสงจันทร์", tel: "0923334444", carrier: "55",
+    address: "7/119 หมู่ 5 คลองสาม คลองหลวง ปทุมธานี 12120" },
+
   /* ⬛ NOT-IN-SYSTEM ไม่อยู่ในลิสต์นี้โดยตั้งใจ = "มีของวาง แต่หาแทรคในระบบไม่เจอ" */
 ];
 

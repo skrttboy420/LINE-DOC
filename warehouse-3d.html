@@ -8,6 +8,10 @@
   🏭 โกดังสินค้า 3D (Digital Twin) — ภูม 2026-11-12
   ผัง + พารามิเตอร์มาจาก warehouse-layout.js (ตัวตัดสินเดียว) ⇒ หน้านี้ไม่ฮาร์ดโค้ดตัวเลขผัง
   🔒 ไม่แตะระบบ Pacred — อ่านสถานะงานผ่านท่อ /api/bot?q=warehouse เท่านั้น
+
+  รอบ 2 — ภูม: *"แก้ปัญหาการเลือกพาเลทที่ทำได้ยาก เวลาใช้ต้องหมุนกล้อง ซูม และลากกล้อง
+  ด้วยตัวเองเป็นเวลานาน"* ⇒ แผนผังย่อ (เลือกจากผังแทนการสู้กับกล้อง) · กล้องโฟกัสอัตโนมัติ
+  · กรอบรับคลิกที่ใหญ่กว่ากล่อง · ปุ่มลัด · InstancedMesh ให้เบาเครื่อง
 -->
 <style>
   :root{
@@ -17,7 +21,7 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
     font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;color:#e2e8f0}
-  canvas{display:block}
+  canvas{display:block;touch-action:none}
   #stage{position:fixed;inset:0}
 
   /* ── หัว ── */
@@ -26,7 +30,7 @@
     box-shadow:0 2px 12px rgba(0,0,0,.4)}
   header b{font-size:15px;color:#fff;white-space:nowrap}
   header .sub{font-size:11px;color:rgba(255,255,255,.8)}
-  #search{flex:1;min-width:190px;max-width:380px;display:flex;gap:6px}
+  #search{flex:1;min-width:180px;max-width:360px;display:flex;gap:6px}
   #q{flex:1;padding:7px 10px;border:0;border-radius:8px;font-size:13px;min-width:0}
   #search button{background:#fff;color:var(--red);border:0;border-radius:8px;
     padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -35,11 +39,11 @@
   #demoTag{display:none;background:#7c3aed;color:#fff;border-radius:999px;
     padding:4px 11px;font-size:11px;font-weight:700;white-space:nowrap}
 
-  /* ── ⑥ แถบสรุป + นาฬิกา ── */
+  /* ── แถบสรุป + นาฬิกา ── */
   #summary{position:fixed;left:0;right:0;top:52px;z-index:11;display:flex;gap:9px;align-items:stretch;
     padding:9px 14px;flex-wrap:wrap;background:linear-gradient(180deg,rgba(15,23,42,.96),rgba(15,23,42,0))}
   .stat{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
-    border-radius:12px;padding:8px 13px;cursor:pointer;user-select:none;min-width:140px;
+    border-radius:12px;padding:8px 13px;cursor:pointer;user-select:none;min-width:138px;
     transition:border-color .15s,transform .1s}
   .stat:hover{border-color:#64748b}
   .stat:active{transform:scale(.98)}
@@ -54,7 +58,7 @@
   .stat .nm i{font-size:11px;font-style:normal;font-weight:600;color:#94a3b8;margin-left:4px}
 
   #clock{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;
-    padding:7px 14px;text-align:right;line-height:1.3;min-width:150px}
+    padding:7px 14px;text-align:right;line-height:1.3;min-width:148px}
   #clock .d{font-size:10.5px;color:#94a3b8}
   #clock .t{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;color:#f1f5f9}
   #clock .live{font-size:10px;color:#16a34a;display:flex;align-items:center;gap:5px;justify-content:flex-end}
@@ -62,9 +66,44 @@
   #clock .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
 
-  /* ── แผง ── */
   .panel{position:fixed;z-index:9;background:var(--panel);border:1px solid var(--line);
     border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+
+  /* ── 🗺 แผนผังย่อ (Smart Warehouse Map) ── */
+  #map{left:12px;bottom:12px;width:min(374px,calc(100vw - 24px));padding:0;font-size:12px}
+  #map h4{margin:0;padding:9px 12px;font-size:12px;display:flex;align-items:center;gap:7px;
+    border-bottom:1px solid var(--line);cursor:pointer;user-select:none}
+  #map h4 .cv{margin-left:auto;color:#94a3b8;font-size:11px}
+  #map.min h4{border-bottom:0}
+  #map .body{padding:10px 12px;max-height:44vh;overflow:auto}
+  #map.min .body{display:none}
+  .mrow{display:flex;align-items:flex-start;gap:7px;margin-bottom:7px}
+  .mrow .rk{width:16px;font-weight:800;color:#cbd5e1;font-size:13px;padding-top:6px;flex:none}
+  .bays{display:flex;flex-wrap:wrap;gap:5px;flex:1}
+  .bay{width:30px;height:27px;border-radius:6px;border:1px solid var(--line);background:#1e293b;
+    color:#94a3b8;font-size:11px;font-weight:700;cursor:pointer;display:grid;place-items:center;
+    position:relative;font-family:inherit;padding:0;line-height:1}
+  .bay:hover{border-color:#94a3b8;color:#fff}
+  .bay.has{color:#fff}
+  .bay.on{outline:2px solid #fff;outline-offset:1px}
+  .bay .pin{position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;border-radius:999px;
+    font-size:9px;font-weight:800;color:#fff;display:grid;place-items:center;padding:0 3px}
+  .detail{border-top:1px solid var(--line);margin-top:9px;padding-top:9px}
+  .detail .dh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+  .detail .dh b{font-size:13px}
+  .detail .dh .sm{color:#94a3b8;font-size:11px}
+  .detail .dh button{margin-left:auto;background:var(--red);color:#fff;border:0;border-radius:7px;
+    padding:6px 11px;font-size:11.5px;cursor:pointer;font-family:inherit;font-weight:600}
+  .lv{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+  .lv .lk{width:38px;color:#94a3b8;font-size:11px;flex:none}
+  .cell{flex:1;height:31px;border-radius:7px;border:1px solid var(--line);background:#1e293b;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;
+    color:#94a3b8;font-family:inherit;padding:0 6px;min-width:0}
+  .cell:hover{border-color:#fff}
+  .cell.on{outline:2px solid #fff;outline-offset:1px}
+  .cell .sw{width:9px;height:9px;border-radius:3px;flex:none}
+  .cell .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cell.full{color:#f1f5f9;font-weight:600}
 
   #alerts{right:12px;width:min(330px,calc(100vw - 24px));max-height:calc(100vh - 210px);
     overflow:auto;padding:0;font-size:12px}
@@ -84,11 +123,12 @@
     position:sticky;top:0;background:var(--panel);flex-wrap:wrap}
   #pop .ph b{font-size:14px}
   #pop .ph .x{margin-left:auto;cursor:pointer;color:#94a3b8;font-size:17px;line-height:1;padding:0 4px}
+  #pop .cnt{font-size:11px;color:#94a3b8;width:100%}
   #pop .pb{padding:12px}
   #pop .item{border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:9px}
   #pop .item:last-child{margin-bottom:0}
+  #pop .item .no{float:right;background:#1e293b;border-radius:999px;padding:1px 8px;font-size:10px;color:#94a3b8}
   #pop .k{color:#94a3b8;font-size:11px;margin-top:7px}
-  #pop .k:first-child{margin-top:0}
   #pop .v{font-size:13px}
   #pop .mono{font-family:ui-monospace,Menlo,monospace}
   #pop .addr{background:#1e293b;border-radius:8px;padding:9px;margin-top:5px;font-size:13px;line-height:1.6}
@@ -97,7 +137,6 @@
   #pop .none{color:#64748b;font-size:12px}
   .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff}
 
-  /* ── ⑦ ปุ่มมุมมองกล้อง ── */
   #views{position:fixed;right:12px;bottom:12px;z-index:10;display:flex;flex-direction:column;gap:1px;
     background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   #views button{background:transparent;border:0;color:#cbd5e1;padding:9px 14px;font-size:12px;
@@ -108,18 +147,30 @@
   #views button.on{background:var(--red);color:#fff;font-weight:700}
   #views .vi{font-size:14px;width:17px;text-align:center}
   #hint{position:fixed;right:12px;bottom:188px;z-index:9;font-size:10px;color:#64748b;
-    text-align:right;line-height:1.6}
+    text-align:right;line-height:1.8}
+  #hint kbd{background:#1e293b;border:1px solid var(--line);border-radius:4px;padding:0 4px;color:#cbd5e1}
 
   #toast{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:20;
     background:#111827;border:1px solid var(--line);color:#fff;padding:8px 14px;border-radius:9px;
     font-size:13px;display:none;max-width:90vw;text-align:center}
   #load{position:fixed;inset:0;display:grid;place-items:center;z-index:30;background:var(--bg);
     color:#94a3b8;font-size:14px;text-align:center;padding:20px;line-height:1.7}
-  @media(max-width:760px){
+  /* จอกว้าง = วางป๊อปอัพไว้ขวาของแผนผัง ไม่ให้ทับกัน (และไม่ชนปุ่มมุมมองขวาล่าง) */
+  @media(min-width:881px){
+    #pop{left:398px;transform:none;width:min(470px,calc(100vw - 540px))}
+  }
+  @media(max-width:880px){
     #alerts{display:none} #hint{display:none}
     .stat{min-width:0;padding:7px 10px} .stat .lb{display:none} .stat .nm{font-size:16px}
     #clock{min-width:0;padding:6px 10px} #clock .d{display:none}
     #views button{min-width:0;padding:9px 11px}
+    #map{width:calc(100vw - 24px)} #map .body{max-height:32vh}
+    /* 🔴 เดิมปุ่มมุมมองลอยทับแผนผัง ⇒ ล็อกที่ 8 ของแถว B/C กดไม่ได้ (โดนปุ่มบัง)
+       ⇒ จอแคบย้ายไปเรียงแนวนอนใต้แถบสรุป (JS เป็นคนใส่ค่า top เพราะหัวสูงไม่คงที่) */
+    #views{flex-direction:row;bottom:auto}
+    #views button{border-bottom:0;border-right:1px solid #1e293b;padding:8px 10px}
+    #views button:last-child{border-right:0}
+    #pop{bottom:auto;top:118px;max-height:40vh}
   }
 </style>
 </head>
@@ -138,17 +189,27 @@
 
 <div id="summary"></div>
 
+<div class="panel" id="map">
+  <h4 id="mapHead">🗺 แผนผังโกดัง — กดเลือกล็อกได้เลย<span class="cv" id="mapCv">ย่อ ▾</span></h4>
+  <div class="body"><div id="mapRows"></div><div id="mapDetail"></div></div>
+</div>
+
 <div class="panel" id="alerts" style="display:none">
   <h4>⚠️ ต้องเช็ค <span id="alertN"></span><span class="x" onclick="closeAlerts()">✕</span></h4>
   <div id="alertRows"></div>
 </div>
 
 <div class="panel" id="pop">
-  <div class="ph"><b id="popTitle"></b><span id="popPill"></span><span class="x" onclick="closePop()">✕</span></div>
+  <div class="ph"><b id="popTitle"></b><span id="popPill"></span>
+    <span class="x" onclick="closePop()">✕</span><span class="cnt" id="popCnt"></span></div>
   <div class="pb" id="popBody"></div>
 </div>
 
-<div id="hint">ลากเมาส์ = หมุน · ล้อ = ซูม<br>คลิกช่อง = ดูรายละเอียด</div>
+<div id="hint">
+  คลิก = เลือก · ดับเบิลคลิก = ซูมเข้า<br>
+  คลิกที่ว่าง = ยกเลิก · <kbd>Esc</kbd> = ย้อนมุมมอง<br>
+  ลาก = หมุน · ล้อ = ซูม · Shift+ลาก = เลื่อน
+</div>
 <div id="views"></div>
 
 <div id="toast"></div>
@@ -172,28 +233,34 @@ function toast(msg, ms) {
 }
 
 /* ══ ① ฉาก 3D ════════════════════════════════════════════════════════ */
-const S = 0.01;                                 // ซม. → เมตร (ผังส่งมาเป็น ซม.ของจริง)
+const S = 0.01;                                   // ซม. → เมตร (ผังส่งมาเป็น ซม.ของจริง)
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
-scene.fog = new THREE.Fog(0x0f172a, 32, 110);
+scene.fog = new THREE.Fog(0x0f172a, 34, 115);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 $("stage").appendChild(renderer.domElement);
 
 const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 400);
-
 scene.add(new THREE.HemisphereLight(0xffffff, 0x1e293b, 1.15));
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 sun.position.set(14, 26, 10);
 scene.add(sun);
 
-/* ── กล้องแบบหมุนรอบจุด (เขียนเอง — ไม่ต้องพึ่งไฟล์เสริมจาก CDN) ── */
+/* ══ ② กล้อง — หมุนรอบจุด + แอนิเมชันคิดจาก "เวลา" ═══════════════════
+   ภูม: *"ใช้ Smooth Animation แบบ Time-based · ใช้ Delta Time ไม่ใช่ Frame Count
+         · รองรับหน้าจอ 60Hz, 120Hz และอุปกรณ์ประสิทธิภาพต่ำ"*
+   🪤 เดิมนับเฟรม (t += 0.035) ⇒ จอ 120Hz เร็ว 2 เท่า · แท็บที่ถูกพักค้างเป็นนาที
+      (วัดจริง 11-12: 3 วินาทีขยับไปแค่ 4%) */
+const FLY_MS = 620;
 const cam = { target: new THREE.Vector3(), r: 34, theta: -0.85, phi: 1.02 };
-let anim = null;
+let anim = null, activeView = "3D";
+const camHistory = [];                            // Esc = ย้อนมุมมองก่อนหน้า
+
 function applyCam() {
   cam.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, cam.phi));
-  cam.r = Math.max(2.4, Math.min(180, cam.r));
+  cam.r = Math.max(1.6, Math.min(180, cam.r));
   camera.position.set(
     cam.target.x + cam.r * Math.sin(cam.phi) * Math.cos(cam.theta),
     cam.target.y + cam.r * Math.cos(cam.phi),
@@ -201,8 +268,25 @@ function applyCam() {
   );
   camera.lookAt(cam.target);
 }
+function pushHistory() {
+  camHistory.push({ target: cam.target.clone(), r: cam.r, theta: cam.theta, phi: cam.phi, view: activeView });
+  if (camHistory.length > 20) camHistory.shift();
+}
+function flyTo(v3, radius, theta, phi) {
+  anim = {
+    t0: performance.now(), from: cam.target.clone(), to: v3.clone(),
+    r0: cam.r, r1: radius != null ? radius : cam.r,
+    th0: cam.theta, th1: theta != null ? theta : cam.theta,
+    ph0: cam.phi, ph1: phi != null ? phi : cam.phi,
+  };
+}
+const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+/** 🖐 ภูม: *"หากผู้ใช้ลากเมาส์หรือสัมผัสหน้าจอระหว่าง Camera Animation ให้ยกเลิกทันที"* */
+function cancelAnim() { if (anim) { anim = null; markView(null); } }
+
 const el = renderer.domElement;
-let drag = null;
+let drag = null, lastClick = 0;
 el.addEventListener("pointerdown", (e) => {
   drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
   el.setPointerCapture(e.pointerId);
@@ -211,7 +295,8 @@ el.addEventListener("pointermove", (e) => {
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-  anim = null; markView(null);
+  if (drag.moved <= 4) return;                    // ขยับนิดเดียว = ยังนับเป็นคลิก ไม่ล้มแอนิเมชัน
+  cancelAnim();
   if (drag.pan) {
     const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
@@ -223,94 +308,114 @@ el.addEventListener("pointermove", (e) => {
   }
   applyCam();
 });
-el.addEventListener("pointerup", (e) => { el.releasePointerCapture(e.pointerId); setTimeout(() => { drag = null; }, 0); });
+el.addEventListener("pointerup", (e) => {
+  el.releasePointerCapture(e.pointerId);
+  setTimeout(() => { drag = null; }, 0);
+});
 el.addEventListener("contextmenu", (e) => e.preventDefault());
-el.addEventListener("wheel", (e) => { e.preventDefault(); anim = null; cam.r *= e.deltaY > 0 ? 1.1 : 0.9; applyCam(); }, { passive: false });
-
-/* 🎥 Camera Animation — บินไปที่ช่องที่ค้นหา / มุมมองที่กด */
-/** ⏱ คิดจาก **เวลา** ไม่ใช่จำนวนเฟรม — เครื่องช้า/แท็บเล็ตโกดัง/แท็บที่ถูกพักจะวิ่งช้ากว่ามาก
-    ถ้านับเฟรม (t += 0.035) จอ 120Hz จะเร็วเป็น 2 เท่า ส่วนแท็บที่ถูกพักจะค้างเป็นนาที */
-const FLY_MS = 650;
-function flyTo(v3, radius, theta, phi) {
-  anim = {
-    t0: performance.now(), from: cam.target.clone(), to: v3.clone(),
-    r0: cam.r, r1: radius != null ? radius : cam.r,
-    th0: cam.theta, th1: theta != null ? theta : cam.theta,
-    ph0: cam.phi, ph1: phi != null ? phi : cam.phi,
-  };
-}
-const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+el.addEventListener("wheel", (e) => {
+  e.preventDefault(); cancelAnim();
+  cam.r *= e.deltaY > 0 ? 1.1 : 0.9; applyCam();
+}, { passive: false });
 
 function resize() {
-  const w = innerWidth, h = innerHeight;
-  camera.aspect = w / h; camera.updateProjectionMatrix();
-  renderer.setSize(w, h);
-  /* หัวสูงไม่เท่ากันตอนจอแคบ (ปุ่มตกบรรทัด) ⇒ วัดจริงแล้ววางแถบสรุปใต้หัวพอดี */
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
   const headH = document.querySelector("header").getBoundingClientRect().height;
   $("summary").style.top = headH + "px";
-  $("alerts").style.top = (headH + $("summary").getBoundingClientRect().height + 8) + "px";
+  const below = headH + $("summary").getBoundingClientRect().height + 8;
+  $("alerts").style.top = below + "px";
+  const narrow = innerWidth <= 880;
+  $("views").style.top = narrow ? below + "px" : "auto";
+  if (typeof showAlerts === "function") showAlerts();
 }
 addEventListener("resize", resize);
 
-/* ══ ② วาดชั้นวางจากผัง (3D Rendering Loop) ══════════════════════════ */
-const MAT = {
-  post:  new THREE.MeshLambertMaterial({ color: 0x3b9ae1 }),   // เสาสีฟ้า
-  beam:  new THREE.MeshLambertMaterial({ color: 0xf97316 }),   // คานสีส้ม
-  floor: new THREE.MeshLambertMaterial({ color: 0x1e293b }),
-};
-const PICK_MAT = {};
-const slotMeshes = new Map();
+/* ══ ③ วาดชั้นวาง — InstancedMesh ให้เบาเครื่อง ══════════════════════
+   ภูม: *"ใช้ Instancing หรือ Optimization ตามความเหมาะสม · รองรับ Desktop และ มือถือ"*
+   เดิม เสา 66 + คาน 24 + ช่อง 208 = ~300 ชิ้นที่ต้องวาดทีละชิ้น ⇒ เหลือ 4 ชิ้น */
 let DATA = null, EXTENT = null, built = false;
+let boxIM = null, hitIM = null;
+const slotIndex = new Map();                      // slot → index
+let slotList = [];                                // index → slot (ชุดล่าสุด)
 const hidden = new Set();
 
-function matFor(pick) {
-  if (!PICK_MAT[pick]) {
-    PICK_MAT[pick] = new THREE.MeshLambertMaterial({
-      color: new THREE.Color(DATA.pickColor[pick] || "#94a3b8"),
-      transparent: pick === "empty",
-      opacity: pick === "empty" ? 0.1 : 1,
-    });
-  }
-  return PICK_MAT[pick];
-}
+const M4 = new THREE.Matrix4(), QUAT = new THREE.Quaternion();
+const V3 = new THREE.Vector3(), SCALE = new THREE.Vector3(), COL = new THREE.Color();
 
-function box(w, h, d, mat, x, y, z) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-  m.position.set(x, y, z);
-  scene.add(m);
-  return m;
+function instanced(geo, mat, count) {
+  const im = new THREE.InstancedMesh(geo, mat, count);
+  im.matrixAutoUpdate = false;
+  im.frustumCulled = false;
+  scene.add(im);
+  return im;
 }
 
 function buildScene(view) {
   const L = view.layout, C = L.cell, ST = L.struct;
   EXTENT = L.extent;
 
-  const padding = 400;
-  box((EXTENT.x + padding * 2) * S, 0.06, (EXTENT.z + padding * 2) * S, MAT.floor,
-      (EXTENT.x / 2) * S, -0.03, (EXTENT.z / 2) * S);
+  const pad = 400;
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry((EXTENT.x + pad * 2) * S, 0.06, (EXTENT.z + pad * 2) * S),
+    new THREE.MeshLambertMaterial({ color: 0x1e293b }));
+  floor.position.set((EXTENT.x / 2) * S, -0.03, (EXTENT.z / 2) * S);
+  floor.matrixAutoUpdate = false; floor.updateMatrix();
+  scene.add(floor);
 
+  const posts = [], beams = [];
   const H = L.levels * (C.h + ST.beam);
   for (const row of L.rows) {
     for (let bay = 0; bay <= row.bays; bay++) {
       const z = bay * (C.w + ST.post);
       for (const dx of [ST.post / 2, C.d - ST.post / 2])
-        box(ST.post * S, H * S, ST.post * S, MAT.post, (row.originX + dx) * S, (H / 2) * S, z * S);
+        posts.push([(row.originX + dx) * S, (H / 2) * S, z * S]);
     }
+    const len = row.bays * (C.w + ST.post);
     for (let lv = 0; lv < L.levels; lv++) {
       const y = lv * (C.h + ST.beam) + ST.beam / 2;
       for (const dx of [ST.post / 2, C.d - ST.post / 2])
-        box(ST.post * S, ST.beam * S, (row.bays * (C.w + ST.post)) * S, MAT.beam,
-            (row.originX + dx) * S, y * S, ((row.bays * (C.w + ST.post)) / 2) * S);
+        beams.push([(row.originX + dx) * S, y * S, (len / 2) * S, len * S]);
     }
   }
 
-  for (const s of L.slots) {
+  const postIM = instanced(new THREE.BoxGeometry(ST.post * S, H * S, ST.post * S),
+    new THREE.MeshLambertMaterial({ color: 0x3b9ae1 }), posts.length);
+  posts.forEach((p, i) =>
+    postIM.setMatrixAt(i, M4.compose(V3.set(p[0], p[1], p[2]), QUAT.identity(), SCALE.set(1, 1, 1))));
+  postIM.instanceMatrix.needsUpdate = true;
+
+  /* คานยาวไม่เท่ากันตามจำนวนล็อกของแถว ⇒ ยืดด้วย scale ต่อชิ้น */
+  const beamIM = instanced(new THREE.BoxGeometry(ST.post * S, ST.beam * S, 1),
+    new THREE.MeshLambertMaterial({ color: 0xf97316 }), beams.length);
+  beams.forEach((b, i) =>
+    beamIM.setMatrixAt(i, M4.compose(V3.set(b[0], b[1], b[2]), QUAT.identity(), SCALE.set(1, 1, b[3]))));
+  beamIM.instanceMatrix.needsUpdate = true;
+
+  /* กล่องสินค้า — สีต่อชิ้น · ช่องว่าง/ช่องที่ถูกกรอง = ย่อเหลือ 0 (ไม่วาด) */
+  const n = L.slots.length;
+  boxIM = instanced(
+    new THREE.BoxGeometry((C.d - 10) * S, (C.h - 18) * S, (C.w / 2 - 10) * S),
+    new THREE.MeshLambertMaterial({}), n);
+
+  /* 🎯 กรอบรับคลิก — ภูม: *"เพิ่ม Invisible Hitbox รอบพาเลท · ป้องกันการเลือกวัตถุผิดชิ้น"*
+     เต็มขนาดช่อง (ใหญ่กว่ากล่องที่เห็น) ⇒ กดโดนง่ายขึ้นมาก โดยเฉพาะบนมือถือ
+     วาดแต่ไม่ลงสี (colorWrite:false) ⇒ มองไม่เห็น แต่ raycast โดน */
+  hitIM = instanced(
+    new THREE.BoxGeometry(C.d * S, (C.h + ST.beam) * S, (C.w / 2) * S),
+    new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), n);
+  hitIM.renderOrder = -1;
+
+  L.slots.forEach((s, i) => {
+    slotIndex.set(s.slot, i);
     const b = s.box;
-    const m = box((b.d - 8) * S, (b.h - 16) * S, (b.w - 8) * S, matFor(s.status),
-                  b.x * S, b.y * S, b.z * S);
-    m.userData.slot = s.slot;
-    slotMeshes.set(s.slot, m);
-  }
+    M4.compose(V3.set(b.x * S, b.y * S, b.z * S), QUAT.identity(), SCALE.set(1, 1, 1));
+    boxIM.setMatrixAt(i, M4);
+    hitIM.setMatrixAt(i, M4);
+  });
+  boxIM.instanceMatrix.needsUpdate = true;
+  hitIM.instanceMatrix.needsUpdate = true;
 
   for (const row of L.rows) {
     addLabel(row.key, (row.originX + C.d / 2) * S, 0.02, -1.5, 1.5);
@@ -334,45 +439,54 @@ function addLabel(text, x, y, z, size) {
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y, z);
+  m.matrixAutoUpdate = false; m.updateMatrix();
   scene.add(m);
 }
 
-/* ══ ⑦ ปุ่มเปลี่ยนมุมมองกล้อง ══════════════════════════════════════ */
-const VIEWS = [
-  { k: "3D",    ic: "🧊", name: "3D",    th: -0.85,         ph: 1.02, pad: 1.18 },
-  { k: "Top",   ic: "⬛", name: "Top",   th: Math.PI,       ph: 0.11, pad: 1.12 },
-  { k: "Front", ic: "▭",  name: "Front", th: -Math.PI / 2,  ph: 1.45, pad: 1.15 },
-  { k: "Side",  ic: "◧",  name: "Side",  th: Math.PI,       ph: 1.45, pad: 1.10 },
-];
+const ZERO = new THREE.Vector3(0, 0, 0);
+/** ทาสี + ซ่อน/โชว์ตามสถานะล่าสุด */
+function paintSlots() {
+  if (!boxIM) return;
+  slotList.forEach((s, i) => {
+    const show = s.items.length > 0 && !hidden.has(s.status);
+    const b = s.box;
+    M4.compose(V3.set(b.x * S, b.y * S, b.z * S), QUAT.identity(),
+      show ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
+    boxIM.setMatrixAt(i, M4);
+    COL.set(DATA.pickColor[s.status] || "#94a3b8");
+    boxIM.setColorAt(i, COL);
+  });
+  boxIM.instanceMatrix.needsUpdate = true;
+  if (boxIM.instanceColor) boxIM.instanceColor.needsUpdate = true;
+}
 
+/* ══ ④ มุมมองสำเร็จรูป ══════════════════════════════════════════════ */
+const VIEWS = [
+  { k: "3D",    ic: "🧊", name: "3D",    th: -0.85,        ph: 1.02, pad: 1.18 },
+  { k: "Top",   ic: "⬛", name: "Top",   th: Math.PI,      ph: 0.11, pad: 1.12 },
+  { k: "Front", ic: "▭",  name: "Front", th: -Math.PI / 2, ph: 1.45, pad: 1.15 },
+  { k: "Side",  ic: "◧",  name: "Side",  th: Math.PI,      ph: 1.45, pad: 1.10 },
+];
 $("views").innerHTML = VIEWS.map((v) =>
-  '<button data-k="' + v.k + '" title="' + esc(v.name) + '"><span class="vi">' + v.ic + "</span>" +
-  esc(v.name) + "</button>").join("");
+  '<button data-k="' + v.k + '"><span class="vi">' + v.ic + "</span>" + esc(v.name) + "</button>").join("");
 for (const b of $("views").querySelectorAll("button"))
-  b.addEventListener("click", () => setView(b.dataset.k));
+  b.addEventListener("click", () => { pushHistory(); setView(b.dataset.k); });
 
 function markView(k) {
+  activeView = k;
   for (const b of $("views").querySelectorAll("button")) b.classList.toggle("on", b.dataset.k === k);
 }
-
-/** ระยะกล้องที่พอดีกับของที่ต้องเห็น (กว้าง × สูง เป็นเมตร) */
 function fitRadius(wide, tall, pad) {
-  const vfov = (camera.fov * Math.PI) / 180;
-  const byH = (tall / 2) / Math.tan(vfov / 2);
-  const byW = (wide / 2) / (Math.tan(vfov / 2) * Math.max(camera.aspect, 0.4));
-  return Math.max(byH, byW) * (pad || 1.1);
+  const half = Math.tan((camera.fov * Math.PI) / 180 / 2);
+  return Math.max((tall / 2) / half, (wide / 2) / (half * Math.max(camera.aspect, 0.4))) * (pad || 1.1);
 }
-
 function setView(k, instant) {
   const v = VIEWS.find((x) => x.k === k);
   if (!v || !EXTENT) return;
   const X = EXTENT.x * S, Y = EXTENT.y * S, Z = EXTENT.z * S;
   const mid = new THREE.Vector3(X / 2, k === "Top" ? 0 : Y / 2, Z / 2);
-  /* เห็นอะไรในแต่ละมุม: Top มองลง = เห็นกว้าง×ยาว · Front มองตามความยาว = เห็นกว้าง×สูง
-     · Side มองจากข้าง = เห็นยาว×สูง · 3D เฉียง = เห็นทุกด้าน */
-  /* 🔑 ระยะกล้อง = ระยะที่เห็นของครบ **บวกครึ่งหนึ่งของด้านที่มองทะลุเข้าไป**
-     ไม่บวก = กล้องไปยืนอยู่กลางโกดัง (มุม Front เคยได้ภาพในซอยทางเดินเพราะเหตุนี้)
-     Top มองลง: จอกว้างกว่าสูง ⇒ หันให้ความยาวนอนตามจอ (เห็นเต็มกว่า) */
+  /* 🔑 ระยะกล้อง = ระยะที่เห็นของครบ **บวกครึ่งด้านที่มองทะลุเข้าไป**
+     ไม่บวก = กล้องไปยืนกลางโกดัง (มุม Front เคยได้ภาพในซอยทางเดินเพราะเหตุนี้) */
   const r =
     k === "Top"   ? fitRadius(Z, X, v.pad) + Y / 2 :
     k === "Front" ? fitRadius(X, Y, v.pad) + Z / 2 :
@@ -380,27 +494,57 @@ function setView(k, instant) {
                     fitRadius(Z * 0.78, Y * 1.9, v.pad);
   markView(k);
   closePop();
-  if (instant) {
-    cam.target.copy(mid); cam.r = r; cam.theta = v.th; cam.phi = v.ph;
-    anim = null; applyCam();
-  } else {
-    flyTo(mid, r, v.th, v.ph);
-  }
+  if (instant) { cam.target.copy(mid); cam.r = r; cam.theta = v.th; cam.phi = v.ph; anim = null; applyCam(); }
+  else flyTo(mid, r, v.th, v.ph);
 }
 
-/* ══ ③ Interactive Click-to-Locate ══════════════════════════════════ */
+/* ══ ⑤ เลือกพาเลท ═══════════════════════════════════════════════════ */
 const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+/** คืน slot ที่ควรถูกเลือก · null = คลิกที่ว่าง */
+function pickSlot(clientX, clientY) {
+  if (!hitIM) return null;
+  ndc.set((clientX / innerWidth) * 2 - 1, -(clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(hitIM, false);   // ยิงใส่ชิ้นเดียว ไม่ใช่ 208 ชิ้น
+  if (!hits.length) return null;
+  /* 🔑 เรียงตามระยะอยู่แล้ว — เอา "ช่องที่มีของ" ที่ใกล้สุดก่อน
+     ไม่งั้นช่องว่างที่อยู่หน้าบังช่องที่มีของข้างหลัง
+     (ภูม: *"ป้องกันการเลือกวัตถุผิดชิ้นจากการบังกัน"*) */
+  let firstAny = null;
+  for (const h of hits) {
+    const s = slotList[h.instanceId];
+    if (!s) continue;
+    if (!firstAny) firstAny = s;
+    if (s.items.length && !hidden.has(s.status)) return s;
+  }
+  return firstAny;
+}
+
 el.addEventListener("click", (e) => {
-  if (drag && drag.moved > 6) return;
-  ray.setFromCamera(new THREE.Vector2(
-    (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
-  const hits = ray.intersectObjects([...slotMeshes.values()], false).filter((h) => h.object.visible);
-  if (hits.length) openSlot(hits[0].object.userData.slot);
+  if (drag && drag.moved > 6) return;               // ลากกล้อง ไม่ใช่คลิกเลือก
+  const now = performance.now();
+  const dbl = now - lastClick < 320;
+  lastClick = now;
+  const s = pickSlot(e.clientX, e.clientY);
+  if (!s) return closePop();                        // คลิกที่ว่าง = ยกเลิกการเลือก
+  pushHistory();
+  openSlot(s.slot, dbl ? 3.4 : null);               // ดับเบิลคลิก = ซูมเข้าใกล้
 });
 
-function slotOf(code) { return DATA.layout.slots.find((s) => s.slot === code); }
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const prev = camHistory.pop();
+  closePop();
+  if (!prev) return;
+  markView(prev.view);
+  flyTo(prev.target, prev.r, prev.theta, prev.phi);
+});
 
-/* 📍 ⑤ กล่องที่อยู่จัดส่ง — ภูม: *"ถ้าออเดอร์ไหนยังไม่มีที่อยู่จัดส่งจะได้รู้เลยด้วย"* */
+/* ══ ⑥ ป๊อปอัพรายละเอียด ════════════════════════════════════════════ */
+function slotOf(code) { return slotList.find((s) => s.slot === code) || null; }
+
 function addressBlock(i) {
   if (i.selfPickup)
     return '<div class="k">การจัดส่ง</div><div class="addr">🏬 <b>ลูกค้ารับเองหน้าโกดัง</b>' +
@@ -414,17 +558,26 @@ function addressBlock(i) {
       : "") + "</div>";
 }
 
-function openSlot(code) {
+let openCode = null;
+function openSlot(code, zoom) {
   const s = slotOf(code);
   if (!s) return;
   $("popTitle").textContent = s.slot + " · " + s.label;
   $("popPill").innerHTML = '<span class="pill" style="background:' + s.color + '">' + esc(s.statusLabel) + "</span>";
+
+  /* 📦 หลายแทรคในช่องเดียว — บอกตั้งแต่หัวว่ามีกี่ใบ กี่กล่อง กี่ลูกค้า */
+  const owners = [...new Set(s.items.map((i) => i.memberCode).filter(Boolean))];
+  $("popCnt").textContent = s.items.length
+    ? s.items.length + " แทรค · " + s.boxes + " กล่อง" +
+      (owners.length > 1 ? " · " + owners.length + " ลูกค้า (" + owners.join(" · ") + ")" : "")
+    : "";
+
   $("popBody").innerHTML = s.items.length
-    ? s.items.map((i) => [
+    ? s.items.map((i, n) => [
         '<div class="item" style="border-left:4px solid ', DATA.pickColor[i.pick], '">',
-        '<div class="k">เลขแทรค</div><div class="v mono">', esc(i.tracking), "</div>",
-        '<div class="k">ลูกค้า</div><div class="v">', esc(i.memberCode || "—"),
-        i.customer ? " · " + esc(i.customer) : "", "</div>",
+        s.items.length > 1 ? '<span class="no">' + (n + 1) + "/" + s.items.length + "</span>" : "",
+        '<div class="k" style="margin-top:0">เลขแทรค</div><div class="v mono">', esc(i.tracking), "</div>",
+        '<div class="k">ลูกค้า</div><div class="v">', esc(i.memberCode || "—"), "</div>",
         '<div class="k">สถานะในระบบ</div><div class="v">', esc(i.statusTh || "—"),
         " · ", esc(i.boxes), " กล่อง</div>",
         '<div class="k">ทำไม</div><div class="v" style="color:', DATA.pickColor[i.pick], '">',
@@ -436,30 +589,136 @@ function openSlot(code) {
         "</div>",
       ].join("")).join("")
     : '<div class="none">ช่องนี้ยังว่าง — กด “📥 คีย์ตำแหน่ง” เพื่อบันทึกว่ามีของวางที่ช่องนี้</div>';
+
   $("pop").style.display = "block";
   openCode = s.slot;
-  const b = s.box;
-  flyTo(new THREE.Vector3(b.x * S, b.y * S, b.z * S), 7.5);
+  focusSlot(s, zoom);
   highlight(s.slot);
+  paintMapSelection();
 }
-let openCode = null;
-window.closePop = () => { $("pop").style.display = "none"; openCode = null; highlight(null); };
+window.closePop = () => { $("pop").style.display = "none"; openCode = null; highlight(null); paintMapSelection(); };
+
+/**
+ * 🎥 Smart Camera Focus — ภูม: *"ให้ระบบคำนวณตำแหน่งกล้องอัตโนมัติ · ปรับระยะ Zoom ให้เหมาะสม
+ *    · เลือกมุมกล้องที่เห็นพาเลทชัดเจน"*
+ * มองจากฝั่ง "ทางเดิน" ของแถวนั้นเสมอ ⇒ ไม่จ้องทะลุชั้นวางของอีกแถว
+ */
+function focusSlot(s, zoom) {
+  const b = s.box;
+  const pos = new THREE.Vector3(b.x * S, b.y * S, b.z * S);
+  const rows = DATA.layout.rows.map((r) => r.key);
+  const i = rows.indexOf(s.row);
+  /* แถวซ้ายสุด ⇒ ทางเดินอยู่ทางขวา · แถวขวาสุด ⇒ ทางเดินอยู่ทางซ้าย
+     แถวกลางเลือกฝั่งที่กล้องอยู่ตอนนี้ (ขยับน้อยสุด = คนดูไม่งง) */
+  const fromRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > pos.x;
+  flyTo(pos, zoom || 6.2, fromRight ? 0 : Math.PI, 1.15);
+}
 
 let hiRing = null;
 function highlight(code) {
-  if (hiRing) { scene.remove(hiRing); hiRing = null; }
-  const m = code ? slotMeshes.get(code) : null;
-  if (!m) return;
-  const g = new THREE.BoxGeometry(
-    m.geometry.parameters.width * 1.18,
-    m.geometry.parameters.height * 1.12,
-    m.geometry.parameters.depth * 1.18);
+  if (hiRing) { scene.remove(hiRing); hiRing.geometry.dispose(); hiRing = null; }
+  if (!code || !DATA) return;
+  const s = slotOf(code);
+  if (!s) return;
+  const C = DATA.layout.cell, ST = DATA.layout.struct, b = s.box;
+  const g = new THREE.BoxGeometry(C.d * S * 1.04, (C.h + ST.beam) * S, (C.w / 2) * S * 1.04);
   hiRing = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0xffffff }));
-  hiRing.position.copy(m.position);
+  hiRing.position.set(b.x * S, b.y * S, b.z * S);
   scene.add(hiRing);
+  g.dispose();
 }
 
-/* ══ ④ Location Search Bar ══════════════════════════════════════════ */
+/* ══ ⑦ 🗺 แผนผังย่อ (Smart Warehouse Map) ═══════════════════════════
+   ภูม: *"แก้ปัญหาการเลือกพาเลทที่ทำได้ยาก เวลาใช้ต้องหมุนกล้อง ซูม และลากกล้องเป็นเวลานาน"*
+   ⇒ เลือกจากผัง 2 มิติ แล้วให้กล้องบินไปเอง — ไม่ต้องสู้กับกล้องอีก */
+let openBay = null;
+
+$("mapHead").addEventListener("click", () => {
+  const min = $("map").classList.toggle("min");
+  $("mapCv").textContent = min ? "ขยาย ▴" : "ย่อ ▾";
+});
+if (innerWidth < 880) { $("map").classList.add("min"); $("mapCv").textContent = "ขยาย ▴"; }
+
+const slotsOfBay = (row, bay) => slotList.filter((s) => s.row === row && s.bay === bay);
+const SEV = ["problem", "unknown", "wait", "ready"];
+function worstOf(list) {
+  for (const k of SEV) if (list.some((s) => s.status === k)) return k;
+  return "empty";
+}
+
+function renderMap() {
+  if (!DATA) return;
+  $("mapRows").innerHTML = DATA.layout.rows.map((row) => {
+    const cells = [];
+    for (let bay = 1; bay <= row.bays; bay++) {
+      const list = slotsOfBay(row.key, bay);
+      const boxes = list.reduce((n, s) => n + (s.boxes || 0), 0);
+      const col = DATA.pickColor[worstOf(list)] || "#1e293b";
+      const on = openBay && openBay.row === row.key && openBay.bay === bay;
+      cells.push(
+        '<button class="bay' + (boxes ? " has" : "") + (on ? " on" : "") + '" data-r="' + row.key +
+        '" data-b="' + bay + '" title="' + esc(row.name + " ล็อก " + bay) + '"' +
+        (boxes ? ' style="background:' + col + '22;border-color:' + col + '"' : "") + ">" + bay +
+        (boxes ? '<span class="pin" style="background:' + col + '">' + boxes + "</span>" : "") + "</button>");
+    }
+    return '<div class="mrow"><div class="rk">' + row.key + '</div><div class="bays">' +
+      cells.join("") + "</div></div>";
+  }).join("");
+  for (const b of $("mapRows").querySelectorAll(".bay"))
+    b.addEventListener("click", () => openBayDetail(b.dataset.r, Number(b.dataset.b)));
+  renderBayDetail();
+}
+
+function openBayDetail(row, bay, quiet) {
+  openBay = { row, bay };
+  renderMap();
+  if (quiet) return;
+  const list = slotsOfBay(row, bay).filter((s) => s.items.length);
+  if (list.length) { pushHistory(); openSlot(list[0].slot); }
+}
+
+function renderBayDetail() {
+  const host = $("mapDetail");
+  if (!openBay) { host.innerHTML = ""; return; }
+  const { row, bay } = openBay;
+  const list = slotsOfBay(row, bay);
+  const rowName = (DATA.layout.rows.find((r) => r.key === row) || {}).name || row;
+  const boxes = list.reduce((n, s) => n + (s.boxes || 0), 0);
+  const tracks = list.reduce((n, s) => n + s.items.length, 0);
+
+  let html = '<div class="detail"><div class="dh"><b>' + esc(rowName) + " ล็อก " + bay + "</b>" +
+    '<span class="sm">' + tracks + " แทรค · " + boxes + ' กล่อง</span><button id="see3d">ดูใน 3D</button></div>';
+  for (let lv = DATA.layout.levels; lv >= 1; lv--) {
+    html += '<div class="lv"><div class="lk">ชั้น ' + lv + "</div>";
+    for (const side of DATA.layout.sides) {
+      const s = list.find((x) => x.level === lv && x.side === side);
+      if (!s) continue;
+      const col = DATA.pickColor[s.status] || "#334155";
+      const txt = s.items.length ? s.items.length + " แทรค · " + s.boxes + " กล่อง" : "ว่าง";
+      html += '<button class="cell' + (s.items.length ? " full" : "") + (openCode === s.slot ? " on" : "") +
+        '" data-slot="' + s.slot + '"><span class="sw" style="background:' + col + '"></span>' +
+        '<span class="tx">' + (side === "L" ? "ซ้าย" : "ขวา") + " · " + esc(txt) + "</span></button>";
+    }
+    html += "</div>";
+  }
+  host.innerHTML = html + "</div>";
+
+  for (const c of host.querySelectorAll(".cell"))
+    c.addEventListener("click", () => { pushHistory(); openSlot(c.dataset.slot); });
+  const see = $("see3d");
+  if (see) see.addEventListener("click", () => {
+    pushHistory();
+    const first = list.find((s) => s.items.length) || list[0];
+    if (first) focusSlot(first, 7.4);
+  });
+}
+
+function paintMapSelection() {
+  for (const c of document.querySelectorAll("#mapDetail .cell"))
+    c.classList.toggle("on", c.dataset.slot === openCode);
+}
+
+/* ══ ⑧ ค้นหา ════════════════════════════════════════════════════════ */
 $("search").addEventListener("submit", () => doSearch($("q").value));
 $("go").addEventListener("click", () => doSearch($("q").value));
 
@@ -468,30 +727,29 @@ function doSearch(term) {
   if (!q) return;
   const up = q.toUpperCase().replace(/[\s-]/g, "");
   const asSlot = /^[A-Z]\d{4}[LR]$/.test(up) ? up.slice(0, 5) + "-" + up.slice(5) : null;
-  if (asSlot && slotMeshes.has(asSlot)) return openSlot(asSlot);
+  const go = (s) => { pushHistory(); openBayDetail(s.row, s.bay, true); openSlot(s.slot); };
+
+  if (asSlot && slotIndex.has(asSlot)) return go(slotOf(asSlot));
   if (/^[A-Z]\d{4}$/.test(up)) {
-    const hit = DATA.layout.slots.find((s) => s.location === up && s.items.length) ||
-                DATA.layout.slots.find((s) => s.location === up);
-    if (hit) return openSlot(hit.slot);
-    return toast("ไม่มีช่อง " + up + " ในผังโกดัง");
+    const hit = slotList.find((s) => s.location === up && s.items.length) ||
+                slotList.find((s) => s.location === up);
+    return hit ? go(hit) : toast("ไม่มีช่อง " + up + " ในผังโกดัง");
   }
   const needle = q.toUpperCase();
   const match = (i) => String(i.tracking || "").toUpperCase().includes(needle) ||
                        String(i.memberCode || "").toUpperCase().includes(needle);
-  const found = DATA.layout.slots.filter((s) => s.items.some(match));
+  const found = slotList.filter((s) => s.items.some(match));
   if (!found.length) return toast('ไม่เจอ "' + q + '" ในชั้นวาง — ของอาจยังไม่ถูกคีย์ตำแหน่ง');
-  if (found.length > 1) toast("เจอ " + found.length + " ช่อง — ดูรายการทางขวา", 3500);
-  if (found.length > 1) showFound(found, match);
-  openSlot(found[0].slot);
+  if (found.length > 1) {
+    toast("เจอ " + found.length + " ช่อง — ดูรายการทางขวา", 3500);
+    renderAlerts(found.flatMap((s) => s.items.filter(match).map((i) =>
+      ({ slot: s.slot, tracking: i.tracking, memberCode: i.memberCode, pick: i.pick, why: i.why }))),
+      "🔎 ผลค้นหา", true);
+  }
+  go(found[0]);
 }
 
-function showFound(found, match) {
-  const rows = found.flatMap((s) => s.items.filter(match).map((i) =>
-    ({ slot: s.slot, tracking: i.tracking, memberCode: i.memberCode, pick: i.pick, why: i.why })));
-  renderAlerts(rows, "🔎 ผลค้นหา", true);
-}
-
-/* ══ ⑤⑥ โหลดข้อมูล + แถบสรุป + รายการเตือน ═══════════════════════ */
+/* ══ ⑨ แถบสรุป · รายการเตือน · นาฬิกา ═══════════════════════════════ */
 const STATS = [
   { k: "boxes",   lb: "ของบนชั้นทั้งหมด", ic: "📦", color: "#3b82f6", unit: "กล่อง" },
   { k: "ready",   lb: "ชำระแล้ว · หยิบได้", ic: "✅", color: "#16a34a", unit: "ช่อง" },
@@ -501,28 +759,22 @@ const STATS = [
 
 function applyData(v) {
   DATA = v;
+  slotList = v.layout.slots;
   if (!built) buildScene(v);
+  paintSlots();
 
-  for (const s of v.layout.slots) {
-    const m = slotMeshes.get(s.slot);
-    if (!m) continue;
-    m.material = matFor(s.status);
-    m.visible = !hidden.has(s.status);
-  }
-
-  const totalBoxes = v.layout.slots.reduce((n, s) => n + (s.boxes || 0), 0);
-  const problem = (v.counts.problem || 0) + (v.counts.unknown || 0);
-  const num = { boxes: totalBoxes, ready: v.counts.ready || 0, wait: v.counts.wait || 0, problem: problem };
-
+  const totalBoxes = slotList.reduce((n, s) => n + (s.boxes || 0), 0);
+  const num = {
+    boxes: totalBoxes, ready: v.counts.ready || 0, wait: v.counts.wait || 0,
+    problem: (v.counts.problem || 0) + (v.counts.unknown || 0),
+  };
   $("summary").innerHTML = STATS.map((st) =>
     '<div class="stat" data-k="' + st.k + '" style="color:' + st.color + '">' +
       '<div class="ic"><span>' + st.ic + "</span></div>" +
       '<div class="tx"><div class="lb">' + esc(st.lb) + "</div>" +
-      '<div class="nm">' + num[st.k] + "<i>" + st.unit + "</i></div></div></div>",
-  ).join("") +
-  '<div id="clock"><div class="d" id="cd"></div><div class="t" id="ct"></div>' +
-  '<div class="live" id="cl"><span class="dot"></span><span id="clt">Live</span></div></div>';
-
+      '<div class="nm">' + num[st.k] + "<i>" + st.unit + "</i></div></div></div>").join("") +
+    '<div id="clock"><div class="d" id="cd"></div><div class="t" id="ct"></div>' +
+    '<div class="live" id="cl"><span class="dot"></span><span id="clt">Live</span></div></div>';
   for (const c of $("summary").querySelectorAll(".stat"))
     c.addEventListener("click", () => toggleFilter(c.dataset.k));
   paintFilter();
@@ -533,18 +785,18 @@ function applyData(v) {
     (v.live.ok ? "" : " · ⚠️ อ่านสถานะจากเว็บไม่ได้");
   $("demoTag").style.display = v.demo ? "inline-block" : "none";
 
-  const rows = v.alerts.concat((v.unplaced || []).map((u) =>
-    Object.assign({}, u, { slot: "", pick: "noslot", why: "ชำระแล้ว พร้อมส่ง แต่ยังไม่มีใครคีย์ว่าอยู่ช่องไหน" })));
-  renderAlerts(rows, "⚠️ ต้องเช็ค");
+  renderMap();
+  renderAlerts(
+    v.alerts.concat((v.unplaced || []).map((u) =>
+      Object.assign({}, u, { slot: "", pick: "noslot", why: "ชำระแล้ว พร้อมส่ง แต่ยังไม่มีใครคีย์ว่าอยู่ช่องไหน" }))),
+    "⚠️ ต้องเช็ค");
 
-  if (openCode) { const keep = openCode; openSlot(keep); }
+  if (openCode) openSlot(openCode);
   if (v.orphans && v.orphans.length)
     toast("⚠️ มี " + v.orphans.length + " แทรคคีย์ช่องที่ไม่มีในผัง — ต้องแก้", 6000);
   resize();
 }
 
-/* 🔑 ปิดแล้วต้องปิดอยู่ — ไม่งั้นโหลดใหม่ทุก 60 วิ แล้วเด้งกลับมาบังจอ
-      (ผลค้นหาเป็นข้อยกเว้น — คนกดค้นหาเองย่อมอยากเห็นผล) */
 let alertsClosed = false;
 window.closeAlerts = () => { alertsClosed = true; $("alerts").style.display = "none"; };
 
@@ -561,12 +813,28 @@ function renderAlerts(rows, title, force) {
       }).join("")
     : '<div class="empty">ไม่มีช่องที่ต้องเช็ค 👍</div>';
   for (const row of $("alertRows").querySelectorAll(".row"))
-    row.addEventListener("click", () => { if (row.dataset.slot) openSlot(row.dataset.slot); });
+    row.addEventListener("click", () => {
+      if (!row.dataset.slot) return;
+      const s = slotOf(row.dataset.slot);
+      pushHistory();
+      if (s) openBayDetail(s.row, s.bay, true);
+      openSlot(row.dataset.slot);
+    });
   if (force) alertsClosed = false;
-  $("alerts").style.display = rows.length && !alertsClosed ? "block" : "none";
+  alertRows = rows;
+  showAlerts();
 }
 
-/* กดการ์ดสรุป = กรองเฉพาะสีนั้น (กดซ้ำ = เลิกกรอง) */
+/* 🔑 จอแคบไม่โชว์แผงนี้ (CSS ตั้งใจซ่อน) — แต่ JS เคยยัด display:block แบบ inline ทับ CSS
+      ⇒ บนมือถือแผงบังเต็มจอ · ต้องเช็คความกว้างที่ JS ด้วย ไม่ใช่พึ่ง CSS อย่างเดียว
+      (บนมือถือดูของที่ต้องเช็คได้จากการ์ด ⚠️ ด้านบน = กรองเหลือเฉพาะสีแดงในจอ 3D) */
+let alertRows = [];
+function showAlerts() {
+  const wide = innerWidth > 880;
+  $("alerts").style.display = wide && alertRows.length && !alertsClosed ? "block" : "none";
+}
+addEventListener("resize", showAlerts);
+
 let filter = null;
 function toggleFilter(k) {
   filter = filter === k ? null : k;
@@ -575,13 +843,8 @@ function toggleFilter(k) {
     const keep = filter === "problem" ? ["problem", "unknown"] : [filter];
     for (const s of ["ready", "wait", "problem", "unknown", "empty"])
       if (!keep.includes(s)) hidden.add(s);
-  } else if (filter === "boxes") {
-    hidden.add("empty");
   }
-  for (const s of DATA.layout.slots) {
-    const m = slotMeshes.get(s.slot);
-    if (m) m.visible = !hidden.has(s.status);
-  }
+  paintSlots();
   paintFilter();
 }
 function paintFilter() {
@@ -591,7 +854,6 @@ function paintFilter() {
   }
 }
 
-/* นาฬิกา + ป้าย Live (เดินจริงเพราะข้อมูลโหลดใหม่ทุก 60 วิ) */
 let loadedAt = Date.now();
 function tickClock() {
   const d = new Date();
@@ -606,7 +868,7 @@ function tickClock() {
 }
 setInterval(tickClock, 1000);
 
-/* ══ โหลด / โหลดซ้ำ ═════════════════════════════════════════════════ */
+/* ══ ⑩ โหลด / โหลดซ้ำ ═══════════════════════════════════════════════ */
 async function load(quiet) {
   const r = await fetch(api("/warehouse/api/view"));
   if (!r.ok) {
@@ -619,19 +881,17 @@ async function load(quiet) {
   loadedAt = Date.now();
   $("load").style.display = "none";
 }
-
-/* 🔁 โหลดใหม่เองทุก 60 วิ + ตอนกลับมาที่แท็บนี้
-   🔑 ไม่งั้นพนักงานคีย์ตำแหน่งจากมือถือแล้วจอนี้ยังขึ้นของเก่า (= "Live" หลอก) */
+/* 🔁 โหลดใหม่ทุก 60 วิ + ตอนกลับมาที่แท็บ — ไม่งั้นป้าย "Live" โกหก */
 setInterval(() => { if (!document.hidden) load(true); }, 60000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });
-
 load().catch((e) => { $("load").textContent = "โหลดไม่สำเร็จ: " + e.message; });
 
-/* ══ ลูปวาด ═════════════════════════════════════════════════════════ */
 /* 🔎 ไว้ไล่บั๊กกล้อง — เปิดคอนโซลแล้วพิมพ์ whCam() */
 window.whCam = () => ({ r: +cam.r.toFixed(2), phi: +cam.phi.toFixed(3), theta: +cam.theta.toFixed(3),
-  target: cam.target.toArray().map((n) => +n.toFixed(2)), anim: !!anim, aspect: +camera.aspect.toFixed(2) });
+  target: cam.target.toArray().map((n) => +n.toFixed(2)), anim: !!anim, view: activeView,
+  aspect: +camera.aspect.toFixed(2), history: camHistory.length, open: openCode });
 
+/* ══ ลูปวาด ═════════════════════════════════════════════════════════ */
 function tick() {
   if (anim) {
     const t = Math.min(1, (performance.now() - anim.t0) / FLY_MS);

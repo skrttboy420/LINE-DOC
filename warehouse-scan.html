@@ -8,11 +8,13 @@
   📷 ยิงบาร์โค้ดรับของเข้าชั้นวาง — ภูม 2026-11-12
   *"ถ้าภูมิอยากให้สามารถยิงบารโค้ดได้เหมือนในระบบ pacred เลย … พอพนักงานจะยิงรับเข้า
    ต้องพิมพ์ล็อกที่จะเอาเข้าหรือยิงบาโค้ดล็อกนั้นๆก่อนนะ ถึงค่อยยิงรับเข้าตามปกติ"*
+  *"ให้เพิ่มยิงรับเข้าแบบกล้องมือถือมาด้วย … เวลามือถือใช้ก็ใช้ผ่านกล้องมือถือ สแกน QR code ได้เลย"* (รอบ 2)
 
   🔑 ขั้นตอนลอกมาจากจอยิงนำเข้าของ Pacred (/admin/barcode/driver/import) เป๊ะ:
      ① ยิง/พิมพ์รหัสช่องก่อน → ระบบจำไว้ (100 นาที) ไม่เขียนอะไร
      ② ยิงเลขแทรคไปเรื่อยๆ → ลงช่องที่จำไว้ทีละใบ
      ③ ยิงเสร็จช่องเคลียร์เอง + โฟกัสกลับ ⇒ ยิงรัวได้ไม่ต้องแตะจอ
+  📱 2 ทางเข้าเดียวกัน — เครื่องยิงบาร์โค้ด (คอม) หรือกล้องมือถือ (ปุ่ม 📷) เดินผ่านตัวเดียวกันหมด
   🔒 เขียนลงฐานของบอทเท่านั้น — ยังไม่เกี่ยวกับระบบ Pacred
 -->
 <style>
@@ -74,6 +76,34 @@
        font-size:14px;margin-bottom:14px;font-weight:600}
   .ghost{width:100%;background:#fff;color:#111;border:1px solid var(--line);border-radius:11px;
          padding:12px;font-size:14px;cursor:pointer;font-family:inherit;margin-top:9px}
+  .cambtn{width:100%;background:var(--red);color:#fff;border:0;border-radius:11px;
+          padding:15px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:9px}
+  .cambtn:disabled{background:#cbd5e1;color:#64748b;cursor:not-allowed}
+
+  /* ── 📷 กล้องมือถือ (เต็มจอ) ── */
+  #cam{position:fixed;inset:0;z-index:60;background:#0b1220;color:#fff;
+       display:none;flex-direction:column}
+  #cam.on{display:flex}
+  #cam .top{padding:10px 13px;display:flex;align-items:center;gap:10px;
+            background:rgba(0,0,0,.45);flex:none}
+  #cam .top .lb{font-size:11px;opacity:.75}
+  #cam .top .big{font-family:ui-monospace,Menlo,monospace;font-size:22px;font-weight:800;line-height:1.1}
+  #cam .top .nm{font-size:11.5px;opacity:.8}
+  #cam .top button{margin-left:auto;background:rgba(255,255,255,.17);color:#fff;border:0;
+                   border-radius:10px;padding:10px 13px;font-size:14px;font-family:inherit;cursor:pointer}
+  #camView{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #camView video{max-width:100%;max-height:100%}
+  #cam .foot{flex:none;background:rgba(0,0,0,.5);padding:11px 13px;max-height:46vh;overflow-y:auto}
+  #camMsg{border-radius:11px;padding:11px 12px;font-size:14px;line-height:1.6;
+          background:rgba(255,255,255,.1)}
+  #camMsg.ok{background:#064e3b}
+  #camMsg.warn{background:#78350f}
+  #camMsg.bad{background:#7f1d1d}
+  #camMsg .h{font-weight:800;font-size:15px}
+  #camMsg .mono{font-family:ui-monospace,Menlo,monospace}
+  #camMsg .sm{font-size:12.5px;opacity:.9}
+  #camLog{margin-top:9px;font-size:12px;opacity:.85;line-height:1.75}
+  #camLog .m{font-family:ui-monospace,Menlo,monospace}
 </style>
 </head>
 <body>
@@ -103,7 +133,15 @@
   </div>
 
   <div class="card">
-    <label for="scan">ยิงบาร์โค้ด / พิมพ์แล้วกด Enter</label>
+    <button class="cambtn" id="camOpen">📷 เปิดกล้องมือถือ — สแกน QR / บาร์โค้ด</button>
+    <div class="muted" style="margin-top:8px">
+      มือถือไม่มีเครื่องยิง ⇒ ใช้ปุ่มนี้ · ส่อง <b>QR บนป้ายโลเคชั่น</b> เพื่อเลือกช่อง
+      แล้วส่อง <b>บาร์โค้ดบนกล่อง</b> ต่อได้เลย กล้องเปิดค้างไว้ยิงได้เรื่อยๆ
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="scan">เครื่องยิงบาร์โค้ด / พิมพ์แล้วกด Enter</label>
     <input id="scan" class="scan" autocomplete="off" autocapitalize="off" autocorrect="off"
            spellcheck="false" inputmode="latin" placeholder="รหัสช่อง หรือ เลขแทรค">
     <div class="muted" style="margin-top:8px">
@@ -125,6 +163,24 @@
   </div>
 </main>
 
+<div id="cam">
+  <div class="top">
+    <div>
+      <div class="lb">ช่องที่กำลังรับเข้า</div>
+      <div class="big" id="camSlot">— ยังไม่ได้เลือก —</div>
+      <div class="nm" id="camSlotName">ส่อง QR บนป้ายโลเคชั่นก่อน</div>
+    </div>
+    <button id="camClose">✕ ปิดกล้อง</button>
+  </div>
+  <div id="camView"></div>
+  <div class="foot">
+    <div id="camMsg">เล็งกล้องไปที่ <b>QR บนป้ายโลเคชั่น</b> ก่อน แล้วค่อยส่องบาร์โค้ดบนกล่อง
+      <div class="sm">💡 บาร์โค้ดยาวๆ บนกล่อง ต้อง<b>จ่อใกล้ให้เต็มกรอบ</b>ถึงจะอ่านติด (QR ส่องห่างๆ ก็ได้)</div>
+    </div>
+    <div id="camLog"></div>
+  </div>
+</div>
+
 <script type="module">
 const KEY = new URLSearchParams(location.search).get("key") || "";
 const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
@@ -134,6 +190,12 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
 $("lblLink").href = api("/warehouse/labels");
 $("keyLink").href = api("/warehouse/assign");
 $("v3dLink").href = api("/warehouse");
+
+/* 🖱 เครื่องที่มีเมาส์/เครื่องยิง = โฟกัสช่องยิงให้เลย
+   📱 จอสัมผัส = ไม่โฟกัสเอง ไม่งั้นคีย์บอร์ดเด้งทับจอทุกครั้งที่แตะ */
+const FINE_POINTER = (() => {
+  try { return window.matchMedia("(pointer: fine)").matches; } catch { return true; }
+})();
 
 /* ── จำชื่อคนยิง ── */
 const BY_KEY = "pacred-wh-by";
@@ -173,7 +235,7 @@ function beep(kind) {
 /* ── ช่องที่จำไว้ (sticky 100 นาที เท่าระบบ Pacred) ─────────────── */
 const SLOT_KEY = "pacred-wh-slot";
 const SLOT_TTL_MIN = 100;
-let LAYOUT = null, slot = null;                 // slot = { code, side, label }
+let LAYOUT = null, slot = null;                 // slot = { code, side }
 
 function loadSticky() {
   try {
@@ -189,7 +251,6 @@ function saveSticky() {
   } catch {}
 }
 
-const pad2 = (n) => String(n).padStart(2, "0");
 /** แกะรหัสที่ยิงมา — รับทั้ง A0101-L (ตรงช่อง) และ A0101 (ยังไม่บอกฝั่ง) */
 function parseCode(text) {
   const up = String(text || "").trim().toUpperCase().replace(/[\s-]/g, "");
@@ -205,6 +266,10 @@ function slotExists(code, side) {
   return LAYOUT.slots.some((s) => s.location === code && (!side || s.side === side));
 }
 const fullSlot = () => (slot && slot.side ? slot.code + "-" + slot.side : null);
+function slotLabelNow() {
+  const s = LAYOUT && LAYOUT.slots.find((x) => x.location === (slot && slot.code) && (!slot.side || x.side === slot.side));
+  return s ? s.label : "";
+}
 
 function paintSlot() {
   const box = $("slotBox");
@@ -214,19 +279,27 @@ function paintSlot() {
     $("slotName").textContent = "ยิงบาร์โค้ดป้ายโลเคชั่น หรือพิมพ์รหัสช่องลงช่องข้างล่าง";
     $("clearSlot").style.display = "none";
     $("sides").style.display = "none";
+    paintCamSlot();
     return;
   }
   const full = fullSlot();
   box.className = "slot " + (full ? "set" : "none");
   $("slotCode").textContent = full || slot.code;
-  const s = LAYOUT && LAYOUT.slots.find((x) => x.location === slot.code && (!slot.side || x.side === slot.side));
-  $("slotName").textContent = full
-    ? (s ? s.label : "")
-    : "ยังไม่ได้บอกฝั่ง — กดเลือกซ้าย/ขวาข้างล่าง";
+  $("slotName").textContent = full ? slotLabelNow() : "ยังไม่ได้บอกฝั่ง — กดเลือกซ้าย/ขวาข้างล่าง";
   $("clearSlot").style.display = "block";
   $("sides").style.display = "flex";
   for (const b of $("sides").querySelectorAll("button"))
     b.classList.toggle("on", slot.side === b.dataset.s);
+  paintCamSlot();
+}
+
+/** หัวจอกล้อง — บอกช่องที่กำลังรับเข้าอยู่ (จอกล้องบังหน้าหลักไว้) */
+function paintCamSlot() {
+  const full = fullSlot();
+  $("camSlot").textContent = full || (slot ? slot.code : "— ยังไม่ได้เลือก —");
+  $("camSlotName").textContent = full
+    ? slotLabelNow()
+    : slot ? "ยังไม่ได้บอกฝั่ง — ปิดกล้องแล้วกดเลือกซ้าย/ขวา" : "ส่อง QR บนป้ายโลเคชั่นก่อน";
 }
 
 $("clearSlot").addEventListener("click", () => { slot = null; saveSticky(); paintSlot(); focusScan(); });
@@ -238,7 +311,9 @@ for (const b of $("sides").querySelectorAll("button"))
   });
 
 /* ── ยิง ───────────────────────────────────────────────────────── */
-function focusScan() {
+function focusScan(force) {
+  if (camOn) return;                              // 📱 กล้องเปิดอยู่ = ห้ามดึงคีย์บอร์ดขึ้นมาทับ
+  if (!force && !FINE_POINTER) return;
   queueMicrotask(() => { $("scan").focus(); $("scan").select(); });
 }
 function showErr(msg) {
@@ -247,18 +322,22 @@ function showErr(msg) {
 }
 
 let busy = false;
-$("go").addEventListener("click", submit);
+$("go").addEventListener("click", () => submit());
 $("scan").addEventListener("keydown", (e) => {
   if (e.key !== "Enter") return;
   e.preventDefault();
   submit();
 });
 
-async function submit() {
-  if (busy) return;
+/**
+ * เดินเรื่องการยิง 1 ครั้ง — ทั้งเครื่องยิงและกล้องมือถือใช้ตัวนี้ตัวเดียว
+ * คืนผลให้คนเรียกเอาไปโชว์ (จอกล้องบังการ์ดผลไว้ ⇒ ต้องรู้ว่าเกิดอะไรขึ้น)
+ */
+async function submit(raw) {
+  if (busy) return { kind: "busy" };
   /* 🔑 อ่านค่าจากช่องโดยตรง — เครื่องยิงพิมพ์เร็วมาก (ลอกบทเรียนจากจอ Pacred) */
-  const text = $("scan").value.trim();
-  if (!text) return;
+  const text = String(raw ?? $("scan").value).trim();
+  if (!text) return { kind: "empty" };
   showErr("");
 
   /* ① ยิงโดนรหัสช่อง = จำไว้ ไม่เขียนอะไร */
@@ -268,28 +347,31 @@ async function submit() {
     saveSticky(); paintSlot();
     $("scan").value = "";
     beep("slot");
-    focusScan();
-    return;
+    focusScan(true);
+    return { kind: "slot", slot: fullSlot() || loc.code, label: slotLabelNow(), side: loc.side };
   }
   /* รหัสที่ดูเหมือนช่องแต่ไม่มีในผัง = เตือน ไม่เอาไปยิงเป็นเลขแทรค */
   if (loc && !slotExists(loc.code, loc.side)) {
     $("scan").value = "";
     beep("bad");
-    showErr('ไม่มีช่อง "' + text.toUpperCase() + '" ในผังโกดัง — ยิงป้ายใหม่อีกที');
-    focusScan();
-    return;
+    const msg = 'ไม่มีช่อง "' + text.toUpperCase() + '" ในผังโกดัง — ยิงป้ายใหม่อีกที';
+    showErr(msg);
+    focusScan(true);
+    return { kind: "nosuch", msg };
   }
 
   /* ② ต้องมีช่องก่อนถึงจะยิงของเข้าได้ */
   if (!fullSlot()) {
     beep("bad");
-    showErr(slot ? "เลือกฝั่งซ้าย/ขวาก่อน" : "ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค");
-    focusScan();
-    return;
+    const msg = slot ? "เลือกฝั่งซ้าย/ขวาก่อน" : "ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค";
+    showErr(msg);
+    focusScan(true);
+    return { kind: "needslot", msg };
   }
 
   busy = true;
   $("scan").disabled = true;
+  let out;
   try {
     const r = await fetch(api("/warehouse/api/scan"), {
       method: "POST", headers: { "content-type": "application/json" },
@@ -300,15 +382,18 @@ async function submit() {
     showResult(j);
     addLog(j);
     beep(j.tone || "ok");
+    out = { kind: "saved", j };
   } catch (e) {
     beep("bad");
     showErr("❌ " + e.message);
     $("result").innerHTML = "";
+    out = { kind: "error", msg: e.message };
   }
   $("scan").value = "";
   $("scan").disabled = false;
   busy = false;
-  focusScan();                                  // ⌨️ ยิงต่อได้ทันทีโดยไม่ต้องแตะจอ
+  focusScan(true);                                // ⌨️ ยิงต่อได้ทันทีโดยไม่ต้องแตะจอ
+  return out;
 }
 
 function showResult(j) {
@@ -337,10 +422,171 @@ function addLog(j) {
   rows.unshift({ t: j.tracking, slot: j.slot, tone: j.tone, at: new Date() });
   $("n").textContent = "(" + rows.length + ")";
   const col = { ok: "#16a34a", warn: "#f59e0b", bad: "#dc2626" };
-  $("logRows").innerHTML = rows.slice(0, 40).map((r) =>
+  const html = rows.slice(0, 40).map((r) =>
     '<div class="r"><span class="dot" style="background:' + (col[r.tone] || "#94a3b8") + '"></span>' +
     '<span class="m">' + esc(r.t) + '</span><span class="s">' + esc(r.slot) + " · " +
     r.at.toLocaleTimeString("th-TH", { hour12: false }) + "</span></div>").join("");
+  $("logRows").innerHTML = html;
+  $("camLog").innerHTML = rows.slice(0, 8).map((r) =>
+    '<div><span class="m">' + esc(r.t) + "</span> → " + esc(r.slot) + "</div>").join("");
+}
+
+/* ══ 📷 กล้องมือถือ ═══════════════════════════════════════════════
+   ภูม: *"เวลามือถือใช้ก็ใช้ผ่านกล้องมือถือ สแกน QR code ได้เลย"*
+   อ่านได้ทั้ง QR (ป้ายโลเคชั่นของเรา) และบาร์โค้ด 1 มิติ (เลขแทรคบนกล่อง)
+   ⇒ ส่องป้ายเลือกช่อง แล้วส่องกล่องต่อได้เลย ไม่ต้องปิดกล้อง */
+const CAM_LIB = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js";
+const SAME_CODE_MS = 2500;        // โค้ดเดิมซ้ำภายในเวลานี้ = ข้าม (กล้องอ่านซ้ำ ~10 ครั้ง/วินาที)
+let camOn = false, reader = null, libReady = false;
+let lastCode = "", lastAt = 0;
+/* 🪤 กล้องเห็นกล่องใบเดิมค้างอยู่ในกรอบ = ยิงซ้ำเรื่อยๆ (ลองแล้วบันทึก 3 ครั้งใน 7 วินาที)
+   ⇒ จำว่ารอบนี้ยิงอะไรเข้าช่องไหนไปแล้ว แล้วบอกว่า "ยิงไปแล้ว" แทนการบันทึกซ้ำ */
+const doneThisRound = new Set();
+const doneKey = (code) => code + "@" + (fullSlot() || "");
+let shownCode = "";               // การ์ดบนจอกล้องตอนนี้กำลังพูดถึงใบไหน
+
+function camSay(cls, html) {
+  $("camMsg").className = cls || "";
+  $("camMsg").innerHTML = html;
+}
+
+function loadLib() {
+  if (libReady) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = CAM_LIB;
+    s.onload = () => { libReady = true; res(); };
+    s.onerror = () => rej(new Error("โหลดตัวอ่านกล้องไม่ได้ — ต้องต่อเน็ตตอนเปิดกล้องครั้งแรก"));
+    document.head.appendChild(s);
+  });
+}
+function libApi() {
+  const L = window.__Html5QrcodeLibrary__ || window;
+  return { Html5Qrcode: L.Html5Qrcode, F: L.Html5QrcodeSupportedFormats };
+}
+
+$("camOpen").addEventListener("click", openCam);
+$("camClose").addEventListener("click", closeCam);
+
+async function openCam() {
+  if (camOn) return;
+  if (!window.isSecureContext) {
+    showErr("กล้องเปิดได้เฉพาะหน้าเว็บแบบ https — เปิดลิงก์ของบอทโดยตรงนะ");
+    return;
+  }
+  $("camOpen").disabled = true;
+  $("camOpen").textContent = "⏳ กำลังเปิดกล้อง…";
+  camOn = true;
+  $("cam").classList.add("on");
+  paintCamSlot();
+  camSay("", "⏳ กำลังเปิดกล้อง…");
+  try {
+    await loadLib();
+    const { Html5Qrcode, F } = libApi();
+    if (!Html5Qrcode) throw new Error("ตัวอ่านกล้องโหลดมาไม่ครบ — ลองรีเฟรชหน้า");
+    const formats = F
+      ? [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.ITF].filter((x) => x !== undefined)
+      : undefined;
+    reader = new Html5Qrcode("camView", { formatsToSupport: formats, verbose: false });
+    await reader.start(
+      { facingMode: "environment" },
+      {
+        fps: 10,
+        /* 🪤 กรอบสแกนต้องใหญ่เกือบเต็มเฟรม — ลองแล้ว: กรอบสูง 46% ของจอ
+           ตัว QR ที่ถือใกล้ๆ จะ "ล้นกรอบ" แล้วอ่านไม่ออกเลยสักที (เงียบ ไม่ฟ้องอะไร)
+           กว้าง 94% × สูง 80% = ทั้ง QR (จัตุรัส) และบาร์โค้ด (ยาวๆ) เข้ากรอบหมด */
+        qrbox: (w, h) => ({
+          width: Math.max(140, Math.floor(w * 0.94)),
+          height: Math.max(140, Math.floor(h * 0.8)),
+        }),
+      },
+      onDecode,
+      () => { /* อ่านไม่เจอในเฟรมนั้น = เรื่องปกติ ไม่ต้องทำอะไร */ },
+    );
+    camSay("", "เล็งกล้องไปที่ <b>QR บนป้ายโลเคชั่น</b> ก่อน แล้วค่อยส่องบาร์โค้ดบนกล่อง" +
+      '<div class="sm">💡 บาร์โค้ดยาวๆ บนกล่อง ต้อง<b>จ่อใกล้ให้เต็มกรอบ</b>ถึงจะอ่านติด ' +
+      "(QR ส่องห่างๆ ก็ได้)</div>");
+  } catch (e) {
+    camSay("bad", '<div class="h">เปิดกล้องไม่ได้</div><div class="sm">' + esc(camErr(e)) + "</div>");
+  }
+  $("camOpen").disabled = false;
+  $("camOpen").textContent = "📷 เปิดกล้องมือถือ — สแกน QR / บาร์โค้ด";
+}
+
+/** แปลเหตุที่กล้องเปิดไม่ได้เป็นภาษาคน */
+function camErr(e) {
+  const n = String((e && e.name) || ""), m = String((e && e.message) || e || "");
+  if (n === "NotAllowedError" || /permission|denied|อนุญาต/i.test(m))
+    return "ยังไม่ได้อนุญาตให้ใช้กล้อง — กดอนุญาตในเบราว์เซอร์ แล้วกดเปิดกล้องอีกครั้ง";
+  if (n === "NotFoundError" || /no camera|not found|devices/i.test(m))
+    return "เครื่องนี้ไม่มีกล้อง (หรือกล้องถูกโปรแกรมอื่นใช้อยู่) — ใช้เครื่องยิงบาร์โค้ด หรือคีย์เองได้";
+  if (n === "NotReadableError") return "กล้องถูกโปรแกรมอื่นใช้อยู่ — ปิดแอปที่ใช้กล้องแล้วลองใหม่";
+  return m || "ไม่ทราบสาเหตุ";
+}
+
+async function closeCam() {
+  $("cam").classList.remove("on");
+  camOn = false;
+  lastCode = ""; lastAt = 0; shownCode = "";
+  doneThisRound.clear();
+  if (reader) {
+    try { await reader.stop(); } catch {}
+    try { reader.clear(); } catch {}
+    reader = null;
+  }
+  focusScan();
+}
+/* ออกจากหน้า = ปิดกล้องให้ด้วย (ไม่งั้นกล้องค้างกินแบต) */
+window.addEventListener("pagehide", () => { if (reader) { try { reader.stop(); } catch {} } });
+
+async function onDecode(text) {
+  const code = String(text || "").trim();
+  if (!code) return;
+  const now = Date.now();
+  if (code === lastCode && now - lastAt < SAME_CODE_MS) return;   // กล้องอ่านซ้ำรัวๆ = ข้าม
+  if (busy) return;
+  lastCode = code; lastAt = now;
+
+  /* กล่องใบเดิมยังอยู่ในกรอบ = บอกว่ายิงไปแล้ว ไม่บันทึกซ้ำ ไม่นับซ้ำ
+     🔑 ถ้าการ์ดบนจอพูดถึงใบนี้อยู่แล้ว = ไม่แตะเลย ไม่งั้นผลที่สำคัญ (ห้ามหยิบ / ที่อยู่)
+        จะถูกข้อความสั้นๆ ทับหายไปใน 2–3 วินาที ทั้งที่คนยังอ่านไม่จบ */
+  if (doneThisRound.has(doneKey(code))) {
+    if (shownCode === code) return;
+    shownCode = code;
+    camSay("ok", '<div class="h">✔ ยิงไปแล้ว</div>' +
+      '<div class="mono">' + esc(code) + "</div>" +
+      '<div class="sm">อยู่ช่อง ' + esc(fullSlot()) + " เรียบร้อย — หยิบใบถัดไปได้เลย</div>");
+    return;
+  }
+
+  const out = await submit(code);
+  if (!out || out.kind === "busy" || out.kind === "empty") return;
+
+  if (out.kind === "slot") {
+    camSay("ok", '<div class="h">✅ เลือกช่อง <span class="mono">' + esc(out.slot) + "</span></div>" +
+      '<div class="sm">' + esc(out.label || "") + "</div>" +
+      '<div class="sm">' + (out.side ? "ส่องบาร์โค้ดบนกล่องต่อได้เลย" : "ป้ายนี้ไม่บอกฝั่ง — ปิดกล้องแล้วกดเลือกซ้าย/ขวาก่อน") + "</div>");
+    return;
+  }
+  if (out.kind === "nosuch" || out.kind === "needslot" || out.kind === "error") {
+    camSay("bad", '<div class="h">⚠️ ' + esc(out.msg || "ไม่สำเร็จ") + "</div>");
+    return;
+  }
+  const j = out.j, i = j.job;
+  doneThisRound.add(j.tracking + "@" + j.slot);
+  shownCode = code;
+  const cls = j.tone === "bad" ? "bad" : j.tone === "warn" ? "warn" : "ok";
+  camSay(cls,
+    '<div class="h">' + esc(j.headline) + "</div>" +
+    '<div class="mono">' + esc(j.tracking) + "</div>" +
+    '<div class="sm">เข้าช่อง <b class="mono">' + esc(j.slot) + "</b> · " + esc(j.label) + "</div>" +
+    (i
+      ? '<div class="sm">ลูกค้า ' + esc(i.memberCode || "—") + " · " + esc(j.pickLabel) + "</div>" +
+        '<div class="sm">' + esc(j.why) + "</div>" +
+        '<div class="sm">' + (i.selfPickup ? "🏬 ลูกค้ารับเองหน้าโกดัง"
+          : i.needsAddress || !i.address ? "🔴 ยังไม่มีที่อยู่จัดส่ง"
+          : "📍 " + esc(i.address)) + "</div>"
+      : '<div class="sm">หาแทรคนี้ในระบบไม่เจอ — เช็คว่าส่องถูกใบไหม</div>'));
 }
 
 /* ── เริ่ม ──────────────────────────────────────────────────────── */
@@ -359,7 +605,7 @@ function addLog(j) {
   focusScan();
 })().catch((e) => showErr("โหลดไม่สำเร็จ: " + e.message));
 
-/* แตะที่ไหนก็กลับไปโฟกัสช่องยิง (เครื่องยิงต้องการโฟกัสเสมอ) */
+/* แตะที่ไหนก็กลับไปโฟกัสช่องยิง (เครื่องยิงต้องการโฟกัสเสมอ — จอสัมผัสข้ามให้) */
 document.addEventListener("click", (e) => {
   if (e.target.closest("input,button,a")) return;
   focusScan();

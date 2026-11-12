@@ -518,6 +518,106 @@ ok("จับ pointer ไม่ได้ ต้องไม่ทำให้ท
   assert.ok(/try \{ el\.setPointerCapture/.test(D3D), "setPointerCapture ต้องอยู่ใน try");
 });
 
+/* ════ ⑪ 🖨 ป้าย QR + 📷 กล้องมือถือ (ภูม 2026-11-12 รอบ 2) ═══════════
+   *"บาโค้ดที่พิมพ์มันเล็กไป ช่วยขยายให้มันใหญ่ขึ้นอีกนิด"*
+   *"เพิ่ม QR โค้ดมาด้วย … ให้เพิ่มยิงรับเข้าแบบกล้องมือถือมาด้วย"* */
+section("ป้าย QR + กล้องมือถือ");
+
+const LBL = fs.readFileSync("warehouse-labels.html", "utf8");
+const SCAN = fs.readFileSync("warehouse-scan.html", "utf8");
+
+ok("ป้ายมีทั้งบาร์โค้ดและ QR เก็บรหัสเดียวกัน", () => {
+  assert.ok(LBL.includes("window.JsBarcode"), "ต้องมีตัววาดบาร์โค้ด");
+  assert.ok(LBL.includes("window.qrcode(0,"), "ต้องมีตัววาด QR");
+  assert.ok(LBL.includes("q.addData(l.code)"), "QR ต้องเก็บรหัสช่องตัวเดียวกับบาร์โค้ด");
+});
+
+ok("🔒 QR บนกระดาษต้องไม่มีลิงก์/กุญแจ — ป้ายหลุดไปต้องเปิดระบบไม่ได้", () => {
+  /* ป้ายเป็นกระดาษติดชั้นวาง ใครถ่ายรูปไปก็ได้ ⇒ ห้ามฝังที่อยู่เว็บหรือ key ลงไป */
+  const i = LBL.indexOf("q.addData(");
+  const arg = LBL.slice(i, i + 60);
+  assert.ok(!/http|key=|token/i.test(arg), "QR ต้องเก็บแค่รหัสช่อง → " + arg.slice(0, 40));
+});
+
+ok("🔴 บาร์โค้ด + QR ต้องมีขอบเงียบ ไม่งั้นอ่านไม่ติด", () => {
+  /* 🪤 ของเดิมตั้ง margin: 0 ทั้งคู่ — บนจอดูดี แต่บนกระดาษไม่มีที่ว่างให้ตัวอ่านจับขอบ */
+  assert.ok(/marginLeft:\s*20/.test(LBL), "บาร์โค้ดต้องมีขอบเงียบซ้าย 10 แท่ง (20px ที่ width 2)");
+  assert.ok(/marginRight:\s*20/.test(LBL), "บาร์โค้ดต้องมีขอบเงียบขวา");
+  assert.ok(/cellSize:\s*2,\s*margin:\s*8/.test(LBL), "QR ต้องมีขอบเงียบ 4 ช่อง (margin 8 ที่ cellSize 2)");
+});
+
+ok("ขนาดป้ายคิดเป็นมิลลิเมตรจริง — ที่เห็นบนจอ = ที่ได้บนกระดาษ", () => {
+  assert.ok(/const PAGE_W = 194/.test(LBL) && /const PAGE_H = 281/.test(LBL),
+    "ต้องยึดพื้นที่พิมพ์ A4 ขอบ 8 มม.");
+  assert.ok(/#sheet\{width:194mm/.test(LBL), "กรอบพรีวิวต้องกว้างเท่ากระดาษจริง");
+  assert.ok(/height:var\(--lh\)/.test(LBL), "ป้ายต้องสูงคงที่ ไม่งั้นนับแผ่นไม่ได้");
+});
+
+ok("ค่าตั้งต้นคือขนาดใหญ่ 2 ป้าย/แถว (ภูมบอกของเดิมเล็กไป)", () => {
+  const i = LBL.indexOf('<select id="size">');
+  const block = LBL.slice(i, i + 260);
+  const first = /<option value="(\d)"/.exec(block);
+  assert.equal(first && first[1], "2", "ตัวเลือกแรก (= ค่าตั้งต้น) ต้องเป็น 2 ป้าย/แถว");
+});
+
+ok("🔴 เตือนเมื่อแท่งบาร์โค้ดเล็กกว่าที่เครื่องยิงอ่านได้", () => {
+  /* วัดจริงแล้ว: 4 ป้าย/แถว ได้ 0.18 มม. → ตัวอ่านอ่านไม่ออกจริง ⇒ ต้องมีคำเตือน */
+  assert.ok(/mm < 0\.19/.test(LBL), "ต้องมีเส้นแบ่ง 0.19 มม.");
+  assert.ok(LBL.includes("เล็กเกินสำหรับเครื่องยิงบาร์โค้ด"), "ต้องบอกเป็นภาษาคน");
+});
+
+ok("📷 กล้องอ่านได้ทั้ง QR (ป้ายเรา) และบาร์โค้ด 1 มิติ (กล่องลูกค้า)", () => {
+  assert.ok(SCAN.includes("html5-qrcode"), "ต้องมีตัวอ่านกล้อง");
+  for (const f of ["QR_CODE", "CODE_128", "CODE_39"])
+    assert.ok(SCAN.includes("F." + f), "ต้องเปิดรูปแบบ " + f);
+});
+
+ok("🔴 กรอบสแกนต้องใหญ่เกือบเต็มเฟรม", () => {
+  /* 🪤 เจอจริงตอนลองกับกล้องจำลอง: กรอบสูง 46% ของจอ ⇒ QR ที่ถือใกล้ล้นกรอบ
+     แล้วอ่านไม่ออกเลยสักที โดยไม่ฟ้องอะไรเลย (เงียบสนิท หาสาเหตุยากมาก) */
+  const m = /qrbox: \(w, h\) => \(\{[\s\S]{0,220}?\}\)/.exec(SCAN);
+  assert.ok(m, "ต้องกำหนดกรอบสแกน");
+  const nums = (m[0].match(/0\.\d+/g) || []).map(Number);
+  assert.ok(nums.length >= 2, "ต้องคิดกรอบจากขนาดจอ");
+  assert.ok(Math.min(...nums) >= 0.75, "กรอบต้องไม่เล็กกว่า 75% ของจอ → " + nums.join(" · "));
+});
+
+ok("🔴 กล่องใบเดิมค้างในกรอบ ต้องไม่บันทึกซ้ำ", () => {
+  /* 🪤 ลองจริง: กล้องอ่านซ้ำ ~10 ครั้ง/วินาที ⇒ ของใบเดียวถูกบันทึก 3 ครั้งใน 7 วินาที */
+  assert.ok(SCAN.includes("const doneThisRound = new Set()"), "ต้องจำว่ารอบนี้ยิงอะไรไปแล้ว");
+  assert.ok(SCAN.includes("doneThisRound.has(doneKey(code))"), "ต้องเช็คก่อนยิงซ้ำ");
+  assert.ok(/doneKey = \(code\) => code \+ "@" \+/.test(SCAN), "ต้องแยกตามช่องด้วย — ย้ายช่องแล้วยิงใหม่ได้");
+});
+
+ok("🔴 ผลการยิงต้องไม่ถูกข้อความสั้นทับ ตราบใดที่ยังเป็นใบเดิม", () => {
+  /* ผลที่สำคัญที่สุด (ห้ามหยิบ / ที่อยู่จัดส่ง) ต้องค้างให้คนอ่านจบ
+     ไม่ใช่โดน \"ยิงไปแล้ว\" ทับใน 2–3 วินาทีเพราะกล่องยังอยู่ในกรอบ */
+  assert.ok(SCAN.includes("if (shownCode === code) return;"), "ใบเดิมที่โชว์อยู่แล้ว = ไม่แตะการ์ด");
+});
+
+ok("📱 กล้องเปิดอยู่ ต้องไม่ดึงโฟกัสจนคีย์บอร์ดเด้งทับ", () => {
+  const i = SCAN.indexOf("function focusScan(");
+  assert.ok(SCAN.slice(i, i + 150).includes("if (camOn) return;"), "focusScan ต้องเช็คว่ากล้องเปิดอยู่");
+  assert.ok(SCAN.includes("FINE_POINTER"), "จอสัมผัสต้องไม่โฟกัสเอง");
+});
+
+ok("ปิดกล้อง/ออกจากหน้า ต้องหยุดกล้อง (ไม่ค้างกินแบต)", () => {
+  assert.ok(/reader\.stop\(\)/.test(SCAN), "ต้องมีการหยุดกล้อง");
+  assert.ok(SCAN.includes('addEventListener("pagehide"'), "ออกจากหน้าก็ต้องหยุด");
+});
+
+ok("กล้อง + เครื่องยิง เดินผ่านตัวบันทึกตัวเดียวกัน (ไม่มีเส้นทางเงินซ้อน)", () => {
+  assert.ok(/const out = await submit\(code\)/.test(SCAN), "ทางกล้องต้องเรียก submit() ตัวเดียวกัน");
+  const n = (SCAN.match(/warehouse\/api\/scan/g) || []).length;
+  assert.equal(n, 1, "ต้องมีจุดยิงไปที่ server จุดเดียว เจอ " + n);
+});
+
+ok("บอกเหตุเป็นภาษาคนเมื่อเปิดกล้องไม่ได้", () => {
+  assert.ok(SCAN.includes("window.isSecureContext"), "ต้องเช็ค https ก่อน");
+  for (const n of ["NotAllowedError", "NotFoundError", "NotReadableError"])
+    assert.ok(SCAN.includes(n), "ต้องแปลเหตุ " + n);
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

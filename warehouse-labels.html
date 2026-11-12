@@ -6,14 +6,21 @@
 <title>ป้ายโลเคชั่น — โกดัง Pacred</title>
 <!--
   🖨 ป้ายโลเคชั่นสำหรับติดชั้นวาง — ภูม 2026-11-12
-  *"ถ้าจะปริ้นกระดาษโลเคชั่นมาติดแต่ละล็อกหละ … ในกระดาษที่ปริ้นมาต้องมีบาร์โค้ด
-   ที่ยิงแล้วก็ขึ้นล็อกนั้นๆนะ"*
+  *"ในกระดาษที่ปริ้นมาต้องมีบาร์โค้ดที่ยิงแล้วก็ขึ้นล็อกนั้นๆนะ"*
+  *"บาโค้ดที่พิมพ์มันเล็กไป ช่วยขยายให้มันใหญ่ขึ้นอีกนิด"* (รอบ 2)
+  *"เพิ่ม QR โค้ดมาด้วย เพื่อที่มือถือที่ไม่ใช่เครื่องสแกนสามารถสแกนผ่าน QR เพื่อเลือกล็อกได้"*
 
-  บาร์โค้ด = Code128 เก็บรหัสช่องเต็ม (เช่น A0101-L)
-  ยิงที่หน้า "ยิงรับเข้าชั้น" แล้วระบบจะจำช่องนั้นให้ทันที
+  ป้ายหนึ่งใบมี 2 อย่าง เก็บ "ข้อความเดียวกัน" = รหัสช่อง (เช่น A0101-L)
+    ▌▌▌ บาร์โค้ด Code128 → เครื่องยิงบาร์โค้ด
+    ▓▓▓ QR               → กล้องมือถือ (หน้า "ยิงรับเข้าชั้น" → ปุ่ม 📷 เปิดกล้อง)
+  🔒 ป้ายไม่มีกุญแจเข้าระบบอยู่ในนั้น — กระดาษหลุดไปก็เปิดระบบไม่ได้
+
+  📐 ขนาดคิดเป็นมิลลิเมตรจริง (A4 แนวตั้ง ขอบ 8 มม. = พื้นที่ 194 × 281 มม.)
+     ⇒ ที่เห็นบนจอ = ที่ได้บนกระดาษ · จำนวนแผ่นที่บอกไว้ตรงจริง
 -->
 <style>
-  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280}
+  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280;
+        --cols:2;--lh:42mm;--qr:26mm;--bc:17mm;--code:9mm}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
        background:#f1f5f9;color:#111}
@@ -29,36 +36,48 @@
   .bar .go{background:#fff;color:var(--red);font-weight:700}
   .bar a{background:rgba(255,255,255,.2);color:#fff}
   .bar .sp{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .note{max-width:960px;margin:14px auto 0;padding:0 14px;color:var(--muted);font-size:12.5px;line-height:1.7}
+  .note{max-width:760px;margin:14px auto 0;padding:0 14px;color:var(--muted);font-size:12.5px;line-height:1.75}
 
-  /* ── แผ่นป้าย ── */
-  #sheet{max-width:960px;margin:14px auto;padding:0 14px 30px}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  .lbl{background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:9px 10px;
-       text-align:center;break-inside:avoid;page-break-inside:avoid}
-  .lbl .zone{font-size:11px;color:var(--muted);letter-spacing:.3px}
-  .lbl .code{font-family:ui-monospace,Menlo,monospace;font-size:26px;font-weight:800;
-       letter-spacing:1.5px;line-height:1.15;margin:1px 0 3px}
-  .lbl svg{width:100%;height:46px;display:block}
-  .lbl .foot{font-size:10.5px;color:var(--muted);margin-top:2px}
+  /* ── แผ่นป้าย — กว้างเท่ากระดาษ A4 จริง ── */
+  #wrap{overflow-x:auto;padding:14px 14px 30px}
+  #sheet{width:194mm;margin:0 auto}
+  .grid{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:4mm}
+  .lbl{background:#fff;border:1px solid #cbd5e1;border-radius:2mm;padding:2.5mm;
+       height:var(--lh);display:flex;flex-direction:column;text-align:center;
+       break-inside:avoid;page-break-inside:avoid}
+  .lbl .zone{font-size:2.6mm;color:var(--muted);letter-spacing:.2px;line-height:1.2}
+  .lbl .code{font-family:ui-monospace,Menlo,monospace;font-size:var(--code);font-weight:800;
+       letter-spacing:.5mm;line-height:1.1;margin:.6mm 0 1mm}
+  .lbl .marks{flex:1;display:flex;align-items:center;gap:2mm;min-height:0}
+  .lbl .marks .bc{flex:1;min-width:0;display:flex;align-items:center}
+  .lbl .marks .bc svg{width:100%;height:var(--bc);display:block}
+  .lbl .marks .qr{width:var(--qr);height:var(--qr);flex:none}
+  .lbl .marks .qr svg{width:100%;height:100%;display:block}
+  .lbl .foot{font-size:2.4mm;color:var(--muted);margin-top:.8mm;line-height:1.2}
+  .bad{font-size:2.6mm;color:#b91c1c}
   .empty{background:#fff;border:1px dashed #cbd5e1;border-radius:10px;padding:26px;text-align:center;color:var(--muted)}
 
   @media print{
     .bar,.note{display:none!important}
     body{background:#fff}
-    #sheet{max-width:none;margin:0;padding:0}
-    .grid{grid-template-columns:repeat(3,1fr);gap:4mm}
-    .lbl{border:1px solid #94a3b8;border-radius:0;padding:3mm}
+    #wrap{overflow:visible;padding:0}
+    #sheet{width:auto;margin:0}
+    .lbl{border:1px solid #94a3b8;border-radius:0}
     @page{size:A4 portrait;margin:8mm}
   }
 </style>
 </head>
 <body>
 <div class="bar">
-  <div><b>🖨 ป้ายโลเคชั่น</b><div class="sub">ติดที่ชั้นวาง แล้วยิงตอนรับของเข้า</div></div>
+  <div><b>🖨 ป้ายโลเคชั่น</b><div class="sub">ติดที่ชั้นวาง — ยิงบาร์โค้ด หรือสแกน QR ด้วยมือถือ</div></div>
   <div class="sp">
     <select id="row"><option value="">ทุกโซน</option></select>
     <select id="bay"><option value="">ทุกล็อก</option></select>
+    <select id="size">
+      <option value="2">ขนาดใหญ่ — 2 ป้าย/แถว</option>
+      <option value="3">ขนาดกลาง — 3 ป้าย/แถว</option>
+      <option value="4">ขนาดเล็ก — 4 ป้าย/แถว</option>
+    </select>
     <select id="mode">
       <option value="slot">ป้ายต่อช่องวาง (ซ้าย/ขวาแยกกัน)</option>
       <option value="cell">ป้ายต่อช่องชั้น (ไม่แยกซ้าย/ขวา)</option>
@@ -69,9 +88,10 @@
 </div>
 
 <div class="note" id="note"></div>
-<div id="sheet"><div class="empty">กำลังโหลดผังโกดัง…</div></div>
+<div id="wrap"><div id="sheet"><div class="empty">กำลังโหลดผังโกดัง…</div></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.js"></script>
 <script type="module">
 const KEY = new URLSearchParams(location.search).get("key") || "";
 const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
@@ -80,7 +100,30 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 $("back").href = api("/warehouse/scan");
 
+/* 📐 ขนาดป้าย — คิดจากกระดาษจริง A4 แนวตั้ง ขอบ 8 มม. (พื้นที่ 194 × 281 มม.)
+      ป้าย/แผ่น = floor((281 + ช่องไฟ) / (สูงป้าย + ช่องไฟ)) × จำนวนคอลัมน์ */
+const GAP = 4;                                    // ช่องไฟระหว่างป้าย (มม.)
+const PAGE_W = 194;                               // กว้างพื้นที่พิมพ์ (มม.)
+const PAGE_H = 281;                               // สูงพื้นที่พิมพ์ (มม.)
+const SIZES = {
+  2: { cols: 2, lh: 42, qr: 26, bc: 17, code: 9 },
+  3: { cols: 3, lh: 34, qr: 20, bc: 13, code: 7 },
+  4: { cols: 4, lh: 28, qr: 15, bc: 10, code: 5.4 },
+};
+const labelW = (s) => (PAGE_W - GAP * (s.cols - 1)) / s.cols;
+const perSheet = (s) => Math.floor((PAGE_H + GAP) / (s.lh + GAP)) * s.cols;
+
 let LAYOUT = null;
+
+function sizeNow() { return SIZES[$("size").value] || SIZES[2]; }
+function applySize() {
+  const s = sizeNow(), r = document.documentElement.style;
+  r.setProperty("--cols", String(s.cols));
+  r.setProperty("--lh", s.lh + "mm");
+  r.setProperty("--qr", s.qr + "mm");
+  r.setProperty("--bc", s.bc + "mm");
+  r.setProperty("--code", s.code + "mm");
+}
 
 function rowsOf() { return LAYOUT ? LAYOUT.rows : []; }
 
@@ -90,6 +133,7 @@ function fillPickers() {
   $("row").addEventListener("change", () => { fillBays(); render(); });
   $("bay").addEventListener("change", render);
   $("mode").addEventListener("change", render);
+  $("size").addEventListener("change", render);
   fillBays();
 }
 function fillBays() {
@@ -119,28 +163,60 @@ function labelName(s, noSide) {
   return noSide ? base : base + " · ฝั่ง" + (s.side === "L" ? "ซ้าย" : "ขวา");
 }
 
+/** แท่งบาร์โค้ดบางสุดที่จะได้บนกระดาษจริง (มม.) — ต่ำกว่า 0.19 มม. เครื่องยิงอ่านยาก */
+function moduleMm(s, sample) {
+  const chars = String(sample || "").length;
+  const modules = 11 + chars * 11 + 11 + 13 + 20;         // start + ข้อมูล + check + stop + ขอบเงียบ
+  const inner = labelW(s) - 5 - s.qr - 2;                 // กว้างป้าย − ขอบ − QR − ช่องไฟ
+  return inner / modules;
+}
+
 function render() {
-  const list = labels();
-  $("note").innerHTML = "จะพิมพ์ <b>" + list.length + " ป้าย</b> (A4 แนวตั้ง 3 ป้ายต่อแถว ≈ " +
-    Math.ceil(list.length / 24) + " แผ่น) · บาร์โค้ดเป็น Code128 เก็บรหัสช่อง — " +
-    "ยิงที่หน้า “ยิงรับเข้าชั้น” แล้วระบบจะจำช่องนั้นให้ทันที";
+  applySize();
+  const list = labels(), s = sizeNow(), per = perSheet(s);
+  const mm = list.length ? moduleMm(s, list[0].code) : 0;
+  $("note").innerHTML = "จะพิมพ์ <b>" + list.length + " ป้าย</b> — A4 แนวตั้ง " + s.cols +
+    " ป้าย/แถว · " + per + " ป้าย/แผ่น ⇒ <b>" + Math.ceil(list.length / per) + " แผ่น</b>" +
+    "<br>ป้ายขนาด " + labelW(s).toFixed(0) + " × " + s.lh + " มม. · แท่งบาร์โค้ดบางสุด ≈ " +
+    mm.toFixed(2) + " มม." +
+    (mm < 0.19
+      ? ' <b style="color:#b91c1c">(เล็กเกินสำหรับเครื่องยิงบาร์โค้ด — ลองแล้วอ่านไม่ออกจริง ' +
+        "ขนาดนี้ใช้ได้เฉพาะสแกน QR ด้วยมือถือ)</b>"
+      : " (เครื่องยิงอ่านได้สบาย — ไม่ควรต่ำกว่า 0.19 มม.)") +
+    "<br>▌▌▌ บาร์โค้ด = เครื่องยิง · ▓▓▓ QR = กล้องมือถือ — เก็บรหัสช่องเหมือนกันทั้งคู่ " +
+    "ยิง/สแกนที่หน้า “ยิงรับเข้าชั้น” แล้วระบบจะจำช่องนั้นให้ทันที";
   if (!list.length) { $("sheet").innerHTML = '<div class="empty">ไม่มีป้ายตามตัวกรองนี้</div>'; return; }
 
   $("sheet").innerHTML = '<div class="grid">' + list.map((l, i) =>
     '<div class="lbl"><div class="zone">' + esc(l.sub) + "</div>" +
     '<div class="code">' + esc(l.title) + "</div>" +
-    '<svg id="bc' + i + '"></svg>' +
+    '<div class="marks"><div class="bc"><svg id="bc' + i + '"></svg></div>' +
+    '<div class="qr" id="qr' + i + '"></div></div>' +
     '<div class="foot">โกดัง Pacred · สมุทรสาคร</div></div>').join("") + "</div>";
 
-  /* วาดบาร์โค้ด — ล้มทีละอันไม่ทำให้ทั้งแผ่นพัง */
+  /* วาดบาร์โค้ด + QR — ล้มทีละอันไม่ทำให้ทั้งแผ่นพัง */
   list.forEach((l, i) => {
     try {
+      /* 🔑 ขอบเงียบ 10 แท่งซ้าย-ขวา (มาตรฐาน Code128) — ไม่มีขอบเงียบ เครื่องยิงอ่านไม่ติด
+         width:2 ⇒ margin 20px = 10 แท่งพอดี และตรงกับที่ moduleMm() คิดไว้ */
       window.JsBarcode("#bc" + i, l.code, {
-        format: "CODE128", displayValue: false, margin: 0, height: 46, width: 1.6,
+        format: "CODE128", displayValue: false, height: 60, width: 2,
+        marginTop: 0, marginBottom: 0, marginLeft: 20, marginRight: 20,
       });
-    } catch (e) {
-      const n = document.getElementById("bc" + i);
-      if (n) n.outerHTML = '<div style="font-size:10px;color:#b91c1c">วาดบาร์โค้ดไม่ได้</div>';
+    } catch {
+      const n = $("bc" + i);
+      if (n) n.outerHTML = '<div class="bad">วาดบาร์โค้ดไม่ได้</div>';
+    }
+    try {
+      /* 🔒 QR เก็บ "รหัสช่อง" เฉยๆ — ไม่ใส่ลิงก์/กุญแจ ป้ายหลุดไปก็เปิดระบบไม่ได้ */
+      const q = window.qrcode(0, "M");
+      q.addData(l.code);
+      q.make();
+      /* margin 4 ช่อง = ขอบเงียบตามมาตรฐาน QR — ไม่มีขอบเงียบ กล้องมือถืออ่านไม่ติด */
+      $("qr" + i).innerHTML = q.createSvgTag({ cellSize: 2, margin: 8, scalable: true });
+    } catch {
+      const n = $("qr" + i);
+      if (n) n.innerHTML = '<div class="bad">QR ไม่ได้</div>';
     }
   });
 }
@@ -155,8 +231,10 @@ $("print").addEventListener("click", () => window.print());
     return;
   }
   LAYOUT = await r.json();
-  if (!window.JsBarcode) {
-    $("sheet").innerHTML = '<div class="empty">โหลดตัววาดบาร์โค้ดไม่ได้ — ต้องต่อเน็ตตอนเปิดหน้านี้ครั้งแรก</div>';
+  const miss = [!window.JsBarcode && "บาร์โค้ด", !window.qrcode && "QR"].filter(Boolean);
+  if (miss.length) {
+    $("sheet").innerHTML = '<div class="empty">โหลดตัววาด' + miss.join(" + ") +
+      " ไม่ได้ — ต้องต่อเน็ตตอนเปิดหน้านี้ครั้งแรก</div>";
     return;
   }
   fillPickers();

@@ -139,7 +139,7 @@
 <div id="summary"></div>
 
 <div class="panel" id="alerts" style="display:none">
-  <h4>⚠️ ต้องเช็ค <span id="alertN"></span><span class="x" onclick="document.getElementById('alerts').style.display='none'">✕</span></h4>
+  <h4>⚠️ ต้องเช็ค <span id="alertN"></span><span class="x" onclick="closeAlerts()">✕</span></h4>
   <div id="alertRows"></div>
 </div>
 
@@ -488,7 +488,7 @@ function doSearch(term) {
 function showFound(found, match) {
   const rows = found.flatMap((s) => s.items.filter(match).map((i) =>
     ({ slot: s.slot, tracking: i.tracking, memberCode: i.memberCode, pick: i.pick, why: i.why })));
-  renderAlerts(rows, "🔎 ผลค้นหา");
+  renderAlerts(rows, "🔎 ผลค้นหา", true);
 }
 
 /* ══ ⑤⑥ โหลดข้อมูล + แถบสรุป + รายการเตือน ═══════════════════════ */
@@ -543,7 +543,12 @@ function applyData(v) {
   resize();
 }
 
-function renderAlerts(rows, title) {
+/* 🔑 ปิดแล้วต้องปิดอยู่ — ไม่งั้นโหลดใหม่ทุก 60 วิ แล้วเด้งกลับมาบังจอ
+      (ผลค้นหาเป็นข้อยกเว้น — คนกดค้นหาเองย่อมอยากเห็นผล) */
+let alertsClosed = false;
+window.closeAlerts = () => { alertsClosed = true; $("alerts").style.display = "none"; };
+
+function renderAlerts(rows, title, force) {
   $("alerts").querySelector("h4").firstChild.textContent = title + " ";
   $("alertN").textContent = rows.length ? "(" + rows.length + ")" : "";
   $("alertRows").innerHTML = rows.length
@@ -557,7 +562,8 @@ function renderAlerts(rows, title) {
     : '<div class="empty">ไม่มีช่องที่ต้องเช็ค 👍</div>';
   for (const row of $("alertRows").querySelectorAll(".row"))
     row.addEventListener("click", () => { if (row.dataset.slot) openSlot(row.dataset.slot); });
-  $("alerts").style.display = rows.length ? "block" : "none";
+  if (force) alertsClosed = false;
+  $("alerts").style.display = rows.length && !alertsClosed ? "block" : "none";
 }
 
 /* กดการ์ดสรุป = กรองเฉพาะสีนั้น (กดซ้ำ = เลิกกรอง) */

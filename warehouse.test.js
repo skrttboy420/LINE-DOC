@@ -474,6 +474,50 @@ ok("รันซ้ำได้ — ทุกคำสั่งที่สร�
   }
 });
 
+/* ════ ⑩ 📱 มือถือ — กรอบไม่ทับกัน + นิ้วซูมได้ (ภูม 2026-11-12) ════ */
+section("มือถือ");
+
+const D3D = fs.readFileSync("warehouse-3d.html", "utf8");
+
+ok("🔴 ตำแหน่งป๊อปอัพบนมือถือต้องคิดจากของจริง ไม่ใช่เลขตายตัว", () => {
+  /* 🪤 เจอจริง: ตั้ง top:118px ตายตัว แล้วการ์ดสรุปตกเป็น 2 บรรทัดบนจอ 375px
+     ⇒ ป๊อปอัพทับแถบสรุป + ทับปุ่มมุมมอง อ่านไม่รู้เรื่อง */
+  assert.ok(!/#pop\{[^}]*top:\s*\d+px/.test(D3D), "ห้ามตั้ง top ของป๊อปอัพเป็นเลขตายตัว");
+  assert.ok(D3D.includes('$("pop").style.bottom = narrow'), "ต้องคำนวณตำแหน่งจาก JS");
+  assert.ok(D3D.includes('$("map").getBoundingClientRect().height'), "ต้องวัดความสูงแผนผังจริง");
+});
+
+ok("แถบสรุปบนมือถือเป็นบรรทัดเดียว เลื่อนข้างได้ (ไม่ตก 2 บรรทัดจนดันของอื่น)", () => {
+  assert.ok(/#summary\{[^}]*flex-wrap:\s*nowrap/.test(D3D), "ต้อง nowrap");
+  assert.ok(/#summary\{[^}]*overflow-x:\s*auto/.test(D3D), "ต้องเลื่อนข้างได้");
+});
+
+ok("ย่อ/ขยายแผนผังแล้วต้องจัดตำแหน่งใหม่ (ไม่งั้นป๊อปอัพทับแผนผัง)", () => {
+  const i = D3D.indexOf('$("mapHead").addEventListener');
+  assert.ok(i > 0, "ต้องมีตัวจับการกดหัวแผนผัง");
+  assert.ok(D3D.slice(i, i + 420).includes("resize()"), "กดย่อ/ขยายแล้วต้องเรียก resize()");
+});
+
+ok("🤏 รองรับ 2 นิ้ว — ซูมเข้าออก + เลื่อน", () => {
+  /* canvas ตั้ง touch-action:none ⇒ เบราว์เซอร์ไม่จัดการท่าทางให้ ต้องเขียนเอง
+     ภูม: *"ในมือถือ ภูมิเอานิ้วซูมเข้าออกขยายอะไรแบบในคอมไม่ได้เลย"* */
+  assert.ok(/touch-action:\s*none/.test(D3D), "canvas ต้องกันเบราว์เซอร์แย่งท่าทาง");
+  assert.ok(D3D.includes("const pointers = new Map()"), "ต้องเก็บนิ้วหลายนิ้ว");
+  assert.ok(D3D.includes("pointers.size >= 2"), "ต้องมีทางสำหรับ 2 นิ้ว");
+  assert.ok(D3D.includes("pinch.dist / now.dist"), "ต้องคิดซูมจากระยะห่างระหว่างนิ้ว");
+  assert.ok(D3D.includes("pointercancel"), "ต้องจับตอนนิ้วหลุด ไม่งั้นค้างสถานะ");
+});
+
+ok("🔴 ซูมด้วย 2 นิ้วแล้วต้องไม่เผลอเลือกกล่อง", () => {
+  assert.ok(D3D.includes("let gestured = false"), "ต้องมีธงบอกว่าเพิ่งใช้ 2 นิ้ว");
+  const i = D3D.indexOf('el.addEventListener("click"');
+  assert.ok(D3D.slice(i, i + 200).includes("if (gestured) return;"), "ตัวรับคลิกต้องเช็คธงก่อน");
+});
+
+ok("จับ pointer ไม่ได้ ต้องไม่ทำให้ท่าทางพังทั้งหมด", () => {
+  assert.ok(/try \{ el\.setPointerCapture/.test(D3D), "setPointerCapture ต้องอยู่ใน try");
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

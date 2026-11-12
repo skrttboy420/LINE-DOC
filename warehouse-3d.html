@@ -173,16 +173,29 @@
   }
   @media(max-width:880px){
     #alerts{display:none} #hint{display:none}
-    .stat{min-width:0;padding:7px 10px} .stat .lb{display:none} .stat .nm{font-size:16px}
-    #clock{min-width:0;padding:6px 10px} #clock .d{display:none}
-    #views button{min-width:0;padding:9px 11px}
-    #map{width:calc(100vw - 24px)} #map .body{max-height:32vh}
-    /* 🔴 เดิมปุ่มมุมมองลอยทับแผนผัง ⇒ ล็อกที่ 8 ของแถว B/C กดไม่ได้ (โดนปุ่มบัง)
-       ⇒ จอแคบย้ายไปเรียงแนวนอนใต้แถบสรุป (JS เป็นคนใส่ค่า top เพราะหัวสูงไม่คงที่) */
-    #views{flex-direction:row;bottom:auto}
-    #views button{border-bottom:0;border-right:1px solid #1e293b;padding:8px 10px}
+
+    /* 🔴 ภูม 2026-11-12: *"ในมือถือ กรอบข้อมูลมันทับกันอะ ดูไม่รู้เรื่องเลย"*
+       ต้นเหตุ = การ์ดสรุป 4 ใบ + นาฬิกา ตกเป็น 2 บรรทัดบนจอ 375px (สูง 125px)
+       แล้วผมตั้งป๊อปอัพไว้ที่ top:118px ตายตัว ⇒ ทับแถบสรุป + ทับปุ่มมุมมอง
+       ⇒ แถบสรุปเหลือ **บรรทัดเดียว เลื่อนข้างได้** · ป๊อปอัพเป็นแผ่นเลื่อนขึ้นจากล่าง
+         · ตำแหน่งคิดจากของจริงด้วย JS ไม่ใช่เลขตายตัว */
+    #summary{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;
+      -webkit-overflow-scrolling:touch;scrollbar-width:none;padding:8px 12px;gap:7px}
+    #summary::-webkit-scrollbar{display:none}
+    .stat{min-width:0;flex:0 0 auto;padding:7px 10px}
+    .stat .lb{display:none} .stat .nm{font-size:16px}
+    #clock{margin-left:0;flex:0 0 auto;min-width:0;padding:6px 11px} #clock .d{display:none}
+
+    /* ปุ่มมุมมอง = แถวนอนชิดขวา ใต้แถบสรุป (ไม่ไปทับแผ่นล่าง) */
+    #views{flex-direction:row;bottom:auto;left:auto;right:12px}
+    #views button{min-width:0;border-bottom:0;border-right:1px solid #1e293b;padding:8px 11px}
     #views button:last-child{border-right:0}
-    #pop{bottom:auto;top:118px;max-height:40vh}
+
+    /* ป๊อปอัพ = แผ่นเลื่อนขึ้นจากล่าง เต็มความกว้าง (JS ใส่ค่า bottom ให้พ้นแผนผัง) */
+    #pop{left:12px;right:12px;width:auto;transform:none;top:auto;max-height:46vh}
+    #pop .ph{padding:11px 12px}
+
+    #map{width:calc(100vw - 24px)} #map .body{max-height:30vh}
   }
 </style>
 </head>
@@ -221,7 +234,8 @@
 <div id="hint">
   คลิก = เลือก · ดับเบิลคลิก = ซูมเข้า<br>
   คลิกที่ว่าง = ยกเลิก · <kbd>Esc</kbd> = ย้อนมุมมอง<br>
-  ลาก = หมุน · ล้อ = ซูม · Shift+ลาก = เลื่อน
+  ลาก = หมุน · ล้อ = ซูม · Shift+ลาก = เลื่อน<br>
+  มือถือ: 1 นิ้ว = หมุน · 2 นิ้ว = ซูม/เลื่อน
 </div>
 <div id="views"></div>
 
@@ -301,11 +315,58 @@ function cancelAnim() { if (anim) { anim = null; markView(null); } }
 
 const el = renderer.domElement;
 let drag = null, lastClick = 0;
+
+/**
+ * 🤏 นิ้วซูมเข้า-ออก + เลื่อน 2 นิ้ว (ภูม 2026-11-12: *"ในมือถือ ภูมิเอานิ้วซูมเข้าออกขยาย
+ * อะไรแบบในคอมไม่ได้เลย"*)
+ * 🔑 canvas ตั้ง touch-action:none ไว้ (ต้องตั้ง ไม่งั้นเบราว์เซอร์แย่งท่าทางไปเลื่อนหน้า)
+ *    ⇒ ท่าทางทุกอย่างต้องเขียนเอง — เดิมเขียนแค่ "ลาก 1 นิ้ว" ⇒ 2 นิ้วเลยไม่มีอะไรเกิดขึ้น
+ * 1 นิ้ว = หมุน · 2 นิ้ว = ซูม (ระยะห่าง) + เลื่อน (จุดกึ่งกลาง)
+ */
+const pointers = new Map();                       // pointerId → ตำแหน่งล่าสุด
+let pinch = null;                                 // { dist, cx, cy }
+let gestured = false;                             // เพิ่งใช้ 2 นิ้ว = ไม่นับเป็นคลิก
+
+const pinchOf = () => {
+  const [a, b] = [...pointers.values()];
+  return { dist: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 };
+};
+
 el.addEventListener("pointerdown", (e) => {
-  drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
-  el.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  /* จับ pointer ไว้ไม่ได้ = ไม่เป็นไร ท่าทางต้องทำงานต่อ (บางเบราว์เซอร์/บางกรณีโยน error) */
+  try { el.setPointerCapture(e.pointerId); } catch {}
+  if (pointers.size === 2) { pinch = pinchOf(); gestured = true; cancelAnim(); drag = null; return; }
+  if (pointers.size === 1)
+    drag = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey, moved: 0 };
 });
+
 el.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  /* ── 2 นิ้ว: ซูม + เลื่อน ── */
+  if (pointers.size >= 2) {
+    if (!pinch) { pinch = pinchOf(); return; }
+    const now = pinchOf();
+    cancelAnim();
+    if (now.dist > 0 && pinch.dist > 0) {
+      const ratio = pinch.dist / now.dist;        // แยกนิ้วออก = ระยะมากขึ้น = ซูมเข้า = r ลด
+      cam.r *= Math.max(0.5, Math.min(2, ratio));
+    }
+    const mdx = now.cx - pinch.cx, mdy = now.cy - pinch.cy;
+    if (mdx || mdy) {
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
+      const k = cam.r * 0.0016;
+      cam.target.addScaledVector(right, -mdx * k).addScaledVector(up, mdy * k);
+    }
+    pinch = now;
+    applyCam();
+    return;
+  }
+
+  /* ── 1 นิ้ว: หมุน (Shift/ปุ่มขวา = เลื่อน) ── */
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
@@ -322,10 +383,21 @@ el.addEventListener("pointermove", (e) => {
   }
   applyCam();
 });
-el.addEventListener("pointerup", (e) => {
-  el.releasePointerCapture(e.pointerId);
-  setTimeout(() => { drag = null; }, 0);
-});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  try { el.releasePointerCapture(e.pointerId); } catch {}
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 0) {
+    setTimeout(() => { drag = null; gestured = false; }, 0);
+  } else {
+    /* ยกนิ้วเดียวจาก 2 นิ้ว = เริ่มหมุนต่อจากนิ้วที่เหลือ (ไม่ให้จอกระตุก) */
+    const [p] = [...pointers.values()];
+    drag = { x: p.x, y: p.y, pan: false, moved: 99 };
+  }
+}
+el.addEventListener("pointerup", endPointer);
+el.addEventListener("pointercancel", endPointer);
 el.addEventListener("contextmenu", (e) => e.preventDefault());
 el.addEventListener("wheel", (e) => {
   e.preventDefault(); cancelAnim();
@@ -342,6 +414,11 @@ function resize() {
   $("alerts").style.top = below + "px";
   const narrow = innerWidth <= 880;
   $("views").style.top = narrow ? below + "px" : "auto";
+  /* 📱 ป๊อปอัพต้องอยู่เหนือแผนผังเสมอ — แผนผังย่อ/ขยายได้ ความสูงเลยไม่คงที่
+     ⇒ วัดของจริงทุกครั้ง ไม่ใช้เลขตายตัว (ที่ทำให้กรอบทับกันรอบก่อน) */
+  $("pop").style.bottom = narrow
+    ? ($("map").getBoundingClientRect().height + 20) + "px"
+    : "12px";
   if (typeof showAlerts === "function") showAlerts();
 }
 addEventListener("resize", resize);
@@ -537,6 +614,7 @@ function pickSlot(clientX, clientY) {
 }
 
 el.addEventListener("click", (e) => {
+  if (gestured) return;                             // เพิ่งซูมด้วย 2 นิ้ว ไม่ใช่คลิกเลือก
   if (drag && drag.moved > 6) return;               // ลากกล้อง ไม่ใช่คลิกเลือก
   const now = performance.now();
   const dbl = now - lastClick < 320;
@@ -614,6 +692,7 @@ function openSlot(code, zoom) {
 
   wireActions();
   $("pop").style.display = "block";
+  resize();
   openCode = s.slot;
   focusSlot(s, zoom);
   highlight(s.slot);
@@ -717,6 +796,7 @@ let openBay = null;
 $("mapHead").addEventListener("click", () => {
   const min = $("map").classList.toggle("min");
   $("mapCv").textContent = min ? "ขยาย ▴" : "ย่อ ▾";
+  resize();                                    // แผนผังสูงเปลี่ยน ⇒ ป๊อปอัพต้องขยับตาม
 });
 if (innerWidth < 880) { $("map").classList.add("min"); $("mapCv").textContent = "ขยาย ▴"; }
 

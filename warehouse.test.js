@@ -60,9 +60,10 @@ ok("อ่านได้แม้พิมพ์ตัวเล็ก/มีข
 });
 
 ok("🔴 ช่องที่ไม่มีในผังต้องไม่ผ่าน (กันคีย์ช่องผี)", () => {
-  assert.equal(L.parseLocation("A0701"), null, "แถว A มีแค่ 6 ล็อก");
-  assert.equal(L.parseLocation("B1101"), null, "แถว B มีแค่ 10 ล็อก");
-  assert.equal(L.parseLocation("A0105"), null, "มีแค่ 4 ชั้น");
+  assert.equal(L.parseLocation("A0107"), null, "แถว A มีแค่ 6 ล็อก");
+  assert.equal(L.parseLocation("B0111"), null, "แถว B มีแค่ 10 ล็อก");
+  assert.equal(L.parseLocation("A0501"), null, "มีแค่ 4 ชั้น");
+  assert.equal(L.parseLocation("A0105").bay, 5, "A0105 = ชั้น 1 ล็อก 5 (รูปใหม่ ชั้นก่อนล็อก)");
   assert.equal(L.parseLocation("D0101"), null, "ไม่มีแถว D");
   assert.throws(() => L.locationCode("A", 7, 1), /ล็อกที่ 7 ไม่มีอยู่/);
   assert.throws(() => L.locationCode("A", 1, 5), /ชั้นที่ 5 ไม่มีอยู่/);
@@ -75,25 +76,39 @@ ok("ฝั่งรับแค่ L / R", () => {
 });
 
 ok("ชื่อที่คนอ่านรู้เรื่อง", () => {
-  assert.equal(L.slotLabel("A0101-L"), "โซนซ้าย ล็อก 1 ชั้น 1 (ฝั่งซ้าย)");
-  assert.equal(L.slotLabel("C1004"), "โซนริมขวา ล็อก 10 ชั้น 4");
+  assert.equal(L.slotLabel("A0101-L"), "โซนซ้าย ชั้น 1 ล็อก 1 (ฝั่งซ้าย)");
+  assert.equal(L.slotLabel("C0410"), "โซนริมขวา ชั้น 4 ล็อก 10");
 });
 
 /* ════ ③ พิกัด XYZ ════════════════════════════════════════════════════ */
 section("พิกัด XYZ (หน่วยเซนติเมตรของจริง)");
 
 ok("แถวห่างกัน = ลึกชั้นวาง 120 + ทางเดิน 300", () => {
-  assert.equal(L.rowOriginX("A"), 0);
-  assert.equal(L.rowOriginX("B"), 420);
-  assert.equal(L.rowOriginX("C"), 840);
+  assert.equal(L.rowOriginX("B") - L.rowOriginX("A"), -420);
+  assert.equal(L.rowOriginX("C") - L.rowOriginX("B"), -420);
+});
+
+ok("🔴 ยืนหน้าโกดังแล้ว แถว A ต้องอยู่ฝั่งนี้ · ล็อก 1 ต้องอยู่ติดประตู", () => {
+  /* ภูม 2026-11-12: *"แถว C ควรเป็นแถว A"* + *"ล็อกที่ 10 ควรเป็นล็อกที่ 1 นะ
+     เพราะหน้าโกดังอยู่ฝั่งนี้ ไม่ใช่อีกฝั่งที่แกใส่มา"* */
+  assert.ok(L.rowOriginX("A") > L.rowOriginX("C"), "A ต้องอยู่คนละฝั่งกับรุ่นก่อน");
+  const near = L.bayZ0("B", 1), far = L.bayZ0("B", 10);
+  assert.ok(near > far, "ล็อก 1 ต้องอยู่ฝั่งประตู (Z มากกว่า) · ได้ " + near + " vs " + far);
+  assert.equal(far, 0, "ล็อกท้ายสุดชนผนังลึกสุด");
+
+  /* แถว A สั้นกว่าเพื่อน — ส่วนที่หายต้องอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
+  const a = L.rowZSpan("A"), b = L.rowZSpan("B");
+  assert.equal(a.end, b.end, "ปลายฝั่งประตูต้องเสมอกันทุกแถว");
+  assert.ok(a.start > b.start, "แถว A ต้องสั้นเข้ามาจากด้านใน");
+  assert.equal(L.bayZ0("A", 1), L.bayZ0("B", 1), "ล็อก 1 ของทุกแถวอยู่แนวเดียวกัน");
 });
 
 ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา 7) · ชั้นถัดไปสูงขึ้น 175 (165 + คาน 10)", () => {
   assert.equal(L.BAY_PITCH, 257);
   assert.equal(L.LEVEL_PITCH, 175);
-  const b1 = L.slotBox("B0101", "L"), b2 = L.slotBox("B0201", "L");
-  assert.equal(b2.z - b1.z, 257);
-  const l1 = L.slotBox("B0101", "L"), l2 = L.slotBox("B0102", "L");
+  const b1 = L.slotBox("B0101", "L"), b2 = L.slotBox("B0102", "L");
+  assert.equal(b1.z - b2.z, 257, "ล็อกถัดไป = ลึกเข้าไปจากประตู 257");
+  const l1 = L.slotBox("B0101", "L"), l2 = L.slotBox("B0201", "L");
   assert.equal(l2.y - l1.y, 175);
 });
 
@@ -225,11 +240,11 @@ const PL = (t, slot, extra) => Object.assign({ tracking: t, slot: slot, boxes: 1
 
 ok("ช่องที่มีของได้สีตามงาน · ช่องที่เหลือว่าง", () => {
   const v = W.mergeView(
-    [PL("TA", "A0101-L"), PL("TB", "B0503-R")],
+    [PL("TA", "A0101-L"), PL("TB", "B0305-R")],
     [job({ tracking: "TA" }), job({ tracking: "TB", status: 5, paid: false })],
   );
   const a = v.layout.slots.find((s) => s.slot === "A0101-L");
-  const b = v.layout.slots.find((s) => s.slot === "B0503-R");
+  const b = v.layout.slots.find((s) => s.slot === "B0305-R");
   assert.equal(a.status, "ready");
   assert.equal(b.status, "wait");
   assert.equal(v.counts.ready, 1);
@@ -248,9 +263,9 @@ ok("ช่องเดียววางได้หลายแทรค · น
 });
 
 ok("🔴 รายการเตือน — ช่องที่ขัดกับระบบต้องโผล่ในลิสต์ให้กดดูได้", () => {
-  const v = W.mergeView([PL("TX", "C1004-R")], [job({ tracking: "TX", status: 7 })]);
+  const v = W.mergeView([PL("TX", "C0410-R")], [job({ tracking: "TX", status: 7 })]);
   assert.equal(v.alerts.length, 1);
-  assert.equal(v.alerts[0].slot, "C1004-R");
+  assert.equal(v.alerts[0].slot, "C0410-R");
   assert.equal(v.alerts[0].tracking, "TX");
 });
 
@@ -616,6 +631,72 @@ ok("บอกเหตุเป็นภาษาคนเมื่อเปิ�
   assert.ok(SCAN.includes("window.isSecureContext"), "ต้องเช็ค https ก่อน");
   for (const n of ["NotAllowedError", "NotFoundError", "NotReadableError"])
     assert.ok(SCAN.includes(n), "ต้องแปลเหตุ " + n);
+});
+
+/* ════ ⑫ 🔢 รหัส ชั้น-ล็อก + ทิศทางหน้าโกดัง (ภูม 2026-11-12 รอบ 3) ═══ */
+section("รหัสชั้น-ล็อก + ทิศทาง");
+
+ok("🔴 รหัสเรียง ชั้นก่อน แล้วค่อยล็อก", () => {
+  /* ภูม: *"รหัสให้ขึ้นเป็น ชั้นก่อนแล้วค่อยต่อด้วยล็อก"* */
+  assert.equal(L.locationCode("A", 5, 1), "A0105", "ล็อก 5 ชั้น 1 → A0105");
+  assert.equal(L.locationCode("B", 10, 4), "B0410", "ล็อก 10 ชั้น 4 → B0410");
+  const p = L.parseLocation("B0410");
+  assert.equal(p.level, 4); assert.equal(p.bay, 10);
+});
+
+ok("🔴 แปลงรหัสรุ่นก่อนได้ (ของที่คีย์ไว้แล้วต้องไม่หาย)", () => {
+  assert.equal(L.convertOldCode("A0501-R"), "A0105-R", "เดิม ล็อก5 ชั้น1");
+  assert.equal(L.convertOldCode("C1004"), "C0410", "เดิม ล็อก10 ชั้น4");
+  assert.equal(L.convertOldCode("A0107"), null, "เดิมแถว A ไม่มีชั้น 7");
+  assert.equal(L.convertOldCode("ไม่ใช่รหัส"), null);
+});
+
+ok("ทุกช่องในผังยังครบ 208 และรหัสไม่ซ้ำกัน", () => {
+  const b = L.buildLayout();
+  assert.equal(b.slots.length, 208);
+  assert.equal(new Set(b.slots.map((s) => s.slot)).size, 208, "รหัสซ้ำ = ของทับกัน");
+  for (const s of b.slots) assert.ok(L.parseSlot(s.slot), "แกะรหัสไม่ออก: " + s.slot);
+});
+
+ok("🔴 หน้า 3D ต้องไม่คิดพิกัด Z เอง — ต้องอ่านจากผัง", () => {
+  /* 🪤 เดิมหน้า 3D คิด z ของเสา/คาน/ป้ายเอง ⇒ พอสลับทิศ กล่องย้ายแต่โครงเหล็กไม่ย้าย */
+  const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
+  assert.ok(D3.includes("row.zStart"), "เสา/คานต้องอ่าน zStart จากผัง");
+  assert.ok(D3.includes("row.bayCenterZ"), "ป้ายเลขล็อกต้องอ่าน bayCenterZ จากผัง");
+  assert.ok(!/const z = bay \* \(C\.w \+ ST\.post\)/.test(D3), "ห้ามคิด z ของเสาเอง");
+});
+
+ok("🔴 หน้าคีย์ตำแหน่งต้องไม่ประกอบรหัสเอง", () => {
+  const A = fs.readFileSync("warehouse-assign.html", "utf8");
+  assert.ok(!/sel\.zone \+ pad2\(/.test(A), "ห้ามต่อรหัสเอง — ต้องหาจาก LAYOUT.slots");
+  assert.ok(A.includes("x.row === sel.zone && x.bay === sel.bay"), "ต้องหาช่องจากผัง");
+});
+
+ok("ผังบอกทิศทางหน้าโกดังมาด้วย (หน้าอื่นจะได้ไม่เดา)", () => {
+  const b = L.buildLayout();
+  assert.equal(b.door.bayOneAtFarZ, true);
+  assert.equal(b.door.rowAatFarX, true);
+  for (const r of b.rows) {
+    assert.equal(r.bayCenterZ.length, r.bays, "ต้องมีตำแหน่งป้ายครบทุกล็อก");
+    assert.ok(r.labelZ > r.zEnd, "ป้ายตัวอักษรแถวต้องอยู่นอกชั้นวาง ฝั่งประตู");
+  }
+});
+
+ok("🔴 ของที่คีย์ไว้ด้วยรหัสรูปเก่า ต้องไม่หายจากจอ", () => {
+  /* 🪤 ไม่แปลงให้ = แถวเก่ากลายเป็น orphan แล้วหายเงียบๆ ทั้งที่ของยังอยู่บนชั้นจริง */
+  const v = W.mergeView([PL("TOLD", "A0501-R")], [job({ tracking: "TOLD" })]);
+  const s = v.layout.slots.find((x) => x.slot === "A0105-R");
+  assert.equal(s.items.length, 1, "ต้องไปโผล่ที่ช่องเดียวกันในรูปใหม่");
+  assert.equal((v.orphans || []).length, 0, "ต้องไม่กลายเป็นของกำพร้า");
+});
+
+ok("🔴 ป้าย/หน้าจอ ต้องเรียงคำ ชั้นก่อนล็อก ให้ตรงกับรหัส", () => {
+  /* อ่านรหัสได้ลำดับหนึ่ง อ่านคำได้อีกลำดับ = คนเดินหาของผิดช่อง */
+  const lb = L.slotLabel("B0410-R");
+  assert.ok(/ชั้น 4 ล็อก 10/.test(lb), "ชื่อช่องต้องเรียงชั้นก่อน → " + lb);
+  const LBL = fs.readFileSync("warehouse-labels.html", "utf8");
+  assert.ok(!/" · ล็อก " \+ s\.bay/.test(LBL), "หน้าป้ายห้ามเรียงคำเอง");
+  assert.ok(LBL.includes("String(s.label"), "หน้าป้ายต้องใช้ชื่อที่ผังส่งมา");
 });
 
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */

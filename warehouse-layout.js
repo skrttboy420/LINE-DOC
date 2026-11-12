@@ -43,12 +43,27 @@ const ROWS = Object.freeze([
   Object.freeze({ key: "C", name: "โซนริมขวา", bays: 10, note: "ตั้งยาวเต็มพื้นที่" }),
 ]);
 
+/* 🧭 ทิศทาง — ยืนที่ "หน้าโกดัง" แล้วมองเข้าไปข้างใน
+   ภูม 2026-11-12: *"ล็อกที่ 10 ควรเป็นล็อกที่ 1 นะ เพราะหน้าโกดังอยู่ฝั่งนี้
+                     ไม่ใช่อีกฝั่งที่แกใส่มา"* + *"แถว C ควรเป็นแถว A"*
+   ⇒ ล็อก 1 = ล็อกที่อยู่ติดประตูหน้าโกดัง · นับลึกเข้าไปเรื่อยๆ
+   ⇒ แถว A = แถวซ้ายมือเมื่อยืนหันหน้าเข้าโกดัง
+   🔧 ถ้าของจริงกลับด้าน สลับ 2 ค่านี้ได้เลย — ทั้งผัง · หน้า 3D · ป้าย เดินตามเอง */
+const DOOR = Object.freeze({
+  /** true = ล็อก 1 อยู่ปลายไกลของแกน Z (ฝั่งที่เห็นเป็น "ล็อก 10" ในจอรุ่นก่อน) */
+  bayOneAtFarZ: true,
+  /** true = แถว A อยู่ปลายไกลของแกน X (ฝั่งที่เห็นเป็น "แถว C" ในจอรุ่นก่อน) */
+  rowAatFarX: true,
+});
+
 /** ระยะห่างจากล็อกหนึ่งไปล็อกถัดไป = กว้างช่อง + เสา 1 ต้นที่แชร์กัน */
 const BAY_PITCH = CELL.w + STRUCT.post;   // 257
 /** ระยะห่างจากชั้นหนึ่งไปชั้นถัดไป = สูงช่อง + คาน */
 const LEVEL_PITCH = CELL.h + STRUCT.beam; // 175
 
-/* ── ② รหัสโลเคชั่น [Row][Bay][Level] เช่น A0101 ────────────────────── */
+/* ── ② รหัสโลเคชั่น [แถว][ชั้น][ล็อก] เช่น A0105 = แถว A ชั้น 1 ล็อก 5 ──
+   ภูม 2026-11-12: *"รหัสให้ขึ้นเป็น ชั้นก่อนแล้วค่อยต่อด้วยล็อก"*
+   (ของเดิมเป็น [แถว][ล็อก][ชั้น] — สลับที่กันแล้ว ⇒ รหัสเก่าต้องแปลงก่อนใช้) */
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -59,7 +74,7 @@ function baysOf(rowKey) {
 }
 
 /**
- * สร้างรหัสโลเคชั่น — locationCode("A", 1, 1) → "A0101"
+ * สร้างรหัสโลเคชั่น — locationCode("A", 5, 1) → "A0105" (ชั้น 01 ล็อก 05)
  * @throws ถ้าแถว/ล็อก/ชั้น อยู่นอกผังจริง (กันคีย์ช่องที่ไม่มีอยู่)
  */
 function locationCode(rowKey, bay, level) {
@@ -70,11 +85,11 @@ function locationCode(rowKey, bay, level) {
     throw new Error("แถว " + row + " มี " + bays + " ล็อก — ล็อกที่ " + bay + " ไม่มีอยู่");
   if (!Number.isInteger(level) || level < 1 || level > LEVELS)
     throw new Error("มี " + LEVELS + " ชั้น — ชั้นที่ " + level + " ไม่มีอยู่");
-  return row + pad2(bay) + pad2(level);
+  return row + pad2(level) + pad2(bay);          // 🔑 ชั้นก่อน แล้วค่อยล็อก
 }
 
 /**
- * แกะรหัสโลเคชั่น — parseLocation("a0101") → { row:"A", bay:1, level:1 }
+ * แกะรหัสโลเคชั่น — parseLocation("a0105") → { row:"A", level:1, bay:5 }
  * คืน null เมื่อรหัสผิดรูปหรือชี้ช่องที่ไม่มีในผัง
  * (ห้าม throw — ช่องค้นหาเรียกตัวนี้ทุกตัวอักษรที่พิมพ์)
  */
@@ -82,10 +97,10 @@ function parseLocation(code) {
   const s = String(code || "").trim().toUpperCase().replace(/[\s-]/g, "");
   const m = /^([A-Z])(\d{2})(\d{2})$/.exec(s);
   if (!m) return null;
-  const row = m[1], bay = Number(m[2]), level = Number(m[3]);
+  const row = m[1], level = Number(m[2]), bay = Number(m[3]);
   if (bay < 1 || bay > baysOf(row)) return null;
   if (level < 1 || level > LEVELS) return null;
-  return { row, bay, level, code: row + pad2(bay) + pad2(level) };
+  return { row, bay, level, code: row + pad2(level) + pad2(bay) };
 }
 
 /** รหัสช่องวาง (รวมฝั่ง) — slotCode("A0101","l") → "A0101-L" */
@@ -107,12 +122,13 @@ function parseSlot(code) {
   return { row: loc.row, bay: loc.bay, level: loc.level, code: loc.code, side: m[2], slot: loc.code + "-" + m[2] };
 }
 
-/** ชื่อที่คนอ่านรู้เรื่อง — "A0101-L" → "โซนซ้าย ล็อก 1 ชั้น 1 (ฝั่งซ้าย)" */
+/** ชื่อที่คนอ่านรู้เรื่อง — "A0105-L" → "โซนซ้าย ชั้น 1 ล็อก 5 (ฝั่งซ้าย)"
+    🔑 เรียงคำตามรหัส (ชั้นก่อน ล็อกทีหลัง) ไม่งั้นคนอ่านรหัสกับอ่านคำแล้วได้คนละลำดับ */
 function slotLabel(code) {
   const s = parseSlot(code) || parseLocation(code);
   if (!s) return String(code || "");
   const row = ROWS.find((r) => r.key === s.row);
-  const base = (row ? row.name : s.row) + " ล็อก " + s.bay + " ชั้น " + s.level;
+  const base = (row ? row.name : s.row) + " ชั้น " + s.level + " ล็อก " + s.bay;
   return s.side ? base + " (ฝั่ง" + SIDE_TH[s.side] + ")" : base;
 }
 
@@ -126,11 +142,34 @@ function slotLabel(code) {
 //  🔑 ทุกค่าที่คืนเป็น "เซนติเมตรของจริง" ไม่ใช่หน่วยจอ
 //     ⇒ หน้า 3D ย่อเองทีเดียว · ถ้าวัดโกดังใหม่แล้วตัวเลขเปลี่ยน ไม่ต้องแก้หน้า
 
-/** ชั้นวางของแถวนี้เริ่มที่ X เท่าไหร่ */
+/** ความยาวพื้นที่ทั้งหมดตามแกน Z (แถวที่ยาวที่สุดกินเท่านี้) */
+function fullZ() {
+  return Math.max.apply(null, ROWS.map((r) => r.bays)) * BAY_PITCH;
+}
+
+/** ชั้นวางของแถวนี้เริ่มที่ X เท่าไหร่ (นับจากฝั่งซ้ายเมื่อยืนหันหน้าเข้าโกดัง) */
 function rowOriginX(rowKey) {
   const i = ROWS.findIndex((r) => r.key === String(rowKey || "").toUpperCase());
   if (i < 0) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
-  return i * (CELL.d + STRUCT.aisle);
+  const n = DOOR.rowAatFarX ? ROWS.length - 1 - i : i;
+  return n * (CELL.d + STRUCT.aisle);
+}
+
+/** ขอบของล็อกนั้นบนแกน Z — ล็อก 1 อยู่ติดหน้าโกดัง แล้วนับลึกเข้าไป */
+function bayZ0(rowKey, bay) {
+  const bays = baysOf(rowKey);
+  if (!bays) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
+  if (!Number.isInteger(bay) || bay < 1 || bay > bays)
+    throw new Error("แถว " + rowKey + " มี " + bays + " ล็อก — ล็อกที่ " + bay + " ไม่มีอยู่");
+  return DOOR.bayOneAtFarZ ? fullZ() - bay * BAY_PITCH : (bay - 1) * BAY_PITCH;
+}
+
+/** ช่วง Z ที่ชั้นวางของแถวนี้กินจริง (ไว้วาดเสา/คาน — จะได้ไม่ต้องคิดเองซ้ำ) */
+function rowZSpan(rowKey) {
+  const bays = baysOf(rowKey);
+  const len = bays * BAY_PITCH;
+  const start = DOOR.bayOneAtFarZ ? fullZ() - len : 0;
+  return { start: start, len: len, end: start + len };
 }
 
 /**
@@ -141,7 +180,7 @@ function slotBox(location, side) {
   const s = parseSlot(slotCode(location, side));
   const halfW = CELL.w / 2;                             // 1 ฝั่งกว้างครึ่งช่อง = 125
   const x0 = rowOriginX(s.row);
-  const z0 = (s.bay - 1) * BAY_PITCH;
+  const z0 = bayZ0(s.row, s.bay);
   const y0 = (s.level - 1) * LEVEL_PITCH + STRUCT.beam; // ของวางบนคาน
   const zSide = s.side === "L" ? z0 : z0 + halfW;
   return {
@@ -154,11 +193,10 @@ function slotBox(location, side) {
 
 /** ขนาดรวมของโกดังที่ผังนี้กิน (ไว้ตั้งกล้อง/วาดพื้น) */
 function layoutExtent() {
-  const maxBays = Math.max.apply(null, ROWS.map((r) => r.bays));
   return {
     x: ROWS.length * CELL.d + (ROWS.length - 1) * STRUCT.aisle,
     y: LEVELS * LEVEL_PITCH,
-    z: maxBays * BAY_PITCH,
+    z: fullZ(),
   };
 }
 
@@ -170,10 +208,21 @@ function layoutExtent() {
  * สถานะ (status) เริ่มเป็น "empty" ทุกช่อง — ตัวรวมข้อมูลเป็นคนเติม
  */
 function buildLayout() {
-  const rows = ROWS.map((r) => ({
-    key: r.key, name: r.name, bays: r.bays, note: r.note,
-    originX: rowOriginX(r.key),
-  }));
+  /* 🔑 ส่งพิกัดของชั้นวาง (เสา/คาน/ป้าย) ไปกับผังเลย — หน้า 3D จะได้ไม่คิด Z เองซ้ำ
+        ถ้าหน้า 3D คิดเอง วันหนึ่งที่สลับทิศ กล่องจะย้ายแต่โครงเหล็กไม่ย้าย */
+  const rows = ROWS.map((r) => {
+    const span = rowZSpan(r.key);
+    const bayZ = [];
+    for (let bay = 1; bay <= r.bays; bay++) bayZ.push(bayZ0(r.key, bay) + CELL.w / 2);
+    return {
+      key: r.key, name: r.name, bays: r.bays, note: r.note,
+      originX: rowOriginX(r.key),
+      zStart: span.start, zLen: span.len, zEnd: span.end,
+      bayCenterZ: bayZ,
+      /** ป้ายตัวอักษรแถว วางที่ฝั่งหน้าโกดัง (ฝั่งเดียวกับล็อก 1) */
+      labelZ: DOOR.bayOneAtFarZ ? span.end + 150 : span.start - 150,
+    };
+  });
   const slots = [];
   for (const r of ROWS) {
     for (let bay = 1; bay <= r.bays; bay++) {
@@ -196,20 +245,36 @@ function buildLayout() {
     unit: "cm",
     cell: Object.assign({}, CELL), struct: Object.assign({}, STRUCT),
     levels: LEVELS, sides: SIDES.slice(),
+    door: Object.assign({}, DOOR),
     rows: rows, extent: layoutExtent(),
     totals: { bays: bays, cells: bays * LEVELS, slots: slots.length },
     slots: slots,
   };
 }
 
-/** รหัสโลเคชั่นทั้งหมดในผัง (เรียง A→C · ล็อกน้อย→มาก · ชั้นล่าง→บน) */
+/** รหัสโลเคชั่นทั้งหมดในผัง (เรียง A→C · ชั้นล่าง→บน · ล็อกน้อย→มาก) */
 function allLocations() {
   const out = [];
   for (const r of ROWS)
-    for (let bay = 1; bay <= r.bays; bay++)
-      for (let level = 1; level <= LEVELS; level++)
+    for (let level = 1; level <= LEVELS; level++)
+      for (let bay = 1; bay <= r.bays; bay++)
         out.push(locationCode(r.key, bay, level));
   return out;
+}
+
+/* ── ⑤ แปลงรหัสรุ่นก่อน [แถว][ล็อก][ชั้น] → รุ่นใหม่ [แถว][ชั้น][ล็อก] ────
+   ของที่คีย์ไว้ก่อน 12/11 เย็น เก็บเป็นรูปเก่า ⇒ ถ้าไม่แปลง จะอ่านไม่ออกแล้วหายจากจอเงียบๆ */
+
+/** "A0501-R" (รูปเก่า = ล็อก 5 ชั้น 1) → "A0105-R" · คืน null เมื่อแปลงไม่ได้ */
+function convertOldCode(code) {
+  const s = String(code || "").trim().toUpperCase().replace(/\s/g, "");
+  const m = /^([A-Z])(\d{2})(\d{2})(-([LR]))?$/.exec(s);
+  if (!m) return null;
+  const row = m[1], oldBay = Number(m[2]), oldLevel = Number(m[3]);
+  if (!baysOf(row) || oldBay < 1 || oldBay > baysOf(row)) return null;
+  if (oldLevel < 1 || oldLevel > LEVELS) return null;
+  const loc = locationCode(row, oldBay, oldLevel);
+  return m[5] ? loc + "-" + m[5] : loc;
 }
 
 /* ── ④ แปลงรหัสเก่า A1 / B1 → รหัสใหม่ (ไม่แตะระบบ Pacred) ───────────── */
@@ -232,7 +297,8 @@ function legacyGuess(old) {
 }
 
 module.exports = {
-  CELL, STRUCT, LEVELS, SIDES, SIDE_TH, ROWS, BAY_PITCH, LEVEL_PITCH,
+  CELL, STRUCT, LEVELS, SIDES, SIDE_TH, ROWS, BAY_PITCH, LEVEL_PITCH, DOOR,
   baysOf, locationCode, parseLocation, slotCode, parseSlot, slotLabel,
-  rowOriginX, slotBox, layoutExtent, buildLayout, allLocations, legacyGuess,
+  rowOriginX, bayZ0, rowZSpan, fullZ,
+  slotBox, layoutExtent, buildLayout, allLocations, legacyGuess, convertOldCode,
 };

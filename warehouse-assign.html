@@ -178,10 +178,13 @@ function renderOpts() {
   refreshCode();
 }
 
-const pad2 = (n) => String(n).padStart(2, "0");
+/* 🔑 หารหัสจากผังที่เซิร์ฟเวอร์ส่งมา ไม่ประกอบรหัสเอง
+   🪤 เดิมประกอบเองเป็น โซน+ล็อก+ชั้น ⇒ ตอนสลับเป็น "ชั้นก่อนล็อก" หน้านี้ได้รหัสคนละตัวกับหน้าอื่น */
 function currentSlot() {
   if (!sel.zone || !sel.bay || !sel.level || !sel.side) return null;
-  return sel.zone + pad2(sel.bay) + pad2(sel.level) + "-" + sel.side;
+  const s = LAYOUT && LAYOUT.slots.find((x) =>
+    x.row === sel.zone && x.bay === sel.bay && x.level === sel.level && x.side === sel.side);
+  return s ? s.slot : null;
 }
 
 function refreshCode() {

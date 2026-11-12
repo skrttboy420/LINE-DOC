@@ -130,7 +130,10 @@ function mergeView(placements, jobs) {
   const bySlot = new Map();
   const orphans = [];                       // ของที่คีย์ช่องไว้ แต่ช่องนั้นไม่มีในผัง
   for (const p of placements || []) {
-    const parsed = LAYOUT.parseSlot(p.slot);
+    /* 🔁 แถวที่คีย์ไว้ด้วยรหัสรูปเก่า [แถว][ล็อก][ชั้น] ยังอ่านออก
+       ไม่งั้นของที่คีย์ไว้ก่อน 12/11 เย็น จะ "หายจากจอเงียบๆ" (แกะรหัสไม่ออก = orphan)
+       📌 ล้างให้ถาวรด้วย `node warehouse-fix-codes.mjs --apply` */
+    const parsed = LAYOUT.parseSlot(p.slot) || LAYOUT.parseSlot(LAYOUT.convertOldCode(p.slot) || "");
     if (!parsed) { orphans.push(p); continue; }
     if (!bySlot.has(parsed.slot)) bySlot.set(parsed.slot, []);
     bySlot.get(parsed.slot).push(p);

@@ -32,12 +32,12 @@ const now = () => new Date().toISOString();
 const PLACEMENTS = [
   { tracking: "SF5147871049131", slot: "A0101-L", boxes: 2,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
   { tracking: "SF5141868962437", slot: "A0101-R", boxes: 1,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
-  { tracking: "1792477204-2",    slot: "B0502-L", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "772085135477267", slot: "B0502-R", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "KY4001198485063", slot: "C0803-L", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "SHIPPED-ALREADY", slot: "C1004-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
-  { tracking: "NOT-IN-SYSTEM",   slot: "A0304-L", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "CREDIT-NOT-HERE", slot: "B1001-R", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
+  { tracking: "1792477204-2",    slot: "B0205-L", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "772085135477267", slot: "B0205-R", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "KY4001198485063", slot: "C0308-L", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SHIPPED-ALREADY", slot: "C0410-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
+  { tracking: "NOT-IN-SYSTEM",   slot: "A0403-L", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "CREDIT-NOT-HERE", slot: "B0110-R", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
 
   /* 🔴 ช่องเดียว 3 แทรค จาก 2 ลูกค้า (ภูม 2026-11-12 *"อยากเห็นภาพว่าพาเลทนึงมันมีหลายแทรคกิ้ง
      หลายรหัสลูกค้า จะทำยังไง"*) — 2 ใบของ PR930 ชำระแล้ว · 1 ใบของ PR455 ยังไม่ชำระ

@@ -157,10 +157,13 @@ function labels() {
   return list.map((s) => ({ code: s.slot, title: s.slot, sub: labelName(s, false) }));
 }
 
+/* 🔑 ใช้ชื่อที่ผังส่งมา ไม่เรียงคำเอง
+   🪤 เดิมหน้านี้เรียง "ล็อก…ชั้น…" เอง ⇒ พอรหัสสลับเป็น ชั้นก่อนล็อก
+      บนป้ายใบเดียวกันเลยอ่านรหัสกับอ่านคำได้คนละลำดับ สับสนตอนหาของ */
 function labelName(s, noSide) {
-  const row = rowsOf().find((r) => r.key === s.row);
-  const base = (row ? row.name : s.row) + " · ล็อก " + s.bay + " · ชั้น " + s.level;
-  return noSide ? base : base + " · ฝั่ง" + (s.side === "L" ? "ซ้าย" : "ขวา");
+  const base = String(s.label || "").replace(/\s*\(ฝั่ง[^)]*\)\s*$/, "");
+  if (noSide) return base;
+  return base + " · ฝั่ง" + (s.side === "L" ? "ซ้าย" : "ขวา");
 }
 
 /** แท่งบาร์โค้ดบางสุดที่จะได้บนกระดาษจริง (มม.) — ต่ำกว่า 0.19 มม. เครื่องยิงอ่านยาก */

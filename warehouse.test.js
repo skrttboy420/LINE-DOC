@@ -84,22 +84,24 @@ ok("ชื่อที่คนอ่านรู้เรื่อง", () => {
 section("พิกัด XYZ (หน่วยเซนติเมตรของจริง)");
 
 ok("แถวห่างกัน = ลึกชั้นวาง 120 + ทางเดิน 300", () => {
-  assert.equal(L.rowOriginX("B") - L.rowOriginX("A"), -420);
-  assert.equal(L.rowOriginX("C") - L.rowOriginX("B"), -420);
+  assert.equal(L.rowOriginX("A"), 0);
+  assert.equal(L.rowOriginX("B"), 420);
+  assert.equal(L.rowOriginX("C"), 840);
 });
 
-ok("🔴 ยืนหน้าโกดังแล้ว แถว A ต้องอยู่ฝั่งนี้ · ล็อก 1 ต้องอยู่ติดประตู", () => {
-  /* ภูม 2026-11-12: *"แถว C ควรเป็นแถว A"* + *"ล็อกที่ 10 ควรเป็นล็อกที่ 1 นะ
-     เพราะหน้าโกดังอยู่ฝั่งนี้ ไม่ใช่อีกฝั่งที่แกใส่มา"* */
-  assert.ok(L.rowOriginX("A") > L.rowOriginX("C"), "A ต้องอยู่คนละฝั่งกับรุ่นก่อน");
-  const near = L.bayZ0("B", 1), far = L.bayZ0("B", 10);
-  assert.ok(near > far, "ล็อก 1 ต้องอยู่ฝั่งประตู (Z มากกว่า) · ได้ " + near + " vs " + far);
-  assert.equal(far, 0, "ล็อกท้ายสุดชนผนังลึกสุด");
+ok("🔴 ทิศของผัง — ยืนยันกับภูมแล้ว 12/11 (ชี้จากผังมองจากบน)", () => {
+  /* ภูม: ประตูหน้าโกดัง = ขอบซ้ายของผัง (ฝั่งล็อก 1) · แถว A = แถวล่างของผัง
+     🪤 รอบแรกผมพลิกทั้งผังเพราะอ่านจอผิด (จอ 3D ตั้งกล้องไว้หลังโกดัง)
+        ⇒ ยามนี้ล็อกทิศที่ภูมยืนยันไว้ ใครจะพลิกต้องมาแก้ตรงนี้ด้วย */
+  assert.equal(L.DOOR.bayOneAtFarZ, false, "ล็อก 1 อยู่ต้นแกน Z (ฝั่งประตู)");
+  assert.equal(L.DOOR.rowAatFarX, false, "แถว A อยู่ต้นแกน X");
+  assert.equal(L.bayZ0("B", 1), 0, "ล็อก 1 ชิดขอบฝั่งประตู");
+  assert.ok(L.bayZ0("B", 10) > L.bayZ0("B", 1), "ล็อกเลขมากกว่า = ลึกเข้าไปจากประตู");
 
-  /* แถว A สั้นกว่าเพื่อน — ส่วนที่หายต้องอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
+  /* แถว A สั้นกว่าเพื่อน — ส่วนที่หายอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
   const a = L.rowZSpan("A"), b = L.rowZSpan("B");
-  assert.equal(a.end, b.end, "ปลายฝั่งประตูต้องเสมอกันทุกแถว");
-  assert.ok(a.start > b.start, "แถว A ต้องสั้นเข้ามาจากด้านใน");
+  assert.equal(a.start, b.start, "ปลายฝั่งประตูต้องเสมอกันทุกแถว");
+  assert.ok(a.end < b.end, "แถว A ต้องสั้นเข้ามาจากด้านใน");
   assert.equal(L.bayZ0("A", 1), L.bayZ0("B", 1), "ล็อก 1 ของทุกแถวอยู่แนวเดียวกัน");
 });
 
@@ -107,7 +109,7 @@ ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา
   assert.equal(L.BAY_PITCH, 257);
   assert.equal(L.LEVEL_PITCH, 175);
   const b1 = L.slotBox("B0101", "L"), b2 = L.slotBox("B0102", "L");
-  assert.equal(b1.z - b2.z, 257, "ล็อกถัดไป = ลึกเข้าไปจากประตู 257");
+  assert.equal(b2.z - b1.z, 257, "ล็อกถัดไป = ลึกเข้าไปจากประตู 257");
   const l1 = L.slotBox("B0101", "L"), l2 = L.slotBox("B0201", "L");
   assert.equal(l2.y - l1.y, 175);
 });
@@ -674,11 +676,11 @@ ok("🔴 หน้าคีย์ตำแหน่งต้องไม่ป�
 
 ok("ผังบอกทิศทางหน้าโกดังมาด้วย (หน้าอื่นจะได้ไม่เดา)", () => {
   const b = L.buildLayout();
-  assert.equal(b.door.bayOneAtFarZ, true);
-  assert.equal(b.door.rowAatFarX, true);
+  assert.equal(b.door.bayOneAtFarZ, false);
+  assert.equal(b.door.rowAatFarX, false);
   for (const r of b.rows) {
     assert.equal(r.bayCenterZ.length, r.bays, "ต้องมีตำแหน่งป้ายครบทุกล็อก");
-    assert.ok(r.labelZ > r.zEnd, "ป้ายตัวอักษรแถวต้องอยู่นอกชั้นวาง ฝั่งประตู");
+    assert.ok(r.labelZ < r.zStart, "ป้ายตัวอักษรแถวต้องอยู่นอกชั้นวาง ฝั่งประตู");
   }
 });
 
@@ -697,6 +699,28 @@ ok("🔴 ป้าย/หน้าจอ ต้องเรียงคำ ช�
   const LBL = fs.readFileSync("warehouse-labels.html", "utf8");
   assert.ok(!/" · ล็อก " \+ s\.bay/.test(LBL), "หน้าป้ายห้ามเรียงคำเอง");
   assert.ok(LBL.includes("String(s.label"), "หน้าป้ายต้องใช้ชื่อที่ผังส่งมา");
+});
+
+ok("🔴 กล้องตั้งต้นต้องยืนที่ประตู ไม่ใช่หลังโกดัง", () => {
+  /* 🪤 บทเรียน 12/11 (เสียเวลาไป 2 รอบ): จอ 3D ตั้งกล้องไว้หลังโกดัง
+     ⇒ เปิดมาเห็นล็อก 10 อยู่ใกล้ตัว เลยสรุปว่า "ผังกลับด้าน" แล้วไปพลิกผังทั้งชุด
+     ของจริงผังถูกอยู่แล้ว ที่ผิดคือมุมกล้อง
+     ⇒ ยามนี้ผูก 2 อย่างเข้าด้วยกัน: ผังบอกว่าประตูอยู่ต้นแกน Z กล้องก็ต้องหันมาจากฝั่งนั้น
+        ใครขยับผัง จะถูกบังคับให้มาคิดเรื่องกล้องด้วย */
+  const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
+  const m = /\{ k: "3D",[^}]*th: ([^,]+),/.exec(D3);
+  assert.ok(m, "ต้องมีมุมตั้งต้นของจอ 3D");
+  const th = m[1].trim();
+  if (L.DOOR.bayOneAtFarZ === false)
+    assert.ok(/\+ Math\.PI/.test(th), "ประตูอยู่ต้นแกน Z ⇒ กล้องต้องหมุนมาอีกฝั่ง → " + th);
+  else
+    assert.ok(!/\+ Math\.PI/.test(th), "ประตูอยู่ปลายแกน Z ⇒ กล้องห้ามหมุน → " + th);
+});
+
+ok("ป้าย “หน้าโกดัง” ต้องอยู่ฝั่งเดียวกับล็อก 1", () => {
+  const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
+  assert.ok(D3.includes("L.door && L.door.bayOneAtFarZ"), "ตำแหน่งป้ายต้องอ่านจากผัง ไม่ใช่ฝังเลข");
+  assert.ok(D3.includes("หน้าโกดัง"), "ต้องมีป้ายบอกทิศในฉาก");
 });
 
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */

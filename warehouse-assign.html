@@ -20,6 +20,8 @@
          display:flex;align-items:center;gap:10px}
   header b{font-size:16px}
   header .sub{font-size:11px;opacity:.85}
+  header .demo{background:#7c3aed;color:#fff;border-radius:999px;padding:4px 10px;
+       font-size:11px;font-weight:700;display:none}
   header a{margin-left:auto;color:#fff;text-decoration:none;background:rgba(255,255,255,.2);
            border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap}
   main{padding:14px;max-width:620px;margin:0 auto}
@@ -58,6 +60,7 @@
 <body>
 <header>
   <div><b>📥 คีย์ตำแหน่งของ</b><div class="sub" id="who">โกดังสมุทรสาคร</div></div>
+  <span class="demo" id="demoTag">🔬 โหมดลองดู</span>
   <a id="view3d" href="#">🏭 ดูจอ 3D</a>
 </header>
 
@@ -134,6 +137,12 @@ async function boot() {
   const v = await r.json();
   if (!r.ok) return msg(esc(v.error || "เปิดหน้านี้ไม่ได้"), "err");
   LAYOUT = v.layout; COLOR = v.pickColor; LEGEND = v.pickLegend;
+  /* 🔬 โหมดลองดู = เก็บในหน่วยความจำ ปิดโปรแกรมแล้วหาย — ต้องบอกให้ชัด
+     (ภูม 2026-11-12 เคยคีย์ในโหมดนี้แล้วนึกว่าระบบเก็บได้ช่องละแทรคเดียว) */
+  if (v.demo) {
+    $("demoTag").style.display = "inline-block";
+    $("who").textContent = "ข้อมูลตัวอย่าง — ไม่ได้บันทึกลงฐานจริง";
+  }
   for (const s of LAYOUT.slots) for (const i of s.items) {
     PLACED.set(i.tracking, { slot: s.slot, label: s.label });
     JOBS.set(i.tracking, i);

@@ -11,7 +11,7 @@
 -->
 <style>
   :root{
-    --red:#B30000; --bg:#0f172a; --panel:rgba(15,23,42,.92); --line:#334155;
+    --red:#B30000; --bg:#0f172a; --panel:rgba(15,23,42,.94); --line:#334155;
     --ready:#16a34a; --wait:#f59e0b; --problem:#dc2626; --unknown:#4b5563; --empty:#cbd5e1;
   }
   *{box-sizing:border-box}
@@ -20,7 +20,8 @@
   canvas{display:block}
   #stage{position:fixed;inset:0}
 
-  header{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--red);
+  /* ── หัว ── */
+  header{position:fixed;top:0;left:0;right:0;z-index:12;background:var(--red);
     padding:9px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
     box-shadow:0 2px 12px rgba(0,0,0,.4)}
   header b{font-size:15px;color:#fff;white-space:nowrap}
@@ -31,18 +32,41 @@
     padding:7px 12px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
   header a.btn{background:rgba(255,255,255,.18);color:#fff;text-decoration:none;
     border-radius:8px;padding:7px 11px;font-size:12px;white-space:nowrap}
+  #demoTag{display:none;background:#7c3aed;color:#fff;border-radius:999px;
+    padding:4px 11px;font-size:11px;font-weight:700;white-space:nowrap}
 
+  /* ── ⑥ แถบสรุป + นาฬิกา ── */
+  #summary{position:fixed;left:0;right:0;top:52px;z-index:11;display:flex;gap:9px;align-items:stretch;
+    padding:9px 14px;flex-wrap:wrap;background:linear-gradient(180deg,rgba(15,23,42,.96),rgba(15,23,42,0))}
+  .stat{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:8px 13px;cursor:pointer;user-select:none;min-width:140px;
+    transition:border-color .15s,transform .1s}
+  .stat:hover{border-color:#64748b}
+  .stat:active{transform:scale(.98)}
+  .stat.off{opacity:.4}
+  .stat.on{border-color:currentColor;box-shadow:0 0 0 1px currentColor inset}
+  .stat .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+    font-size:15px;flex:none;background:currentColor}
+  .stat .ic span{filter:grayscale(1) brightness(3)}
+  .stat .tx{line-height:1.25;min-width:0}
+  .stat .lb{font-size:10.5px;color:#94a3b8;white-space:nowrap}
+  .stat .nm{font-size:19px;font-weight:800;color:#f1f5f9;font-variant-numeric:tabular-nums}
+  .stat .nm i{font-size:11px;font-style:normal;font-weight:600;color:#94a3b8;margin-left:4px}
+
+  #clock{margin-left:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:7px 14px;text-align:right;line-height:1.3;min-width:150px}
+  #clock .d{font-size:10.5px;color:#94a3b8}
+  #clock .t{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;color:#f1f5f9}
+  #clock .live{font-size:10px;color:#16a34a;display:flex;align-items:center;gap:5px;justify-content:flex-end}
+  #clock .live.stale{color:#f59e0b}
+  #clock .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* ── แผง ── */
   .panel{position:fixed;z-index:9;background:var(--panel);border:1px solid var(--line);
-    border-radius:12px;backdrop-filter:none;box-shadow:0 8px 28px rgba(0,0,0,.45)}
-  #legend{left:12px;bottom:12px;padding:10px 12px;font-size:12px;min-width:186px}
-  #legend .it{display:flex;align-items:center;gap:7px;margin:5px 0;cursor:pointer;user-select:none}
-  #legend .it.off{opacity:.38}
-  #legend .sw{width:13px;height:13px;border-radius:3px;flex:none}
-  #legend .n{margin-left:auto;font-variant-numeric:tabular-nums;color:#94a3b8}
-  #legend h4{margin:0 0 6px;font-size:11px;color:#94a3b8;font-weight:600}
-  #legend .hint{margin-top:7px;font-size:10px;color:#64748b;line-height:1.5}
+    border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.45)}
 
-  #alerts{right:12px;top:58px;width:min(330px,calc(100vw - 24px));max-height:calc(100vh - 150px);
+  #alerts{right:12px;width:min(330px,calc(100vw - 24px));max-height:calc(100vh - 210px);
     overflow:auto;padding:0;font-size:12px}
   #alerts h4{margin:0;padding:10px 12px;font-size:12px;position:sticky;top:0;
     background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:7px}
@@ -54,28 +78,49 @@
   #alerts .tag{display:inline-block;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:600;margin-right:5px}
   #alerts .empty{padding:14px 12px;color:#64748b}
 
-  #pop{left:50%;transform:translateX(-50%);bottom:12px;width:min(460px,calc(100vw - 24px));
-    display:none;padding:0;max-height:52vh;overflow:auto}
+  #pop{left:50%;transform:translateX(-50%);bottom:12px;width:min(470px,calc(100vw - 24px));
+    display:none;padding:0;max-height:54vh;overflow:auto}
   #pop .ph{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;
-    position:sticky;top:0;background:var(--panel)}
+    position:sticky;top:0;background:var(--panel);flex-wrap:wrap}
   #pop .ph b{font-size:14px}
   #pop .ph .x{margin-left:auto;cursor:pointer;color:#94a3b8;font-size:17px;line-height:1;padding:0 4px}
   #pop .pb{padding:12px}
-  #pop .item{border:1px solid var(--line);border-radius:9px;padding:9px;margin-bottom:9px}
+  #pop .item{border:1px solid var(--line);border-radius:9px;padding:10px;margin-bottom:9px}
   #pop .item:last-child{margin-bottom:0}
-  #pop .k{color:#94a3b8;font-size:11px}
-  #pop .v{font-size:13px;margin-bottom:5px}
+  #pop .k{color:#94a3b8;font-size:11px;margin-top:7px}
+  #pop .k:first-child{margin-top:0}
+  #pop .v{font-size:13px}
   #pop .mono{font-family:ui-monospace,Menlo,monospace}
+  #pop .addr{background:#1e293b;border-radius:8px;padding:9px;margin-top:5px;font-size:13px;line-height:1.6}
+  #pop .addr.none{background:#450a0a;border:1px solid #991b1b;color:#fecaca;font-weight:600}
+  #pop .addr .who{color:#cbd5e1;font-size:12px}
   #pop .none{color:#64748b;font-size:12px}
   .pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;color:#fff}
 
-  #toast{position:fixed;left:50%;top:54px;transform:translateX(-50%);z-index:20;
+  /* ── ⑦ ปุ่มมุมมองกล้อง ── */
+  #views{position:fixed;right:12px;bottom:12px;z-index:10;display:flex;flex-direction:column;gap:1px;
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  #views button{background:transparent;border:0;color:#cbd5e1;padding:9px 14px;font-size:12px;
+    cursor:pointer;display:flex;align-items:center;gap:8px;min-width:104px;
+    border-bottom:1px solid #1e293b;font-family:inherit}
+  #views button:last-child{border-bottom:0}
+  #views button:hover{background:#1e293b;color:#fff}
+  #views button.on{background:var(--red);color:#fff;font-weight:700}
+  #views .vi{font-size:14px;width:17px;text-align:center}
+  #hint{position:fixed;right:12px;bottom:188px;z-index:9;font-size:10px;color:#64748b;
+    text-align:right;line-height:1.6}
+
+  #toast{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:20;
     background:#111827;border:1px solid var(--line);color:#fff;padding:8px 14px;border-radius:9px;
     font-size:13px;display:none;max-width:90vw;text-align:center}
   #load{position:fixed;inset:0;display:grid;place-items:center;z-index:30;background:var(--bg);
     color:#94a3b8;font-size:14px;text-align:center;padding:20px;line-height:1.7}
-  #help{position:fixed;right:12px;bottom:12px;z-index:9;font-size:10px;color:#64748b;text-align:right;line-height:1.6}
-  @media(max-width:700px){ #alerts{display:none} #help{display:none} }
+  @media(max-width:760px){
+    #alerts{display:none} #hint{display:none}
+    .stat{min-width:0;padding:7px 10px} .stat .lb{display:none} .stat .nm{font-size:16px}
+    #clock{min-width:0;padding:6px 10px} #clock .d{display:none}
+    #views button{min-width:0;padding:9px 11px}
+  }
 </style>
 </head>
 <body>
@@ -83,19 +128,15 @@
 
 <header>
   <div><b>🏭 โกดัง 3D</b><div class="sub" id="meta">กำลังโหลด…</div></div>
+  <span id="demoTag">🔬 โหมดลองดู — ไม่ใช่ของจริง</span>
   <form id="search" onsubmit="return false">
     <input id="q" placeholder="ค้นหา: A0101 · เลขแทรค · รหัสลูกค้า" autocomplete="off">
     <button id="go" type="submit">ค้นหา</button>
   </form>
   <a class="btn" id="assignLink" href="#">📥 คีย์ตำแหน่ง</a>
-  <a class="btn" id="reload" href="#">↻ รีเฟรช</a>
 </header>
 
-<div class="panel" id="legend">
-  <h4>สถานะ (กดเพื่อซ่อน/โชว์)</h4>
-  <div id="legendItems"></div>
-  <div class="hint">ลากเมาส์ = หมุน · ล้อ = ซูม · คลิกช่อง = ดูรายละเอียด</div>
-</div>
+<div id="summary"></div>
 
 <div class="panel" id="alerts" style="display:none">
   <h4>⚠️ ต้องเช็ค <span id="alertN"></span><span class="x" onclick="document.getElementById('alerts').style.display='none'">✕</span></h4>
@@ -107,8 +148,10 @@
   <div class="pb" id="popBody"></div>
 </div>
 
+<div id="hint">ลากเมาส์ = หมุน · ล้อ = ซูม<br>คลิกช่อง = ดูรายละเอียด</div>
+<div id="views"></div>
+
 <div id="toast"></div>
-<div id="help">ชั้นวาง 4 ชั้น · คานส้ม 10 ซม. · เสาฟ้า 7 ซม.<br>ทางเดินกว้าง 3 เมตร</div>
 <div id="load">กำลังโหลดผังโกดัง…</div>
 
 <script type="module">
@@ -116,11 +159,10 @@ import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.169.0/
 
 const KEY = new URLSearchParams(location.search).get("key") || "";
 const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY);
-document.getElementById("assignLink").href = api("/warehouse/assign");
-
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+$("assignLink").href = api("/warehouse/assign");
 
 let toastT = null;
 function toast(msg, ms) {
@@ -133,7 +175,7 @@ function toast(msg, ms) {
 const S = 0.01;                                 // ซม. → เมตร (ผังส่งมาเป็น ซม.ของจริง)
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
-scene.fog = new THREE.Fog(0x0f172a, 28, 95);
+scene.fog = new THREE.Fog(0x0f172a, 32, 110);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -150,8 +192,8 @@ scene.add(sun);
 const cam = { target: new THREE.Vector3(), r: 34, theta: -0.85, phi: 1.02 };
 let anim = null;
 function applyCam() {
-  cam.phi = Math.max(0.12, Math.min(Math.PI / 2 - 0.02, cam.phi));
-  cam.r = Math.max(2.4, Math.min(140, cam.r));
+  cam.phi = Math.max(0.1, Math.min(Math.PI / 2 - 0.01, cam.phi));
+  cam.r = Math.max(2.4, Math.min(180, cam.r));
   camera.position.set(
     cam.target.x + cam.r * Math.sin(cam.phi) * Math.cos(cam.theta),
     cam.target.y + cam.r * Math.cos(cam.phi),
@@ -169,7 +211,7 @@ el.addEventListener("pointermove", (e) => {
   if (!drag) return;
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
-  anim = null;
+  anim = null; markView(null);
   if (drag.pan) {
     const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
     const up = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 1);
@@ -185,9 +227,17 @@ el.addEventListener("pointerup", (e) => { el.releasePointerCapture(e.pointerId);
 el.addEventListener("contextmenu", (e) => e.preventDefault());
 el.addEventListener("wheel", (e) => { e.preventDefault(); anim = null; cam.r *= e.deltaY > 0 ? 1.1 : 0.9; applyCam(); }, { passive: false });
 
-/* 🎥 Camera Animation — บินไปที่ช่องที่ค้นหา (ข้อ 4 ของไฟล์ภูม) */
-function flyTo(v3, radius) {
-  anim = { t: 0, from: cam.target.clone(), to: v3.clone(), r0: cam.r, r1: radius || 7.5 };
+/* 🎥 Camera Animation — บินไปที่ช่องที่ค้นหา / มุมมองที่กด */
+/** ⏱ คิดจาก **เวลา** ไม่ใช่จำนวนเฟรม — เครื่องช้า/แท็บเล็ตโกดัง/แท็บที่ถูกพักจะวิ่งช้ากว่ามาก
+    ถ้านับเฟรม (t += 0.035) จอ 120Hz จะเร็วเป็น 2 เท่า ส่วนแท็บที่ถูกพักจะค้างเป็นนาที */
+const FLY_MS = 650;
+function flyTo(v3, radius, theta, phi) {
+  anim = {
+    t0: performance.now(), from: cam.target.clone(), to: v3.clone(),
+    r0: cam.r, r1: radius != null ? radius : cam.r,
+    th0: cam.theta, th1: theta != null ? theta : cam.theta,
+    ph0: cam.phi, ph1: phi != null ? phi : cam.phi,
+  };
 }
 const ease = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
@@ -195,6 +245,10 @@ function resize() {
   const w = innerWidth, h = innerHeight;
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setSize(w, h);
+  /* หัวสูงไม่เท่ากันตอนจอแคบ (ปุ่มตกบรรทัด) ⇒ วัดจริงแล้ววางแถบสรุปใต้หัวพอดี */
+  const headH = document.querySelector("header").getBoundingClientRect().height;
+  $("summary").style.top = headH + "px";
+  $("alerts").style.top = (headH + $("summary").getBoundingClientRect().height + 8) + "px";
 }
 addEventListener("resize", resize);
 
@@ -205,15 +259,14 @@ const MAT = {
   floor: new THREE.MeshLambertMaterial({ color: 0x1e293b }),
 };
 const PICK_MAT = {};
-const slotMeshes = new Map();                   // slot → mesh
-let DATA = null;
-const hidden = new Set();                       // สถานะที่ถูกซ่อนจาก legend
+const slotMeshes = new Map();
+let DATA = null, EXTENT = null, built = false;
+const hidden = new Set();
 
 function matFor(pick) {
   if (!PICK_MAT[pick]) {
-    const c = new THREE.Color(DATA.pickColor[pick] || "#94a3b8");
     PICK_MAT[pick] = new THREE.MeshLambertMaterial({
-      color: c,
+      color: new THREE.Color(DATA.pickColor[pick] || "#94a3b8"),
       transparent: pick === "empty",
       opacity: pick === "empty" ? 0.1 : 1,
     });
@@ -221,24 +274,21 @@ function matFor(pick) {
   return PICK_MAT[pick];
 }
 
-function box(w, h, d, mat, x, y, z, parent) {
+function box(w, h, d, mat, x, y, z) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.position.set(x, y, z);
-  (parent || scene).add(m);
+  scene.add(m);
   return m;
 }
 
 function buildScene(view) {
-  DATA = view;
   const L = view.layout, C = L.cell, ST = L.struct;
-  const ext = L.extent;
+  EXTENT = L.extent;
 
-  /* พื้นโกดัง — เผื่อขอบรอบด้าน 4 เมตร */
   const padding = 400;
-  box((ext.x + padding * 2) * S, 0.06, (ext.z + padding * 2) * S, MAT.floor,
-      (ext.x / 2) * S, -0.03, (ext.z / 2) * S);
+  box((EXTENT.x + padding * 2) * S, 0.06, (EXTENT.z + padding * 2) * S, MAT.floor,
+      (EXTENT.x / 2) * S, -0.03, (EXTENT.z / 2) * S);
 
-  /* โครงชั้นวาง: เสา (ฟ้า) ที่หัว-ท้ายทุกล็อก · คาน (ส้ม) ทุกชั้น */
   const H = L.levels * (C.h + ST.beam);
   for (const row of L.rows) {
     for (let bay = 0; bay <= row.bays; bay++) {
@@ -254,7 +304,6 @@ function buildScene(view) {
     }
   }
 
-  /* ช่องวางพาเลท — ทุกช่องมี mesh (ว่าง = โปร่งจางๆ แต่ยังคลิกได้) */
   for (const s of L.slots) {
     const b = s.box;
     const m = box((b.d - 8) * S, (b.h - 16) * S, (b.w - 8) * S, matFor(s.status),
@@ -263,17 +312,14 @@ function buildScene(view) {
     slotMeshes.set(s.slot, m);
   }
 
-  /* ป้ายชื่อแถว + เลขล็อกบนพื้น */
   for (const row of L.rows) {
     addLabel(row.key, (row.originX + C.d / 2) * S, 0.02, -1.5, 1.5);
     for (let bay = 1; bay <= row.bays; bay++)
       addLabel(String(bay), (row.originX + C.d / 2) * S, 0.02,
                ((bay - 1) * (C.w + ST.post) + C.w / 2) * S, 0.8);
   }
-
-  cam.target.set((ext.x / 2) * S, (ext.y / 3) * S, (ext.z / 2) * S);
-  cam.r = 34;
-  applyCam();
+  built = true;
+  setView("3D", true);
 }
 
 function addLabel(text, x, y, z, size) {
@@ -284,25 +330,89 @@ function addLabel(text, x, y, z, size) {
   g.font = "bold 80px -apple-system,Segoe UI,sans-serif";
   g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(text, 64, 64);
-  const mat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false });
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
   m.rotation.x = -Math.PI / 2;
   m.position.set(x, y, z);
   scene.add(m);
 }
 
+/* ══ ⑦ ปุ่มเปลี่ยนมุมมองกล้อง ══════════════════════════════════════ */
+const VIEWS = [
+  { k: "3D",    ic: "🧊", name: "3D",    th: -0.85,         ph: 1.02, pad: 1.18 },
+  { k: "Top",   ic: "⬛", name: "Top",   th: Math.PI,       ph: 0.11, pad: 1.12 },
+  { k: "Front", ic: "▭",  name: "Front", th: -Math.PI / 2,  ph: 1.45, pad: 1.15 },
+  { k: "Side",  ic: "◧",  name: "Side",  th: Math.PI,       ph: 1.45, pad: 1.10 },
+];
+
+$("views").innerHTML = VIEWS.map((v) =>
+  '<button data-k="' + v.k + '" title="' + esc(v.name) + '"><span class="vi">' + v.ic + "</span>" +
+  esc(v.name) + "</button>").join("");
+for (const b of $("views").querySelectorAll("button"))
+  b.addEventListener("click", () => setView(b.dataset.k));
+
+function markView(k) {
+  for (const b of $("views").querySelectorAll("button")) b.classList.toggle("on", b.dataset.k === k);
+}
+
+/** ระยะกล้องที่พอดีกับของที่ต้องเห็น (กว้าง × สูง เป็นเมตร) */
+function fitRadius(wide, tall, pad) {
+  const vfov = (camera.fov * Math.PI) / 180;
+  const byH = (tall / 2) / Math.tan(vfov / 2);
+  const byW = (wide / 2) / (Math.tan(vfov / 2) * Math.max(camera.aspect, 0.4));
+  return Math.max(byH, byW) * (pad || 1.1);
+}
+
+function setView(k, instant) {
+  const v = VIEWS.find((x) => x.k === k);
+  if (!v || !EXTENT) return;
+  const X = EXTENT.x * S, Y = EXTENT.y * S, Z = EXTENT.z * S;
+  const mid = new THREE.Vector3(X / 2, k === "Top" ? 0 : Y / 2, Z / 2);
+  /* เห็นอะไรในแต่ละมุม: Top มองลง = เห็นกว้าง×ยาว · Front มองตามความยาว = เห็นกว้าง×สูง
+     · Side มองจากข้าง = เห็นยาว×สูง · 3D เฉียง = เห็นทุกด้าน */
+  /* 🔑 ระยะกล้อง = ระยะที่เห็นของครบ **บวกครึ่งหนึ่งของด้านที่มองทะลุเข้าไป**
+     ไม่บวก = กล้องไปยืนอยู่กลางโกดัง (มุม Front เคยได้ภาพในซอยทางเดินเพราะเหตุนี้)
+     Top มองลง: จอกว้างกว่าสูง ⇒ หันให้ความยาวนอนตามจอ (เห็นเต็มกว่า) */
+  const r =
+    k === "Top"   ? fitRadius(Z, X, v.pad) + Y / 2 :
+    k === "Front" ? fitRadius(X, Y, v.pad) + Z / 2 :
+    k === "Side"  ? fitRadius(Z, Y, v.pad) + X / 2 :
+                    fitRadius(Z * 0.78, Y * 1.9, v.pad);
+  markView(k);
+  closePop();
+  if (instant) {
+    cam.target.copy(mid); cam.r = r; cam.theta = v.th; cam.phi = v.ph;
+    anim = null; applyCam();
+  } else {
+    flyTo(mid, r, v.th, v.ph);
+  }
+}
+
 /* ══ ③ Interactive Click-to-Locate ══════════════════════════════════ */
 const ray = new THREE.Raycaster();
 el.addEventListener("click", (e) => {
-  if (drag && drag.moved > 6) return;                     // ลากกล้อง ไม่ใช่คลิกเลือก
+  if (drag && drag.moved > 6) return;
   ray.setFromCamera(new THREE.Vector2(
     (e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
-  const hits = ray.intersectObjects([...slotMeshes.values()], false)
-    .filter((h) => h.object.visible);
+  const hits = ray.intersectObjects([...slotMeshes.values()], false).filter((h) => h.object.visible);
   if (hits.length) openSlot(hits[0].object.userData.slot);
 });
 
 function slotOf(code) { return DATA.layout.slots.find((s) => s.slot === code); }
+
+/* 📍 ⑤ กล่องที่อยู่จัดส่ง — ภูม: *"ถ้าออเดอร์ไหนยังไม่มีที่อยู่จัดส่งจะได้รู้เลยด้วย"* */
+function addressBlock(i) {
+  if (i.selfPickup)
+    return '<div class="k">การจัดส่ง</div><div class="addr">🏬 <b>ลูกค้ารับเองหน้าโกดัง</b>' +
+           '<div class="who">ไม่ต้องส่ง — รอลูกค้ามารับ</div></div>';
+  if (i.needsAddress || !i.address)
+    return '<div class="k">ที่อยู่จัดส่ง</div><div class="addr none">🔴 ยังไม่มีที่อยู่จัดส่ง' +
+           '<div class="who" style="color:#fecaca;font-weight:400">ส่งไม่ได้จนกว่าจะได้ที่อยู่ — แจ้งเซลล์/CS</div></div>';
+  return '<div class="k">ที่อยู่จัดส่ง</div><div class="addr">' + esc(i.address) +
+    (i.receiver || i.tel
+      ? '<div class="who">👤 ' + esc(i.receiver || "—") + (i.tel ? " · 📞 " + esc(i.tel) : "") + "</div>"
+      : "") + "</div>";
+}
 
 function openSlot(code) {
   const s = slotOf(code);
@@ -319,44 +429,43 @@ function openSlot(code) {
         " · ", esc(i.boxes), " กล่อง</div>",
         '<div class="k">ทำไม</div><div class="v" style="color:', DATA.pickColor[i.pick], '">',
         esc(i.why), "</div>",
+        addressBlock(i),
         i.placedBy ? '<div class="k">คีย์โดย</div><div class="v">' + esc(i.placedBy) +
           (i.placedAt ? " · " + esc(new Date(i.placedAt).toLocaleString("th-TH")) : "") + "</div>" : "",
         i.note ? '<div class="k">หมายเหตุ</div><div class="v">' + esc(i.note) + "</div>" : "",
         "</div>",
-      ].join(""))
-      .join("")
+      ].join("")).join("")
     : '<div class="none">ช่องนี้ยังว่าง — กด “📥 คีย์ตำแหน่ง” เพื่อบันทึกว่ามีของวางที่ช่องนี้</div>';
   $("pop").style.display = "block";
+  openCode = s.slot;
   const b = s.box;
   flyTo(new THREE.Vector3(b.x * S, b.y * S, b.z * S), 7.5);
   highlight(s.slot);
 }
-window.closePop = () => { $("pop").style.display = "none"; highlight(null); };
+let openCode = null;
+window.closePop = () => { $("pop").style.display = "none"; openCode = null; highlight(null); };
 
-let hiMesh = null, hiRing = null;
+let hiRing = null;
 function highlight(code) {
   if (hiRing) { scene.remove(hiRing); hiRing = null; }
-  hiMesh = code ? slotMeshes.get(code) : null;
-  if (!hiMesh) return;
+  const m = code ? slotMeshes.get(code) : null;
+  if (!m) return;
   const g = new THREE.BoxGeometry(
-    hiMesh.geometry.parameters.width * 1.18,
-    hiMesh.geometry.parameters.height * 1.12,
-    hiMesh.geometry.parameters.depth * 1.18);
-  hiRing = new THREE.LineSegments(new THREE.EdgesGeometry(g),
-    new THREE.LineBasicMaterial({ color: 0xffffff }));
-  hiRing.position.copy(hiMesh.position);
+    m.geometry.parameters.width * 1.18,
+    m.geometry.parameters.height * 1.12,
+    m.geometry.parameters.depth * 1.18);
+  hiRing = new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0xffffff }));
+  hiRing.position.copy(m.position);
   scene.add(hiRing);
 }
 
 /* ══ ④ Location Search Bar ══════════════════════════════════════════ */
-$("search").addEventListener("submit", () => { doSearch($("q").value); });
-$("go").addEventListener("click", () => { doSearch($("q").value); });
+$("search").addEventListener("submit", () => doSearch($("q").value));
+$("go").addEventListener("click", () => doSearch($("q").value));
 
-async function doSearch(term) {
+function doSearch(term) {
   const q = String(term || "").trim();
   if (!q) return;
-
-  /* รหัสช่อง/โลเคชั่น → บินไปเลย */
   const up = q.toUpperCase().replace(/[\s-]/g, "");
   const asSlot = /^[A-Z]\d{4}[LR]$/.test(up) ? up.slice(0, 5) + "-" + up.slice(5) : null;
   if (asSlot && slotMeshes.has(asSlot)) return openSlot(asSlot);
@@ -366,93 +475,173 @@ async function doSearch(term) {
     if (hit) return openSlot(hit.slot);
     return toast("ไม่มีช่อง " + up + " ในผังโกดัง");
   }
-
-  /* เลขแทรค / รหัสลูกค้า → หาในของที่วางอยู่ */
   const needle = q.toUpperCase();
-  const found = DATA.layout.slots.filter((s) => s.items.some((i) =>
-    String(i.tracking || "").toUpperCase().includes(needle) ||
-    String(i.memberCode || "").toUpperCase().includes(needle)));
-  if (found.length === 1) return openSlot(found[0].slot);
-  if (found.length > 1) {
-    showList(found.flatMap((s) => s.items
-      .filter((i) => String(i.tracking || "").toUpperCase().includes(needle) ||
-                     String(i.memberCode || "").toUpperCase().includes(needle))
-      .map((i) => ({ slot: s.slot, label: s.label, tracking: i.tracking, memberCode: i.memberCode, pick: i.pick, why: i.why }))),
-      "🔎 เจอ " + found.length + " ช่อง");
-    return openSlot(found[0].slot);
-  }
-  toast("ไม่เจอ \"" + q + "\" ในชั้นวาง — ของอาจยังไม่ถูกคีย์ตำแหน่ง");
+  const match = (i) => String(i.tracking || "").toUpperCase().includes(needle) ||
+                       String(i.memberCode || "").toUpperCase().includes(needle);
+  const found = DATA.layout.slots.filter((s) => s.items.some(match));
+  if (!found.length) return toast('ไม่เจอ "' + q + '" ในชั้นวาง — ของอาจยังไม่ถูกคีย์ตำแหน่ง');
+  if (found.length > 1) toast("เจอ " + found.length + " ช่อง — ดูรายการทางขวา", 3500);
+  if (found.length > 1) showFound(found, match);
+  openSlot(found[0].slot);
 }
 
-/* ══ ⑤ โหลดข้อมูล + legend + รายการเตือน ═══════════════════════════ */
-async function load() {
-  const r = await fetch(api("/warehouse/api/view"));
-  if (!r.ok) {
-    $("load").innerHTML = "เปิดหน้านี้ไม่ได้<br><span style='font-size:12px'>" +
-      esc((await r.json().catch(() => ({}))).error || r.status) + "</span>";
-    return;
+function showFound(found, match) {
+  const rows = found.flatMap((s) => s.items.filter(match).map((i) =>
+    ({ slot: s.slot, tracking: i.tracking, memberCode: i.memberCode, pick: i.pick, why: i.why })));
+  renderAlerts(rows, "🔎 ผลค้นหา");
+}
+
+/* ══ ⑤⑥ โหลดข้อมูล + แถบสรุป + รายการเตือน ═══════════════════════ */
+const STATS = [
+  { k: "boxes",   lb: "ของบนชั้นทั้งหมด", ic: "📦", color: "#3b82f6", unit: "กล่อง" },
+  { k: "ready",   lb: "ชำระแล้ว · หยิบได้", ic: "✅", color: "#16a34a", unit: "ช่อง" },
+  { k: "wait",    lb: "ห้ามหยิบ",          ic: "🕐", color: "#f59e0b", unit: "ช่อง" },
+  { k: "problem", lb: "ต้องเช็ค",          ic: "⚠️", color: "#dc2626", unit: "ช่อง" },
+];
+
+function applyData(v) {
+  DATA = v;
+  if (!built) buildScene(v);
+
+  for (const s of v.layout.slots) {
+    const m = slotMeshes.get(s.slot);
+    if (!m) continue;
+    m.material = matFor(s.status);
+    m.visible = !hidden.has(s.status);
   }
-  const v = await r.json();
-  buildScene(v);
-  resize();
-  $("load").style.display = "none";
+
+  const totalBoxes = v.layout.slots.reduce((n, s) => n + (s.boxes || 0), 0);
+  const problem = (v.counts.problem || 0) + (v.counts.unknown || 0);
+  const num = { boxes: totalBoxes, ready: v.counts.ready || 0, wait: v.counts.wait || 0, problem: problem };
+
+  $("summary").innerHTML = STATS.map((st) =>
+    '<div class="stat" data-k="' + st.k + '" style="color:' + st.color + '">' +
+      '<div class="ic"><span>' + st.ic + "</span></div>" +
+      '<div class="tx"><div class="lb">' + esc(st.lb) + "</div>" +
+      '<div class="nm">' + num[st.k] + "<i>" + st.unit + "</i></div></div></div>",
+  ).join("") +
+  '<div id="clock"><div class="d" id="cd"></div><div class="t" id="ct"></div>' +
+  '<div class="live" id="cl"><span class="dot"></span><span id="clt">Live</span></div></div>';
+
+  for (const c of $("summary").querySelectorAll(".stat"))
+    c.addEventListener("click", () => toggleFilter(c.dataset.k));
+  paintFilter();
+  tickClock();
 
   const t = v.layout.totals;
-  $("meta").textContent = t.bays + " ล็อก · " + t.cells + " ช่องชั้น · " + t.slots + " ช่องวาง · " +
-    "มีของ " + (t.slots - v.counts.empty) + " ช่อง" +
+  $("meta").textContent = t.bays + " ล็อก · " + t.slots + " ช่องวาง · ว่าง " + (v.counts.empty || 0) +
     (v.live.ok ? "" : " · ⚠️ อ่านสถานะจากเว็บไม่ได้");
+  $("demoTag").style.display = v.demo ? "inline-block" : "none";
 
-  $("legendItems").innerHTML = ["ready", "wait", "problem", "unknown", "empty"].map((k) =>
-    '<div class="it" data-k="' + k + '"><span class="sw" style="background:' + v.pickColor[k] + '"></span>' +
-    esc(v.pickLegend[k]) + '<span class="n">' + (v.counts[k] || 0) + "</span></div>").join("");
-  for (const it of document.querySelectorAll("#legend .it"))
-    it.addEventListener("click", () => {
-      const k = it.dataset.k;
-      hidden.has(k) ? hidden.delete(k) : hidden.add(k);
-      it.classList.toggle("off", hidden.has(k));
-      for (const s of DATA.layout.slots) {
-        const m = slotMeshes.get(s.slot);
-        if (m) m.visible = !hidden.has(s.status);
-      }
-    });
+  const rows = v.alerts.concat((v.unplaced || []).map((u) =>
+    Object.assign({}, u, { slot: "", pick: "noslot", why: "ชำระแล้ว พร้อมส่ง แต่ยังไม่มีใครคีย์ว่าอยู่ช่องไหน" })));
+  renderAlerts(rows, "⚠️ ต้องเช็ค");
 
-  const rows = v.alerts.concat(v.unplaced.map((u) =>
-    Object.assign({}, u, { slot: "", label: "", pick: "noslot", why: "ชำระแล้ว พร้อมส่ง แต่ยังไม่มีใครคีย์ว่าอยู่ช่องไหน" })));
+  if (openCode) { const keep = openCode; openSlot(keep); }
+  if (v.orphans && v.orphans.length)
+    toast("⚠️ มี " + v.orphans.length + " แทรคคีย์ช่องที่ไม่มีในผัง — ต้องแก้", 6000);
+  resize();
+}
+
+function renderAlerts(rows, title) {
+  $("alerts").querySelector("h4").firstChild.textContent = title + " ";
   $("alertN").textContent = rows.length ? "(" + rows.length + ")" : "";
   $("alertRows").innerHTML = rows.length
     ? rows.map((a) => {
-        const c = v.pickColor[a.pick] || "#7c3aed";
+        const c = (DATA.pickColor && DATA.pickColor[a.pick]) || "#7c3aed";
         return '<div class="row" data-slot="' + esc(a.slot) + '">' +
           '<span class="tag" style="background:' + c + ';color:#fff">' + esc(a.slot || "ไม่มีช่อง") + "</span>" +
-          "<b class='mono'>" + esc(a.tracking) + "</b> " + esc(a.memberCode || "") +
+          '<b class="mono">' + esc(a.tracking) + "</b> " + esc(a.memberCode || "") +
           '<div class="why">' + esc(a.why) + "</div></div>";
       }).join("")
     : '<div class="empty">ไม่มีช่องที่ต้องเช็ค 👍</div>';
-  for (const row of document.querySelectorAll("#alertRows .row"))
+  for (const row of $("alertRows").querySelectorAll(".row"))
     row.addEventListener("click", () => { if (row.dataset.slot) openSlot(row.dataset.slot); });
   $("alerts").style.display = rows.length ? "block" : "none";
-
-  if (v.orphans.length) toast("⚠️ มี " + v.orphans.length + " แทรคคีย์ช่องที่ไม่มีในผัง — ต้องแก้", 6000);
 }
 
-$("reload").addEventListener("click", (e) => { e.preventDefault(); location.reload(); });
+/* กดการ์ดสรุป = กรองเฉพาะสีนั้น (กดซ้ำ = เลิกกรอง) */
+let filter = null;
+function toggleFilter(k) {
+  filter = filter === k ? null : k;
+  hidden.clear();
+  if (filter && filter !== "boxes") {
+    const keep = filter === "problem" ? ["problem", "unknown"] : [filter];
+    for (const s of ["ready", "wait", "problem", "unknown", "empty"])
+      if (!keep.includes(s)) hidden.add(s);
+  } else if (filter === "boxes") {
+    hidden.add("empty");
+  }
+  for (const s of DATA.layout.slots) {
+    const m = slotMeshes.get(s.slot);
+    if (m) m.visible = !hidden.has(s.status);
+  }
+  paintFilter();
+}
+function paintFilter() {
+  for (const c of $("summary").querySelectorAll(".stat")) {
+    c.classList.toggle("on", filter === c.dataset.k);
+    c.classList.toggle("off", !!filter && filter !== c.dataset.k);
+  }
+}
+
+/* นาฬิกา + ป้าย Live (เดินจริงเพราะข้อมูลโหลดใหม่ทุก 60 วิ) */
+let loadedAt = Date.now();
+function tickClock() {
+  const d = new Date();
+  if ($("cd")) $("cd").textContent = d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  if ($("ct")) $("ct").textContent = d.toLocaleTimeString("th-TH", { hour12: false });
+  const age = Math.round((Date.now() - loadedAt) / 1000);
+  if ($("cl")) {
+    const stale = age > 150;
+    $("cl").classList.toggle("stale", stale);
+    $("clt").textContent = stale ? "ข้อมูล " + age + " วิที่แล้ว" : "Live";
+  }
+}
+setInterval(tickClock, 1000);
+
+/* ══ โหลด / โหลดซ้ำ ═════════════════════════════════════════════════ */
+async function load(quiet) {
+  const r = await fetch(api("/warehouse/api/view"));
+  if (!r.ok) {
+    const msg = esc((await r.json().catch(() => ({}))).error || r.status);
+    if (quiet) return toast("โหลดข้อมูลใหม่ไม่สำเร็จ: " + msg, 4000);
+    $("load").innerHTML = "เปิดหน้านี้ไม่ได้<br><span style='font-size:12px'>" + msg + "</span>";
+    return;
+  }
+  applyData(await r.json());
+  loadedAt = Date.now();
+  $("load").style.display = "none";
+}
+
+/* 🔁 โหลดใหม่เองทุก 60 วิ + ตอนกลับมาที่แท็บนี้
+   🔑 ไม่งั้นพนักงานคีย์ตำแหน่งจากมือถือแล้วจอนี้ยังขึ้นของเก่า (= "Live" หลอก) */
+setInterval(() => { if (!document.hidden) load(true); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(true); });
+
+load().catch((e) => { $("load").textContent = "โหลดไม่สำเร็จ: " + e.message; });
 
 /* ══ ลูปวาด ═════════════════════════════════════════════════════════ */
+/* 🔎 ไว้ไล่บั๊กกล้อง — เปิดคอนโซลแล้วพิมพ์ whCam() */
+window.whCam = () => ({ r: +cam.r.toFixed(2), phi: +cam.phi.toFixed(3), theta: +cam.theta.toFixed(3),
+  target: cam.target.toArray().map((n) => +n.toFixed(2)), anim: !!anim, aspect: +camera.aspect.toFixed(2) });
+
 function tick() {
   if (anim) {
-    anim.t = Math.min(1, anim.t + 0.035);
-    const k = ease(anim.t);
+    const t = Math.min(1, (performance.now() - anim.t0) / FLY_MS);
+    const k = ease(t);
     cam.target.lerpVectors(anim.from, anim.to, k);
     cam.r = anim.r0 + (anim.r1 - anim.r0) * k;
+    cam.theta = anim.th0 + (anim.th1 - anim.th0) * k;
+    cam.phi = anim.ph0 + (anim.ph1 - anim.ph0) * k;
     applyCam();
-    if (anim.t >= 1) anim = null;
+    if (t >= 1) anim = null;
   }
   if (hiRing) hiRing.rotation.y += 0.004;
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 tick();
-load().catch((e) => { $("load").textContent = "โหลดไม่สำเร็จ: " + e.message; });
 </script>
 </body>
 </html>

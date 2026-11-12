@@ -8,7 +8,11 @@
 //   → http://localhost:4599/warehouse?key=demo          (จอ 3D)
 //   → http://localhost:4599/warehouse/assign?key=demo   (หน้าคีย์ตำแหน่ง)
 //
-// 🔒 ไม่เขียนอะไรลงฐานทั้งนั้น — กด "บันทึก" ในโหมดนี้ก็แค่ตอบ ok กลับมาเฉยๆ
+// 🔒 ไม่เขียนอะไรลงฐานทั้งนั้น — ของที่คีย์เก็บไว้ใน**หน่วยความจำ** ปิดโปรแกรมแล้วหาย
+//
+// 🪤 บทเรียน (ภูม 2026-11-12): รอบแรกผมทำ place() เป็นตัวหลอก ตอบ "บันทึกแล้ว" แต่ไม่เก็บอะไร
+//    ภูมลองเพิ่มแทรคที่ 2 ลงพาเลทเดิม → จอยังโชว์แทรคเดียว → นึกว่าระบบรองรับได้ช่องละแทรค
+//    = เขียวหลอก (กดแล้วขึ้นสำเร็จ แต่ไม่มีผล) ⇒ ตอนนี้เก็บจริง และติดป้าย "โหมดลองดู" ให้เห็นชัด
 // 🔑 index.js **ไม่ได้ require ไฟล์นี้** ⇒ บอทตัวจริงไม่มีทางเผลอเปิดโหมดลองดู
 //
 // อยากดูของจริง: ลง warehouse-schema.sql + ตั้ง WAREHOUSE_KEY แล้วเปิดที่บอทจริง
@@ -38,37 +42,93 @@ const PLACEMENTS = [
 
 const JOBS = [
   /* 🟢 ชำระแล้ว + ถึงไทยแล้ว = หยิบได้ */
-  { tracking: "SF5147871049131", memberCode: "PR622", status: 6, paid: true,  arrivedAt: "2026-11-11", boxes: 2,  container: "GZE261108-1" },
-  { tracking: "SF5141868962437", memberCode: "PR622", status: 6, paid: true,  arrivedAt: "2026-11-11", boxes: 1,  container: "GZE261108-1" },
+  { tracking: "SF5147871049131", memberCode: "PR622", status: 6, paid: true,  arrivedAt: "2026-11-11", boxes: 2,  container: "GZE261108-1",
+    receiver: "สมชาย ใจดี", tel: "0812345678", carrier: "2",
+    address: "99/12 ซอยลาดพร้าว 15 จอมพล จตุจักร กรุงเทพมหานคร 10900" },
+  /* 🔴 ชำระแล้ว แต่ยังไม่มีที่อยู่จัดส่ง ⇒ ต้องไม่เขียว */
+  { tracking: "SF5141868962437", memberCode: "PR622", status: 6, paid: true,  arrivedAt: "2026-11-11", boxes: 1,  container: "GZE261108-1",
+    needsAddress: true, carrier: null, address: null },
   /* 🟡 ยังไม่ชำระ = ห้ามหยิบ (กล่องที่พนักงานหยิบผิดจริง) */
-  { tracking: "1792477204-2",    memberCode: "PR722", status: 5, paid: false, arrivedAt: "2026-11-12", boxes: 18, container: "GZS261101-2" },
+  { tracking: "1792477204-2",    memberCode: "PR722", status: 5, paid: false, arrivedAt: "2026-11-12", boxes: 18, container: "GZS261101-2",
+    receiver: "ศิริพร วงศ์ทอง", tel: "0891112222", carrier: "55",
+    address: "14 หมู่ 3 บางปลา บางพลี สมุทรปราการ 10540" },
   { tracking: "772085135477267", memberCode: "PR857", status: 5, paid: false, arrivedAt: "2026-11-11", boxes: 1,  container: "GZS261101-2" },
-  { tracking: "KY4001198485063", memberCode: "PW",    status: 4, paid: false, arrivedAt: "2026-11-12", boxes: 1,  container: "GZE261110-1" },
+  { tracking: "KY4001198485063", memberCode: "PW",    status: 4, paid: false, arrivedAt: "2026-11-12", boxes: 1,  container: "GZE261110-1",
+    needsAddress: true, carrier: null, address: null },
   /* 🔴 ระบบบอกส่งแล้ว แต่ของยังอยู่บนชั้น = มีคนหยิบกล่องอื่นไปส่งแทน */
   { tracking: "SHIPPED-ALREADY", memberCode: "PR179", status: 7, paid: true,  arrivedAt: "2026-11-02", boxes: 1,  container: "GZS261020-1" },
   /* 🔴 งานเครดิตถูกดันเป็นสถานะ 6 ก่อนของถึงไทย ⇒ ต้องไม่เขียว */
   { tracking: "CREDIT-NOT-HERE", memberCode: "PW",    status: 6, paid: true,  arrivedAt: null,         boxes: 3,  container: null },
   /* 🔴 ชำระแล้วพร้อมส่ง แต่ยังไม่มีใครคีย์ช่อง ⇒ ขึ้นในรายการเตือน */
-  { tracking: "READY-NO-SLOT-1", memberCode: "PR168",   status: 6, paid: true, arrivedAt: "2026-11-12", boxes: 1, container: "GZE261110-1" },
+  /* 🏬 ลูกค้ารับเองหน้าโกดัง — ไม่ต้องมีที่อยู่ส่ง */
+  { tracking: "READY-NO-SLOT-1", memberCode: "PR168",   status: 6, paid: true, arrivedAt: "2026-11-12", boxes: 1, container: "GZE261110-1",
+    selfPickup: true, carrier: "PCS", receiver: "รับที่โกดัง Pacred", tel: "0224213325",
+    address: "48/2 หมู่ 12 อ้อมน้อย กระทุ่มแบน สมุทรสาคร 74130" },
   { tracking: "READY-NO-SLOT-2", memberCode: "PR10634", status: 6, paid: true, arrivedAt: "2026-11-12", boxes: 4, container: "GZE261110-1" },
   /* ⬛ NOT-IN-SYSTEM ไม่อยู่ในลิสต์นี้โดยตั้งใจ = "มีของวาง แต่หาแทรคในระบบไม่เจอ" */
 ];
 
-/** ตัวปลอม — หน้าตาเหมือน createWarehouse() ทุกอย่าง แต่ไม่แตะฐาน */
+/* 📦 ของบนชั้นในโหมดลองดู — เก็บในหน่วยความจำ (เริ่มจากชุดตัวอย่างข้างบน) */
+const shelf = PLACEMENTS.slice();
+const LOG = [];
+const { parseSlot, slotLabel } = require("./warehouse-layout");
+
+/**
+ * ตัวจำลอง — หน้าตาเหมือน createWarehouse() ทุกอย่าง แต่เก็บในหน่วยความจำแทนฐาน
+ * 🔑 กติกาต้องเหมือนตัวจริงเป๊ะ ไม่งั้นลองแล้วได้ผลคนละอย่างกับของจริง:
+ *    - 1 แทรคอยู่ได้ช่องเดียว (คีย์ซ้ำ = ย้ายช่อง)
+ *    - 1 ช่องวางได้หลายแทรค
+ *    - ช่องที่ไม่มีในผัง = ไม่รับ
+ */
 const demo = {
   isReady: async () => true,
-  listPlacements: async () => PLACEMENTS,
+  listPlacements: async () => shelf.slice(),
   jobsFromPacred: async () => ({ jobs: JOBS, ok: true, at: now() }),
   view: async () =>
-    Object.assign(mergeView(PLACEMENTS, JOBS), {
+    Object.assign(mergeView(shelf, JOBS), {
       live: { ok: true, at: now(), error: null },
-      placedCount: PLACEMENTS.length,
+      placedCount: shelf.length,
+      demo: true,
     }),
-  place: async (tracking, slot) => ({ ok: true, slot, label: slot, demo: true }),
-  remove: async () => ({ ok: true, demo: true }),
-  history: async () => [],
+
+  place: async (tracking, slot, who, opts) => {
+    const t = String(tracking || "").trim();
+    if (!t) throw new Error("ยังไม่ได้ใส่เลขแทรค");
+    const s = parseSlot(slot);
+    if (!s) throw new Error('ช่อง "' + slot + '" ไม่มีในผังโกดัง');
+    const o = opts || {};
+    const i = shelf.findIndex((p) => p.tracking === t);
+    const from = i >= 0 ? shelf[i].slot : null;
+    if (from === s.slot) return { ok: true, unchanged: true, slot: s.slot, label: slotLabel(s.slot) };
+
+    const job = JOBS.find((j) => j.tracking === t);
+    const row = {
+      tracking: t, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level, side: s.side,
+      member_code: (job && job.memberCode) || null,
+      boxes: Math.max(1, Number(o.boxes) || 1),
+      note: o.note || null,
+      placed_by: String(who || "ลองดู").slice(0, 40),
+      placed_at: now(),
+    };
+    if (i >= 0) shelf[i] = row; else shelf.push(row);
+    LOG.unshift({ tracking: t, action: from ? "move" : "place", from_slot: from, to_slot: s.slot, by_who: row.placed_by, at: now() });
+    return { ok: true, moved: !!from, from, slot: s.slot, label: slotLabel(s.slot) };
+  },
+
+  remove: async (tracking, who, note) => {
+    const t = String(tracking || "").trim();
+    const i = shelf.findIndex((p) => p.tracking === t);
+    if (i < 0) return { ok: true, missing: true };
+    const from = shelf[i].slot;
+    shelf.splice(i, 1);
+    LOG.unshift({ tracking: t, action: "remove", from_slot: from, to_slot: null, by_who: String(who || "ลองดู"), note, at: now() });
+    return { ok: true, from };
+  },
+
+  history: async (tracking) => LOG.filter((l) => l.tracking === String(tracking || "").trim()),
+
   find: async (q) =>
-    PLACEMENTS.filter((p) =>
+    shelf.filter((p) =>
       (p.tracking + " " + (p.member_code || "") + " " + p.slot)
         .toUpperCase()
         .includes(String(q || "").toUpperCase()),

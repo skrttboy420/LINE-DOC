@@ -180,6 +180,36 @@ ok("🔴 งานเครดิตที่ถูกดันเป็นส�
     "วันถึงไทยเป็นช่องว่าง = ยังไม่ถึง");
 });
 
+ok("🔴 ชำระแล้วแต่ยังไม่มีที่อยู่จัดส่ง = ห้ามเขียว (หยิบไปก็ส่งไม่ได้)", () => {
+  const s = W.pickStateOf(job({ needsAddress: true }), true);
+  assert.equal(s.pick, "wait");
+  assert.match(s.why, /ยังไม่มีที่อยู่จัดส่ง/);
+});
+
+ok("งานรับเองหน้าโกดังที่ชำระแล้ว = เขียว + บอกว่ารับเอง", () => {
+  const s = W.pickStateOf(job({ selfPickup: true, needsAddress: false }), true);
+  assert.equal(s.pick, "ready");
+  assert.match(s.why, /รับเองหน้าโกดัง/);
+});
+
+ok("ยังไม่ชำระ ชนะเรื่องที่อยู่ (เตือนเรื่องเงินก่อน)", () => {
+  const s = W.pickStateOf(job({ status: 5, paid: false, needsAddress: true }), true);
+  assert.equal(s.pick, "wait");
+  assert.match(s.why, /ยังไม่ชำระ/);
+});
+
+ok("ช่องที่อยู่ถูกส่งต่อให้หน้าเว็บวาด", () => {
+  const v = W.mergeView(
+    [{ tracking: "T1", slot: "A0101-L", boxes: 1, placed_by: "u" }],
+    [job({ tracking: "T1", address: "1/2 บางรัก กรุงเทพ 10500", receiver: "สมชาย ใจดี", tel: "0812345678", carrier: "2" })],
+  );
+  const it = v.layout.slots.find((s) => s.slot === "A0101-L").items[0];
+  assert.equal(it.address, "1/2 บางรัก กรุงเทพ 10500");
+  assert.equal(it.receiver, "สมชาย ใจดี");
+  assert.equal(it.tel, "0812345678");
+  assert.equal(it.carrier, "2");
+});
+
 ok("🔴 ช่องที่มีหลายกล่อง เอาสีที่ \"แรงสุด\" ไม่ใช่เสียงส่วนมาก", () => {
   assert.equal(W.worstOf(["ready", "ready", "wait"]), "wait", "มี 1 กล่องห้ามหยิบ ต้องเห็นว่าเตือน");
   assert.equal(W.worstOf(["ready", "wait", "problem"]), "problem");

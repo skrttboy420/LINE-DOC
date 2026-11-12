@@ -40,7 +40,9 @@ const PICK = Object.freeze({
 
 const PICK_TH = Object.freeze({
   ready:   "ชำระแล้ว · หยิบส่งได้",
-  wait:    "ยังไม่ชำระ · ห้ามหยิบ",
+  /* 🔑 ป้ายนี้เป็น "คำสั่ง" ไม่ใช่ "เหตุผล" — เหตุผลอยู่ในช่อง why ของแต่ละกล่อง
+     (เดิมเขียน "ยังไม่ชำระ · ห้ามหยิบ" แล้วเจอเคส "ชำระแล้วแต่ไม่มีที่อยู่" ⇒ ป้ายขัดกับเหตุผล) */
+  wait:    "ห้ามหยิบ",
   problem: "ขัดกับระบบ · ต้องเช็ค",
   unknown: "หาในระบบไม่เจอ",
   empty:   "ว่าง",
@@ -54,7 +56,8 @@ const PICK_COLOR = Object.freeze({
  * 🎯 ตัวตัดสินเดียวว่าช่องนี้ควรเป็นสีอะไร
  *
  * @param {null|undefined|{status?:number|string, paid?:boolean, arrivedAt?:string|null,
- *                         hold?:boolean, boxesIn?:number, boxesTotal?:number}} job
+ *                         hold?:boolean, boxesIn?:number, boxesTotal?:number,
+ *                         needsAddress?:boolean, selfPickup?:boolean}} job
  *        งานจากเว็บ Pacred · null/undefined = หาไม่เจอ
  * @param {boolean} hasBox มีของวางอยู่บนชั้นช่องนี้ไหม (จากฐานของบอท)
  * @returns {{pick:string, label:string, color:string, why:string}}
@@ -89,8 +92,19 @@ function pickStateOf(job, hasBox) {
   if (Number.isFinite(total) && Number.isFinite(got) && total > 0 && got < total)
     return state(PICK.WAIT, "ชำระแล้ว แต่ของมาถึง " + got + "/" + total + " กล่อง — รอให้ครบก่อนส่ง");
 
+  /* 🟡 ชำระแล้วแต่ยังไม่มีที่อยู่จัดส่ง = หยิบไปก็ส่งไม่ได้ (ภูม 2026-11-12)
+       ภูม: *"ถ้าออเดอร์ไหนยังไม่มีที่อยู่จัดส่งจะได้รู้เลยด้วย"*
+       🔑 ธงนี้มาจากตัวตัดสินเดียวกับด่านก่อนแจ้งชำระของเว็บ ⇒ จอกับระบบพูดตรงกัน
+          (งานรับเองหน้าโกดังไม่เข้าเคสนี้ — ตัวตัดสินยกเว้นให้อยู่แล้ว) */
+  if (job.needsAddress === true)
+    return state(PICK.WAIT, "ชำระแล้ว แต่ยังไม่มีที่อยู่จัดส่ง — หยิบไปก็ส่งไม่ได้ ต้องถามที่อยู่ก่อน");
+
   /* 🟢 ชำระแล้ว + ถึงไทยแล้ว = หยิบได้ */
-  return state(PICK.READY, "ชำระแล้ว (" + (STATUS_TH[st] || st) + ") — หยิบส่งได้");
+  return state(
+    PICK.READY,
+    (job.selfPickup === true ? "ชำระแล้ว · ลูกค้ารับเองหน้าโกดัง" : "ชำระแล้ว (" + (STATUS_TH[st] || st) + ")") +
+      " — หยิบส่งได้",
+  );
 }
 
 function state(pick, why) {
@@ -136,6 +150,13 @@ function mergeView(placements, jobs) {
         customer: (job && job.customer) || null,
         boxes: Number(p.boxes) || 1,
         statusTh: job ? (STATUS_TH[Number(job.status)] || String(job.status)) : null,
+        /* 📍 ที่อยู่จัดส่ง — โกดังใช้ตอนแปะหน้ากล่อง (ภูม 2026-11-12) */
+        address: (job && job.address) || null,
+        receiver: (job && job.receiver) || null,
+        tel: (job && job.tel) || null,
+        carrier: (job && job.carrier) || null,
+        selfPickup: !!(job && job.selfPickup),
+        needsAddress: !!(job && job.needsAddress),
         placedAt: p.placed_at || null,
         placedBy: p.placed_by || null,
         note: p.note || null,

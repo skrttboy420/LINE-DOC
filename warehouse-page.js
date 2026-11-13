@@ -123,7 +123,8 @@ function mountWarehouse(app, warehouse, whoOf) {
     try {
       const t = String(req.query.tracking || "").trim();
       if (!t) return res.status(400).json({ error: "ไม่ได้ใส่เลขแทรค" });
-      const live = await warehouse.jobsFromPacred();
+      /* 🔑 ถามรายกล่อง ⇒ ฝั่งเว็บถึงจะส่งชื่อ/เบอร์/ที่อยู่มาให้ (ภาพรวมได้แค่ธง) */
+      const live = await warehouse.jobsFromPacred([t], [t]);
       const job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === t) || null;
       const st = pickStateOf(job, true);
       const found = await warehouse.find(t).catch(() => []);
@@ -153,7 +154,8 @@ function mountWarehouse(app, warehouse, whoOf) {
       /* รหัสลูกค้าถ่ายจากเว็บ ไม่เชื่อค่าที่หน้าเว็บส่งมา (กันคีย์ผิดคน) */
       let memberCode = null;
       try {
-        const live = await warehouse.jobsFromPacred();
+        /* ถามรายกล่อง — ของที่เพิ่งคีย์อาจยังไม่อยู่ในชุด "บนชั้น" ที่เว็บส่งมา */
+        const live = await warehouse.jobsFromPacred([String(b.tracking || "").trim()], []);
         const job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === String(b.tracking || "").trim());
         if (job) memberCode = job.memberCode || null;
       } catch { /* อ่านเว็บไม่ได้ก็คีย์ตำแหน่งได้ — แค่ไม่มีรหัสลูกค้าติดไป */ }
@@ -199,7 +201,7 @@ function mountWarehouse(app, warehouse, whoOf) {
       /* หางานจากเว็บก่อน — เอารหัสลูกค้าติดไปด้วย + เอาไว้บอกสถานะคนยิง */
       let job = null, liveOk = true;
       try {
-        const live = await warehouse.jobsFromPacred([tracking]);
+        const live = await warehouse.jobsFromPacred([tracking], [tracking]);
         liveOk = live.ok;
         job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === tracking) || null;
       } catch { liveOk = false; }

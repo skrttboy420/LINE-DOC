@@ -248,10 +248,21 @@ function createWarehouse(supabase, pacredGet) {
    *   🔴 ไม่ให้เว็บกวาดงานที่ส่งแล้วทั้งหมดมา — วัดจริง 11-12 ได้ 6,910 แถว = 1.18 MB ต่อครั้ง
    *      (ถามเฉพาะที่เราถือ: 584 แถว · 92 KB · 215 มิลลิวินาที)
    */
-  async function jobsFromPacred(onShelf) {
+  /**
+   * ถามเว็บ Pacred ว่าแต่ละแทรคเป็นงานอะไร
+   * @param onShelf เลขแทรคที่ให้เว็บ **ไปตามหาสถานะ** — ต้องส่งทุกใบบนชั้น
+   *        ไม่งั้นใบที่หลุดจากชุด "บนชั้น" (สถานะ 7 = ส่งแล้ว แต่ของยังวางอยู่) จะหาไม่เจอ
+   * @param detail เลขแทรคที่ขอ **ชื่อ/เบอร์/ที่อยู่** ด้วย — ส่ง [] = ขอแค่ธง
+   *        🔒 ข้อมูลส่วนตัวลูกค้าไม่ควรไหลออกมาทั้งโกดังทุกครั้งที่เปิดจอ
+   *        (owner/เดฟ 2026-11-12) · ไม่ส่ง = ของเดิม คือได้รายละเอียดทุกใบที่ถาม
+   */
+  async function jobsFromPacred(onShelf, detail) {
     try {
       const t = (onShelf || []).filter(Boolean).slice(0, 400).join(",");
-      const r = await pacredGet("warehouse", t ? { t } : undefined);
+      const q = {};
+      if (t) q.t = t;
+      if (detail !== undefined) q.d = (detail || []).filter(Boolean).join(",");
+      const r = await pacredGet("warehouse", Object.keys(q).length ? q : undefined);
       return { jobs: (r && r.jobs) || [], ok: true, at: (r && r.at) || null };
     } catch (e) {
       return { jobs: [], ok: false, error: e.message };
@@ -260,9 +271,13 @@ function createWarehouse(supabase, pacredGet) {
 
   /** ภาพรวมทั้งโกดังสำหรับหน้า 3D */
   async function view() {
-    /* 🔑 ต้องอ่าน "ของบนชั้น" ก่อน เพื่อเอาเลขแทรคไปถามเว็บ (ไม่ขนานกันเหมือนเดิม) */
+    /* 🔑 ส่งเลขแทรคทุกใบบนชั้นไปให้เว็บ "ตามหาสถานะ" เหมือนเดิม (ห้ามตัด —
+       ไม่งั้นเคส "ส่งแล้วแต่ของยังอยู่บนชั้น" หาไม่เจอ แล้วขึ้นเทาแทนที่จะเตือนแดง)
+       🔒 แต่ขอ "รายละเอียดติดต่อ" = ไม่เอาเลย (d ว่าง) — ภาพรวมใช้แค่ธงก็ระบายสีได้ครบ
+          ที่อยู่/ชื่อ/เบอร์ ค่อยถามรายกล่องตอนกดเปิด (/warehouse/api/job)
+          owner/เดฟ 2026-11-12: *"ควรส่งแค่ธง แล้วถามรายกล่อง"* */
     const placements = await listPlacements();
-    const live = await jobsFromPacred(placements.map((p) => p.tracking));
+    const live = await jobsFromPacred(placements.map((p) => p.tracking), []);
     const merged = mergeView(placements, live.jobs);
     return Object.assign(merged, { live: { ok: live.ok, at: live.at, error: live.error || null }, placedCount: placements.length });
   }

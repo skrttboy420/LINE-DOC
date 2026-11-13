@@ -282,7 +282,7 @@ async function find() {
           (job ? '<div style="color:' + COLOR[job.pick] + '">' + esc(job.pickLabel) + "</div>" : "") +
           '<div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">' +
           '<button class="rm" data-load="' + esc(p.tracking) + '">🚚 เอาขึ้นรถ</button>' +
-          '<button class="rm" data-t="' + esc(p.tracking) + '">เอาออกเฉยๆ</button></div></div>';
+          '<button class="rm" data-t="' + esc(p.tracking) + '">🗑 ลบรายการ (ยิงผิด)</button></div></div>';
       }).join("")
     : '<div class="muted" style="margin-top:8px">ไม่เจอ — ของอาจยังไม่ถูกคีย์ตำแหน่ง</div>';
   /* 🚚 เอาขึ้นรถ (จ่ายออกให้ลูกค้า) vs เอาออกเฉยๆ — ลงประวัติคนละชนิด
@@ -291,16 +291,28 @@ async function find() {
     b.addEventListener("click", async () => {
       const t = b.dataset.load || b.dataset.t;
       const load = !!b.dataset.load;
-      if (!confirm((load ? "เอา " + t + " ขึ้นรถ (จ่ายออกให้ลูกค้า)?" : "เอา " + t + " ออกจากชั้นวาง?") +
-        "\n\nของจะหายจากจอ 3D และลงประวัติว่าใครทำตอนไหน")) return;
+      let note;
+      if (load) {
+        if (!confirm("เอา " + t + " ขึ้นรถ (จ่ายออกให้ลูกค้า)?" +
+          "\n\nของจะหายจากจอ 3D และลงประวัติว่าใครทำตอนไหน")) return;
+      } else {
+        /* 🗑 ลบเพราะคีย์ผิด — ต้องบอกเหตุผล จะได้ไล่ย้อนได้ว่าทำไมของหายจากชั้น
+           ภูม 2026-11-13: *"บางทีพนักงานยิงผิด แล้วมันเข้าระบบโกดังเราไป"* */
+        const why = prompt("ลบ " + t + " ออกจากชั้นวาง?\n\n" +
+          "⚠️ ใช้เฉพาะกรณี “คีย์ผิด / ยิงผิดใบ”\n" +
+          "ถ้าของออกไปจริงให้กด 🚚 เอาขึ้นรถ แทน\n\nพิมพ์เหตุผลสั้นๆ:", "ยิงผิดใบ");
+        if (why === null) return;
+        if (String(why).trim().length < 2) return msg("ใส่เหตุผลสั้นๆ ก่อน (ไว้ไล่ย้อนทีหลัง)", "err");
+        note = "ลบ (คีย์ผิด): " + String(why).trim();
+      }
       const rr = await fetch(api("/warehouse/api/remove"), {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tracking: t, by: byName(), kind: load ? "load" : undefined }),
+        body: JSON.stringify({ tracking: t, by: byName(), kind: load ? "load" : "remove", note }),
       });
       const jj = await rr.json();
       if (!rr.ok || jj.error) return msg("❌ " + esc(jj.error || "เอาออกไม่สำเร็จ"), "err");
-      msg((load ? "🚚 " : "✅ ") + "<b class='mono'>" + esc(t) + "</b> " +
-        (load ? "ขึ้นรถแล้ว — เคลียร์ออกจากชั้น" : "เอาออกจากชั้นแล้ว"), "ok");
+      msg((load ? "🚚 " : "🗑 ") + "<b class='mono'>" + esc(t) + "</b> " +
+        (load ? "ขึ้นรถแล้ว — เคลียร์ออกจากชั้น" : "ถูกลบออกจากชั้นแล้ว"), "ok");
       await boot(); find();
     });
 }

@@ -323,6 +323,27 @@ ok("🔴 ต้องส่งเลขแทรคที่อยู่บน�
   assert.ok(src.includes("slice(0, 400)"), "ต้องมีเพดานจำนวนที่ถาม");
 });
 
+ok("🔒 จอภาพรวมต้องขอ \"แค่ธง\" — ไม่ลากที่อยู่ลูกค้าทั้งโกดังมาทุกครั้งที่เปิดจอ", () => {
+  /* owner/เดฟ 2026-11-12: *"จอ 3D ได้ชื่อ/เบอร์/ที่อยู่ของทุกกล่องบนชั้น ~585
+     — ควรส่งแค่ธง แล้วถามรายกล่อง"*
+     🪤 ห้ามแก้ด้วยการ "ไม่ส่ง t" — เคสเตือน "ส่งแล้วแต่ของยังอยู่" จะหาย
+        ทางที่ถูก = ส่ง t ครบ แต่ขอ d (รายละเอียด) เป็นชุดว่าง */
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  assert.ok(/jobsFromPacred\(placements\.map\(\(p\) => p\.tracking\), \[\]\)/.test(src),
+    "view() ต้องส่ง t ครบ แต่ขอรายละเอียดเป็นชุดว่าง");
+  assert.ok(src.includes("if (detail !== undefined) q.d ="), "ต้องมีช่อง d แยกจาก t");
+  const page = fs.readFileSync("warehouse-page.js", "utf8");
+  assert.ok(page.includes("jobsFromPacred([t], [t])"), "กดเปิดกล่องรายตัว = ขอรายละเอียดได้");
+  assert.ok(page.includes("jobsFromPacred([tracking], [tracking])"), "ยิงรับเข้า = ขอรายละเอียดได้");
+});
+
+ok("🔴 ป๊อปอัพต้องไปขอที่อยู่รายกล่องเอง (ไม่งั้นเปิดดูแล้วที่อยู่หายทั้งจอ)", () => {
+  const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
+  assert.ok(D3.includes("loadAddresses(s.items)"), "เปิดช่องแล้วต้องไปขอที่อยู่");
+  assert.ok(D3.includes("/warehouse/api/job"), "ต้องขอผ่านท่อรายกล่อง");
+  assert.ok(D3.includes('data-addr="'), "ต้องมีที่ให้เติมที่อยู่ทีหลัง");
+});
+
 ok("ตัวอ่านไล่เกิน 1000 แถว (PostgREST ตัดเงียบที่ 1000)", () => {
   const src = fs.readFileSync("warehouse.js", "utf8");
   assert.ok(src.includes(".range("), "ต้องอ่านเป็นช่วง");

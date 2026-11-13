@@ -98,12 +98,22 @@ const { parseSlot, slotLabel } = require("./warehouse-layout");
  *    - 1 ช่องวางได้หลายแทรค
  *    - ช่องที่ไม่มีในผัง = ไม่รับ
  */
+/* 🔒 โหมดลองดูต้องเลียนแบบ "ส่งแค่ธง" ของจริงด้วย (ภูม 2026-11-13)
+   ไม่งั้นลองบนเดโมแล้วเห็นที่อยู่ครบทุกใบ นึกว่าของจริงก็เป็นแบบนั้น = ลองแล้วไม่ได้ลองจริง */
+const stripContact = (j) => Object.assign({}, j, { address: null, receiver: null, tel: null });
+const JOBS_FLAGS = JOBS.map(stripContact);
+
 const demo = {
   isReady: async () => true,
   listPlacements: async () => shelf.slice(),
-  jobsFromPacred: async () => ({ jobs: JOBS, ok: true, at: now() }),
+  jobsFromPacred: async (onShelf, detail) => {
+    /* detail = [] ⇒ ขอแค่ธง · ไม่ส่ง detail ⇒ ของเดิม (ได้เต็ม) */
+    const set = detail === undefined ? null : new Set((detail || []).filter(Boolean));
+    const jobs = set === null ? JOBS : JOBS.map((j) => (set.has(j.tracking) ? j : stripContact(j)));
+    return { jobs, ok: true, at: now() };
+  },
   view: async () =>
-    Object.assign(mergeView(shelf, JOBS), {
+    Object.assign(mergeView(shelf, JOBS_FLAGS), {
       live: { ok: true, at: now(), error: null },
       placedCount: shelf.length,
       demo: true,

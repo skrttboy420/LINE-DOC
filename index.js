@@ -52,6 +52,9 @@ async function pacredGet(q, extra) {
 // ============================================================
 const { createStaffRegistry } = require("./staff");
 const { planNotifications, summarizeBacklog } = require("./notify-feed");
+/* 💰 โควตาข้อความ push ของ LINE — กันยิงรัวตอนโควตาหมด (ภูม 2026-11-13) */
+const { createLineBudget } = require("./line-budget");
+const lineBudget = createLineBudget();
 const { renderNotification } = require("./notify-template");
 const { createTemplateStore } = require("./notify-template-store");
 const { mountStaffAdmin } = require("./staff-admin");
@@ -527,12 +530,53 @@ async function pushNotify(message, category) {
     return false;
   }
 
+  /* 💰 โควตาหมดอยู่ = ไม่ต้องยิงให้เปลือง (ดู line-budget.js) */
+  if (!lineBudget.canPush()) {
+    lineBudget.noteSkip(targets.size);
+    return false;
+  }
+
   let sent = 0;
   for (const to of targets) {
-    try { await lineClient.pushMessage(to, message); sent += 1; }
-    catch (e) { console.error("[notify] push ล้ม →", to, (e && e.message) || e); }
+    try { await lineClient.pushMessage(to, message); sent += 1; lineBudget.noteOk(); }
+    catch (e) {
+      console.error("[notify] push ล้ม →", to, (e && e.message) || e);
+      /* โควตาหมด = หยุดทั้งก้อน ไม่ต้องไล่ยิงคนที่เหลือให้โดนปฏิเสธทีละคน */
+      if (lineBudget.noteFail(e)) { warnQuota(); break; }
+    }
   }
   return sent > 0;
+}
+
+/** บอกเรื่องโควตาหมด "ครั้งเดียวต่อรอบหยุด" — ไม่ใช่ทุก 5 นาที (log จะท่วม) */
+let quotaWarnedAt = 0;
+function warnQuota() {
+  const now = Date.now();
+  if (now - quotaWarnedAt < 30 * 60 * 1000) return;
+  quotaWarnedAt = now;
+  const s = lineBudget.status();
+  console.error(
+    "🔴 [line-quota] โควตาข้อความ push ของ LINE หมด — หยุดยิงชั่วคราว 1 ชม. · " + s.text +
+    "\n   แจ้งเตือนจะเงียบจนกว่าจะอัปแพลน LINE OA หรือขึ้นเดือนใหม่ (ตอบกลับตอนมีคนทักยังทำงานปกติ)",
+  );
+}
+
+/** ถาม LINE ว่าโควตาเดือนนี้เหลือเท่าไหร่ — ไว้โชว์หน้า /admin และเตือนก่อนหมด */
+async function refreshLineQuota() {
+  const token = process.env.CHANNEL_ACCESS_TOKEN;
+  if (!token) return;
+  const head = { headers: { authorization: "Bearer " + token } };
+  try {
+    const [q, c] = await Promise.all([
+      axios.get("https://api.line.me/v2/bot/message/quota", head),
+      axios.get("https://api.line.me/v2/bot/message/quota/consumption", head),
+    ]);
+    lineBudget.setQuota(q.data && q.data.value, c.data && c.data.totalUsage);
+    const s = lineBudget.status();
+    if (s.left === 0 || s.low) console.warn("[line-quota] " + s.text);
+  } catch (e) {
+    console.error("[line-quota] ถามโควตาไม่ได้:", (e && e.message) || e);
+  }
 }
 
 /** ถามเว็บแล้วเด้งเฉพาะใบที่ยังไม่เคยบอก (ใช้ร่วมกันทั้งตัวจับเวลาและตอนเว็บยิงมา) */
@@ -609,14 +653,29 @@ async function runNotifyRound() {
   const plans = planNotifications(feed, staff, notifyIsNew, templates);
   if (plans.length === 0) return;   // ✅ ไม่มีของใหม่ = เงียบสนิท (ภูมสั่ง)
 
+  /* 💰 โควตาหมดอยู่ = คืนคีย์ทั้งหมดแล้วออก ไม่ต้องยิงให้โดนปฏิเสธทีละคน
+     🪤 ของจริง 13/11: ยิง 13 คน ทุก 5 นาที ทั้งที่โควตาหมด = ~3,700 คำขอเปล่า/วัน */
+  if (!lineBudget.canPush()) {
+    for (const plan of plans) for (const k of plan.keys) told.delete(k);
+    lineBudget.noteSkip(plans.length);
+    return;
+  }
+
   for (const plan of plans) {
     try {
       await lineClient.pushMessage(plan.lineUserId, { type: "text", quickReply: QUICK, text: plan.text });
+      lineBudget.noteOk();
       console.log(`[notify] ส่งหา ${plan.lineUserId} (${plan.keys.length} รายการ)`);
     } catch (e) {
       // ส่งไม่ออก = คืนคีย์ให้รอบหน้าลองใหม่ (ไม่งั้นงานหายเงียบ)
       for (const k of plan.keys) told.delete(k);
       console.error("[notify] ส่งไม่ออก:", (e && e.message) || e);
+      if (lineBudget.noteFail(e)) {
+        /* โควตาหมด — คืนคีย์ที่เหลือด้วย แล้วหยุดรอบนี้ */
+        for (const p of plans) for (const k of p.keys) told.delete(k);
+        warnQuota();
+        return;
+      }
     }
   }
 }
@@ -630,6 +689,10 @@ setInterval(function () {
   runNotifyRound().catch(e => console.error("[notify]", (e && e.message) || e));
 }, PENDING_POLL_MS);
 console.log("⏱ เช็คงานรอตอบพิกัด + แจ้งเตือนตามหมวด ทุก " + (PENDING_POLL_MS / 60000) + " นาที");
+
+/* 💰 ถามโควตาข้อความ LINE ทุกชั่วโมง + ตอนเริ่ม — จะได้รู้ก่อนที่มันจะเงียบไปทั้งเดือน */
+refreshLineQuota();
+setInterval(() => { refreshLineQuota(); }, 60 * 60 * 1000);
 if (!NOTIFY_TO) {
   console.warn("⚠️ ยังไม่ได้ตั้ง NOTIFY_TO — สายตรงปิดอยู่ (ยังส่งหาคนในทะเบียนที่ติ๊กหมวดไว้ได้ปกติ)");
 }
@@ -2166,7 +2229,7 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 
 // 🛠 หน้าจัดการสิทธิ์ (ภูม 2026-10-20) — ต้องต่อ "หลัง" /webhook
 //    เพราะ /webhook ต้องได้ body ดิบไปตรวจลายเซ็น LINE ก่อนที่ express.json() จะแตะ
-mountStaffAdmin(app, staffRegistry, templateStore);
+mountStaffAdmin(app, staffRegistry, templateStore, lineBudget);
 
 // 🏭 หน้าโกดัง 3D (ภูม 2026-11-12) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
 mountWarehouse(app, warehouse);

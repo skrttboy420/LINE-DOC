@@ -92,6 +92,9 @@ function page() {
   </div>
 
   <div class="card">
+    <div id="quota" style="display:none;color:#fff;border-radius:11px;padding:11px 14px;
+      margin:0 0 14px;font-size:14px;line-height:1.6"></div>
+
     <h2>② คนที่ผูกไลน์แล้ว <span class="muted" id="cnt"></span></h2>
     <p class="muted">ติ๊กหมวดที่ให้เขาได้รับ — กดแล้วบันทึกทันที · <span style="border-bottom:1px dashed #999">เส้นประ</span> = หมวดที่ควรติ๊กเองเท่านั้น · กด ⚙ หลังชื่อหมวดเพื่อแก้ข้อความที่บอทจะส่ง</p>
     <p class="muted" id="tplWarn"></p>
@@ -149,6 +152,22 @@ async function load() {
 
   document.getElementById("cnt").textContent =
     "(" + d.linked.filter(x=>x.active).length + " คน" + (d.linked.some(x=>!x.active) ? " · ลาออก/ล็อก " + d.linked.filter(x=>!x.active).length : "") + ")";
+
+  /* 💰 โควตาข้อความ push ของ LINE — โควตาหมด = แจ้งเตือนเงียบทั้งระบบ ต้องเห็นตั้งแต่เปิดหน้า */
+  var qb = document.getElementById("quota");
+  if (qb) {
+    var q = d.lineQuota;
+    if (!q) { qb.style.display = "none"; }
+    else {
+      var bad = q.blocked || q.left === 0, warn = q.low;
+      qb.style.display = "block";
+      qb.style.background = bad ? "#7f1d1d" : warn ? "#78350f" : "#064e3b";
+      qb.innerHTML = "<b>ข้อความแจ้งเตือน (push) ของ LINE:</b> " + q.text +
+        (bad ? "<div style='margin-top:6px;font-size:13px;opacity:.92'>" +
+          "ตอบกลับตอนมีคนทักยังทำงานปกติ — ที่เงียบคือเฉพาะ “บอทเด้งมาเอง”<br>" +
+          "แก้ได้ทางเดียวคืออัปแพลน LINE OA (หรือรอขึ้นเดือนใหม่ โควตาจะคืนมาเท่าเดิม)</div>" : "");
+    }
+  }
 
   document.getElementById("rows").innerHTML = d.linked.length === 0
     ? '<tr><td colspan="4" class="muted">ยังไม่มีใครผูกไลน์ — ออกรหัสเชิญข้างบนก่อน</td></tr>'
@@ -295,7 +314,7 @@ load();
  * @param {ReturnType<typeof import("./notify-template-store").createTemplateStore>} [templateStore]
  *        ไม่ส่ง = หน้าจัดการยังใช้ได้ แค่แก้ข้อความไม่ได้ (fail-soft)
  */
-function mountStaffAdmin(app, registry, templateStore) {
+function mountStaffAdmin(app, registry, templateStore, lineBudget) {
   const express = require("express");
   const json = express.json();
 
@@ -327,6 +346,9 @@ function mountStaffAdmin(app, registry, templateStore) {
       }
       res.json({
         linked, pacred,
+        /* 💰 โควตาข้อความ push ของ LINE — โชว์ตรงนี้ จะได้ไม่ต้องไปงมใน log
+           (ภูม 2026-11-13: โควตาหมดแล้วแจ้งเตือนเงียบไปหลายวันโดยไม่มีใครรู้) */
+        lineQuota: lineBudget ? lineBudget.status() : null,
         categories: registry.CATEGORIES,
         sensitive: [...registry.SENSITIVE],
         templates, templatesReady,

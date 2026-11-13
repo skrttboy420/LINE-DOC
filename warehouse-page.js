@@ -113,7 +113,7 @@ function mountWarehouse(app, warehouse, whoOf) {
     if (!guard(req, res)) return;
     try {
       if (!(await requireTables(res))) return;
-      res.json(await warehouse.view());
+      res.json(await warehouse.view(req.query.wh));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -131,7 +131,13 @@ function mountWarehouse(app, warehouse, whoOf) {
       const placement = (found || []).find((p) => String(p.tracking || "").trim() === t) || null;
       res.json({
         tracking: t, job: job, state: st, liveOk: live.ok,
-        placement: placement ? { slot: placement.slot, label: LAYOUT.slotLabel(placement.slot) } : null,
+        placement: placement
+          ? {
+              slot: placement.slot, label: LAYOUT.slotLabel(placement.slot),
+              /* 🏭 บอกโกดังด้วย — รหัสช่องซ้ำกันได้ 2 โกดัง (ภูมเคาะ 13/11) */
+              wh: LAYOUT.normWh(placement.wh), whName: LAYOUT.whName(placement.wh),
+            }
+          : null,
       });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -141,7 +147,9 @@ function mountWarehouse(app, warehouse, whoOf) {
     if (!guard(req, res)) return;
     try {
       if (!(await requireTables(res))) return;
-      res.json({ rows: await warehouse.find(req.query.q) });
+      const rows = await warehouse.find(req.query.q);
+      const cages = await warehouse.findCages(req.query.q).catch(() => []);
+      res.json({ rows: rows, cages: cages });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -161,7 +169,7 @@ function mountWarehouse(app, warehouse, whoOf) {
       } catch { /* อ่านเว็บไม่ได้ก็คีย์ตำแหน่งได้ — แค่ไม่มีรหัสลูกค้าติดไป */ }
 
       res.json(await warehouse.place(b.tracking, b.slot, who(req), {
-        boxes: b.boxes, note: b.note, memberCode: memberCode,
+        boxes: b.boxes, note: b.note, memberCode: memberCode, wh: b.wh,
       }));
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
@@ -207,7 +215,7 @@ function mountWarehouse(app, warehouse, whoOf) {
       } catch { liveOk = false; }
 
       const saved = await warehouse.place(tracking, parsed.slot, who(req), {
-        boxes: b.boxes, note: b.note, memberCode: job ? job.memberCode : null,
+        boxes: b.boxes, note: b.note, memberCode: job ? job.memberCode : null, wh: b.wh,
       });
 
       const st = pickStateOf(job, true);
@@ -225,6 +233,23 @@ function mountWarehouse(app, warehouse, whoOf) {
         movedFrom: saved.moved ? saved.from : null, unchanged: !!saved.unchanged,
         job: job, pickLabel: st.label, why: st.why, tone: tone, headline: headline, liveOk: liveOk,
       });
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  /**
+   * 🧺 กรงเหล็ก — ใส่กรงลงช่อง / แก้ชื่อ / เอากรงออก
+   * ภูม 2026-11-13: *"เรามีกรงเหล็กที่ไว้ให้พวกสินค้าชิ้นเล็กๆและพวกสินค้าที่เป็น nocode"*
+   * body: { slot, wh, kind: "small"|"nocode", name, note }  ·  { slot, wh, drop: true } = เอาออก
+   */
+  app.post("/warehouse/api/cage", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireTables(res))) return;
+      const b = req.body || {};
+      if (b.drop) return res.json(await warehouse.removeCage(b.wh, b.slot, who(req)));
+      res.json(await warehouse.putCage(
+        { wh: b.wh, slot: b.slot, kind: b.kind, name: b.name, note: b.note }, who(req),
+      ));
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 

@@ -308,7 +308,7 @@ ok("🔒 โค้ดโกดังเขียนได้แค่ตาร�
     assert.ok(!src.includes(t), "ห้ามอ้างตารางของ Pacred: " + t);
   const writes = src.match(/\.from\("([^"]+)"\)/g) || [];
   for (const w of writes)
-    assert.ok(/wh_(placement|move_log)/.test(w), "ตารางที่แตะต้องเป็น wh_* เท่านั้น — เจอ " + w);
+    assert.ok(/wh_(placement|move_log|cage)/.test(w), "ตารางที่แตะต้องเป็น wh_* เท่านั้น — เจอ " + w);
 });
 
 ok("🔒 อ่านเว็บ Pacred ผ่านท่อ pacredGet เท่านั้น (ไม่ยิงฐานตรง)", () => {
@@ -417,8 +417,10 @@ ok("🚚 เอาของออกแยก 2 ชนิด — ขึ้นร
 ok("🔴 ฐานรุ่นเก่าที่ยังไม่รู้จักชนิด 'load' ต้องไม่ทำให้ประวัติหาย", () => {
   const src = readFile("warehouse.js");
   assert.ok(src.includes('String(error.code) === "23514"'), "ต้องจับด่าน check ที่ปฏิเสธ");
-  assert.ok(/action: "remove"/.test(src), "ต้องลงเป็น remove แทน");
-  assert.ok(src.includes('"ขึ้นรถ"'), "ต้องเขียนเหตุไว้ในหมายเหตุ");
+  assert.ok(src.includes('load: "remove"'), "ชนิด load ต้องถอยไปลงเป็น remove");
+  assert.ok(src.includes('cage_put: "place"') && src.includes('cage_del: "remove"'),
+    "ชนิดของกรงเหล็กก็ต้องมีทางถอย ไม่งั้นประวัติกรงหายบนฐานรุ่นเก่า");
+  assert.ok(src.includes('"ขึ้นรถ"') && src.includes('"ใส่กรงเหล็ก"'), "ต้องเขียนเหตุไว้ในหมายเหตุ");
 });
 
 ok("ไฟล์ SQL รองรับชนิด 'load' และรันซ้ำได้", () => {
@@ -695,7 +697,7 @@ ok("🔴 หน้า 3D ต้องไม่คิดพิกัด Z เอ�
 
 ok("🔴 หน้าคีย์ตำแหน่งต้องไม่ประกอบรหัสเอง", () => {
   const A = fs.readFileSync("warehouse-assign.html", "utf8");
-  assert.ok(!/sel\.zone \+ pad2\(/.test(A), "ห้ามต่อรหัสเอง — ต้องหาจาก LAYOUT.slots");
+  assert.ok(!/sel\.zone \+ pad2\(/.test(A), "ห้ามต่อรหัสเอง — ต้องหาจาก L.slots");
   assert.ok(A.includes("x.row === sel.zone && x.bay === sel.bay"), "ต้องหาช่องจากผัง");
 });
 
@@ -823,6 +825,148 @@ ok("🔴 หน้ายิง/หน้าคีย์ ต้องรับช
   const AS = fs.readFileSync("warehouse-assign.html", "utf8");
   assert.ok(AS.includes('get("slot")'), "หน้าคีย์เองต้องอ่าน ?slot=");
   assert.ok(AS.includes("sel.zone = hit.row"), "ต้องติ๊ก โซน/ล็อก/ชั้น/ฝั่ง ให้ครบ");
+});
+
+
+/* ════ ⑫ 🏭 แยกโกดัง + กรงเหล็ก (ภูม 2026-11-13) ══════════════════════
+ *
+ * ภูม: *"ตอนนี้เรามีมากกว่า 1 โกดังแล้ว"* + *"แยก Location ID และข้อมูลสต็อกตาม warehouse_id"*
+ * 🔑 ภูมเคาะ: **รหัสช่องเหมือนกันทั้ง 2 โกดัง** แยกด้วยรหัสโกดัง
+ *    ⇒ A0101-L มี 2 ช่องในโลกจริง ⇒ ถ้าโค้ดไหนลืมดูโกดัง พนักงานจะเดินหาผิดตึก
+ */
+section("แยกโกดัง (โกดัง 1 · โกดัง 2)");
+
+ok("ทะเบียนโกดังมี 2 โกดัง · โกดังตั้งต้น = โกดัง 1", () => {
+  assert.equal(L.WAREHOUSES.length, 2);
+  assert.equal(L.DEFAULT_WH, "WH1");
+  assert.equal(L.whName("WH2"), "โกดัง 2");
+});
+
+ok("อ่านรหัสโกดัง — ว่าง/ไม่รู้จัก = โกดังตั้งต้น · '2' ก็เข้าใจ", () => {
+  assert.equal(L.normWh(""), "WH1");
+  assert.equal(L.normWh(null), "WH1");
+  assert.equal(L.normWh("wh2"), "WH2");
+  assert.equal(L.normWh("2"), "WH2");
+  assert.equal(L.normWh("WH9"), "WH1", "ไม่รู้จัก = ตั้งต้น (ใช้กับการอ่านเท่านั้น)");
+});
+
+ok("🔴 ตอนเขียนฐานห้ามเดาโกดัง — รหัสมั่วต้องถูกปฏิเสธ", () => {
+  /* 🪤 ถ้า "เดา" ตอนเขียน ของโกดัง 2 จะไปโผล่โกดัง 1 เงียบๆ แล้วหาไม่เจอทั้งใบ */
+  assert.equal(L.isWh("WH2"), true);
+  assert.equal(L.isWh("WH9"), false);
+  assert.equal(L.isWh(""), false);
+  const src = readFile("warehouse.js");
+  assert.ok(src.includes("function strictWh("), "ต้องมีตัวตรวจรหัสโกดังแบบเข้ม");
+  assert.ok(/strictWh\(o\.wh\)/.test(src), "ตัวคีย์ตำแหน่งต้องใช้ตัวเข้ม ไม่ใช่ normWh");
+});
+
+ok("🔴 ผังโกดัง 2 เหมือนโกดัง 1 เป๊ะ (ภูมยืนยัน 13/11)", () => {
+  const plan = L.buildLayout();
+  assert.equal(plan.totals.slots, 208, "ช่องรวมต้องเท่าเดิม (26 ล็อก × 4 ชั้น × 2 ฝั่ง)");
+  assert.equal(plan.warehouses.length, 2, "ผังต้องแนบทะเบียนโกดังไปให้หน้า 3D");
+  assert.equal(plan.warehouses[0].id, "WH1");
+});
+
+ok("🔴 ของคนละโกดังต้องไม่ปนกันบนจอ", () => {
+  /* กรองที่ตัวโหลด (view) — mergeView รับเฉพาะของโกดังที่เลือกมาแล้ว */
+  const src = readFile("warehouse.js");
+  assert.ok(/all\.filter\(\(p\) => p\.wh === wh\)/.test(src), "view ต้องกรองตามโกดัง");
+  assert.ok(src.includes("byWh"), "ต้องนับของแต่ละโกดังไว้ให้ปุ่มสลับโชว์เลข");
+});
+
+ok("🔴 ช่องเดียวกันแต่คนละโกดัง = ย้ายจริง ไม่ใช่ 'ไม่มีอะไรเปลี่ยน'", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(/fromSlot === s\.slot && fromWh === wh/.test(src),
+    "ตัวเช็ค 'เหมือนเดิม' ต้องเทียบโกดังด้วย ไม่งั้นย้ายข้ามโกดังแล้วระบบเงียบ");
+});
+
+ok("🔴 ฐานที่ยังไม่มีช่องโกดัง: โกดัง 1 คีย์ได้ · โกดัง 2 ต้องฟ้อง ไม่ใช่ลงผิดที่", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(src.includes("function isMissingSchema("), "ต้องรู้จักอาการ 'ยังไม่ได้ลง SQL'");
+  assert.ok(/wh !== LAYOUT\.DEFAULT_WH[\s\S]{0,200}throw new Error/.test(src),
+    "โกดังที่ไม่ใช่ตั้งต้น ห้ามถอยไปเขียนแบบไม่มีโกดัง (ของจะไปโผล่ผิดโกดัง)");
+});
+
+ok("แถวเก่าที่ยังไม่มีช่องโกดัง ถือว่าอยู่โกดัง 1", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(/wh: LAYOUT\.normWh\(r\.wh\)/.test(src), "ตัวอ่านต้องเติมโกดังให้แถวเก่า");
+});
+
+ok("ไฟล์ SQL เพิ่มช่องโกดังแบบรันซ้ำได้ · ของเดิมไม่ขยับ", () => {
+  const sql = readFile("warehouse-schema.sql");
+  assert.ok(sql.includes("add column if not exists wh text not null default 'WH1'"),
+    "ต้องเติมช่องแบบรันซ้ำได้ + แถวเก่าเป็นโกดัง 1");
+  assert.ok(sql.includes("wh in ('WH1','WH2')"), "ด่านต้องรับแค่โกดังที่มีจริง");
+});
+
+/* ── 🧺 กรงเหล็ก ─────────────────────────────────────────────────────
+   ภูม: *"กรงมันขนาดเท่า[ช่อง] มันไม่ได้กินทั้งล็อก ซ้ายขวานะ
+          ของในกรงมันก็กล่องนะ แต่กล่องเล็กไง"*
+   ⇒ กรง = คุณสมบัติของช่อง · ของในกรง = แถวที่วางในช่องนั้น (ไม่มีที่เก็บแยก) */
+section("กรงเหล็ก");
+
+ok("ช่องที่มีกรง ติดข้อมูลกรงมากับช่อง + นับของในกรงให้", () => {
+  const v = W.mergeView(
+    [PL("T1", "A0101-L"), PL("T2", "A0101-L"), PL("T3", "B0101-R")],
+    [],
+    [{ slot: "A0101-L", kind: "nocode", name: "กรง No-Code 01" }],
+  );
+  const caged = v.layout.slots.find((s) => s.slot === "A0101-L");
+  const plain = v.layout.slots.find((s) => s.slot === "B0101-R");
+  assert.ok(caged.cage, "ช่องนี้ต้องมีกรง");
+  assert.equal(caged.cage.name, "กรง No-Code 01");
+  assert.equal(caged.cage.kind, "nocode");
+  assert.equal(caged.cage.items, 2, "นับของในกรงจากของที่วางในช่องนั้น");
+  assert.equal(plain.cage, null, "ช่องที่ไม่มีกรงต้องเป็น null");
+  assert.equal(v.counts.cages, 1);
+});
+
+ok("ไม่มีกรงเลย = ทุกช่องไม่มีกรง (ของเดิมไม่เปลี่ยน)", () => {
+  const v = W.mergeView([PL("T1", "A0101-L")], []);
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").cage, null);
+  assert.equal(v.counts.cages, 0);
+});
+
+ok("กรงชนิดมั่ว = ตกเป็นกรงชิ้นเล็ก ไม่ใช่พังทั้งจอ", () => {
+  const v = W.mergeView([], [], [{ slot: "C0101-L", kind: "มั่ว", name: "" }]);
+  const s = v.layout.slots.find((x) => x.slot === "C0101-L");
+  assert.equal(s.cage.kind, "small");
+  assert.equal(s.cage.name, "กรงเหล็ก", "ไม่มีชื่อ = ชื่อสำรอง ไม่ใช่ช่องว่าง");
+});
+
+ok("กรงที่ชี้ช่องที่ไม่มีในผัง = ข้ามไป (ไม่ทำให้จอล้ม)", () => {
+  const v = W.mergeView([], [], [{ slot: "Z9999-L", kind: "small", name: "กรงผี" }]);
+  assert.equal(v.counts.cages, 0);
+});
+
+ok("🔴 1 ช่อง 1 กรง + ของในกรงไม่หายตอนเอากรงออก", () => {
+  const sql = readFile("warehouse-schema.sql");
+  assert.ok(sql.includes("unique (wh, slot)"), "ช่องเดียวกันต้องมีกรงได้ใบเดียว");
+  const src = readFile("warehouse.js");
+  const i = src.indexOf("async function removeCage(");
+  assert.ok(i > 0, "ต้องมีตัวเอากรงออก");
+  const body = src.slice(i, i + 700);
+  assert.ok(!body.includes("wh_placement"), "เอากรงออกห้ามแตะของที่วางอยู่ (ของยังอยู่ช่องเดิม)");
+});
+
+ok("ยังไม่ได้ลงตารางกรง = จอยังเปิดได้ (แค่ไม่มีกรง)", () => {
+  const src = readFile("warehouse.js");
+  const i = src.indexOf("async function listCages(");
+  const body = src.slice(i, i + 600);
+  assert.ok(/isMissingSchema\(error\)\) return \[\]/.test(body), "ยังไม่มีตาราง = คืนรายการว่าง ไม่โยน");
+  assert.ok(src.includes("ยังไม่ได้ลงตารางกรงเหล็ก"), "ตอนจะ 'ใส่กรง' ต้องบอกตรงๆ ว่าต้องลง SQL ก่อน");
+});
+
+ok("ค้นกรงได้จากชื่อ (ข้ามโกดัง)", () => {
+  const page = readFile("warehouse-page.js");
+  assert.ok(page.includes("warehouse.findCages("), "ท่อค้นหาต้องค้นกรงด้วย");
+  assert.ok(/cages: cages/.test(page), "ต้องส่งผลกรงกลับไปให้หน้าเว็บ");
+});
+
+ok("🔒 ท่อกรงอยู่หลังด่านคีย์เหมือนท่ออื่น", () => {
+  const page = readFile("warehouse-page.js");
+  assert.ok(/app\.post\("\/warehouse\/api\/cage", json, async \(req, res\) => \{\s*if \(!guard\(req, res\)\) return;/.test(page),
+    "ท่อกรงต้องมี guard บรรทัดแรก");
 });
 
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */

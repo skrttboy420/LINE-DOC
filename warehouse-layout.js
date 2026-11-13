@@ -69,6 +69,44 @@ const DOOR = Object.freeze({
       ⇒ เห็นล็อก 10 อยู่ใกล้ตัว เลยนึกว่าเลขกลับด้าน ทั้งที่ผังถูกอยู่แล้ว
       ของจริงที่ต้องแก้คือ "มุมกล้องตั้งต้น" ไม่ใช่ผัง */
 
+/* ── 🏭 ทะเบียนโกดัง (ภูม 2026-11-13: *"ตอนนี้เรามีมากกว่า 1 โกดังแล้ว"*) ─────
+ *
+ * 🔑 ภูมเคาะ: **รหัสช่องเหมือนกันทั้ง 2 โกดัง** (A0101-L มีทั้งคู่) แล้วแยกด้วยรหัสโกดัง
+ *    ⇒ ป้ายสติกเกอร์ชุดเดิมเอาไปติดโกดัง 2 ได้เลย ไม่ต้องพิมพ์ชุดใหม่
+ *    ⚠️ แลกกับ: หน้ายิง/หน้าคีย์ตำแหน่ง **ต้องรู้ว่าตอนนี้อยู่โกดังไหน**
+ *       ไม่งั้นของลงผิดโกดังแล้วหาไม่เจอ ⇒ ทุกหน้าจำโกดังที่เลือกไว้ + โชว์ตัวใหญ่ๆ
+ *
+ * 🔧 วันที่โกดัง 2 ผังไม่เหมือนโกดัง 1 แล้ว: ใส่ `rows` ของตัวเองในแถวนั้น
+ *    (ตอนนี้ภูมยืนยัน 13/11 ว่า **เหมือนกันเป๊ะ** ⇒ ใช้ ROWS ชุดเดียว)
+ */
+const WAREHOUSES = Object.freeze([
+  Object.freeze({ id: "WH1", name: "โกดัง 1", short: "1" }),
+  Object.freeze({ id: "WH2", name: "โกดัง 2", short: "2" }),
+]);
+/** โกดังตั้งต้น — แถวเก่าในฐานที่ยังไม่มีช่องโกดัง ถือว่าอยู่ที่นี่ */
+const DEFAULT_WH = WAREHOUSES[0].id;
+
+/** รหัสโกดังที่รู้จักไหม (ไม่เดา — ใช้ก่อนเขียนฐานเสมอ) */
+function isWh(x) {
+  const s = String(x == null ? "" : x).trim().toUpperCase();
+  return WAREHOUSES.some((w) => w.id === s);
+}
+
+/** อ่านรหัสโกดังแบบใจดี — ว่าง/ไม่รู้จัก = โกดังตั้งต้น (ใช้กับ "อ่าน/โชว์" เท่านั้น) */
+function normWh(x) {
+  const s = String(x == null ? "" : x).trim().toUpperCase();
+  if (!s) return DEFAULT_WH;
+  const hit = WAREHOUSES.find((w) => w.id === s || w.short === s);
+  return hit ? hit.id : DEFAULT_WH;
+}
+
+/** ชื่อไทยของโกดัง เช่น "โกดัง 2" */
+function whName(x) {
+  const id = normWh(x);
+  const hit = WAREHOUSES.find((w) => w.id === id);
+  return hit ? hit.name : id;
+}
+
 /** ระยะห่างจากล็อกหนึ่งไปล็อกถัดไป = กว้างช่อง + เสา 1 ต้นที่แชร์กัน */
 const BAY_PITCH = CELL.w + STRUCT.post;   // 257
 /** ระยะห่างจากชั้นหนึ่งไปชั้นถัดไป = สูงช่อง + คาน */
@@ -270,6 +308,8 @@ function buildLayout() {
   const bays = ROWS.reduce((n, r) => n + r.bays, 0);
   return {
     unit: "cm",
+    /** ทะเบียนโกดัง — หน้า 3D เอาไปทำปุ่มสลับโกดัง (ผังเหมือนกันทุกโกดังตอนนี้) */
+    warehouses: WAREHOUSES.map((w) => Object.assign({}, w)),
     cell: Object.assign({}, CELL), struct: Object.assign({}, STRUCT),
     levels: LEVELS, sides: SIDES.slice(),
     door: Object.assign({}, DOOR),
@@ -324,6 +364,7 @@ function legacyGuess(old) {
 }
 
 module.exports = {
+  WAREHOUSES, DEFAULT_WH, isWh, normWh, whName,
   CELL, STRUCT, LEVELS, SIDES, SIDE_TH, ROWS, BAY_PITCH, LEVEL_PITCH, DOOR,
   baysOf, locationCode, parseLocation, slotCode, parseSlot, slotLabel,
   rowOriginX, bayZ0, rowZSpan, fullZ,

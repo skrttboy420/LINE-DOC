@@ -468,6 +468,12 @@ addEventListener("resize", resize);
    เดิม เสา 66 + คาน 24 + ช่อง 208 = ~300 ชิ้นที่ต้องวาดทีละชิ้น ⇒ เหลือ 4 ชิ้น */
 let DATA = null, EXTENT = null, built = false;
 let boxIM = null, hitIM = null;
+/* 🔒 เสา/คานเป็นของแถวไหน — ไว้ซ่อนโครงเหล็กแถวอื่นตอนล็อกแถว
+   ภูม 2026-11-13: *"พอกดล็อกแถวแล้ว มุมกล้องมันลายจนมองยาก"*
+   ต้นเหตุ = ซ่อนแค่ "กล่อง" ของแถวอื่น แต่เสา/คานยังบังเต็มหน้า */
+let postIM = null, beamIM = null;
+let postOf = [], beamOf = [];                     // index → row key
+let postAt = [], beamAt = [];                     // index → [x,y,z(,len)]
 const slotIndex = new Map();                      // slot → index
 let slotList = [];                                // index → slot (ชุดล่าสุด)
 const hidden = new Set();
@@ -498,32 +504,34 @@ function buildScene(view) {
   /* 🔑 พิกัด Z มาจากผัง (zStart / zLen) ไม่คิดเองที่นี่
      🪤 เดิมหน้านี้คิด z เอง ⇒ ตอนสลับทิศ "ล็อก 1 อยู่ฝั่งหน้าโกดัง" กล่องย้ายแต่เสา/คานไม่ย้าย */
   const posts = [], beams = [];
+  postOf = []; beamOf = [];                        // 🔒 เสา/คานชิ้นนี้เป็นของแถวไหน
   const H = L.levels * (C.h + ST.beam);
   for (const row of L.rows) {
     for (let i = 0; i <= row.bays; i++) {
       const z = row.zStart + i * (C.w + ST.post);
-      for (const dx of [ST.post / 2, C.d - ST.post / 2])
+      for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
         posts.push([(row.originX + dx) * S, (H / 2) * S, z * S]);
+        postOf.push(row.key);
+      }
     }
     for (let lv = 0; lv < L.levels; lv++) {
       const y = lv * (C.h + ST.beam) + ST.beam / 2;
-      for (const dx of [ST.post / 2, C.d - ST.post / 2])
+      for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
         beams.push([(row.originX + dx) * S, y * S, (row.zStart + row.zLen / 2) * S, row.zLen * S]);
+        beamOf.push(row.key);
+      }
     }
   }
 
-  const postIM = instanced(new THREE.BoxGeometry(ST.post * S, H * S, ST.post * S),
+  postIM = instanced(new THREE.BoxGeometry(ST.post * S, H * S, ST.post * S),
     new THREE.MeshLambertMaterial({ color: 0x3b9ae1 }), posts.length);
-  posts.forEach((p, i) =>
-    postIM.setMatrixAt(i, M4.compose(V3.set(p[0], p[1], p[2]), QUAT.identity(), SCALE.set(1, 1, 1))));
-  postIM.instanceMatrix.needsUpdate = true;
-
   /* คานยาวไม่เท่ากันตามจำนวนล็อกของแถว ⇒ ยืดด้วย scale ต่อชิ้น */
-  const beamIM = instanced(new THREE.BoxGeometry(ST.post * S, ST.beam * S, 1),
+  beamIM = instanced(new THREE.BoxGeometry(ST.post * S, ST.beam * S, 1),
     new THREE.MeshLambertMaterial({ color: 0xf97316 }), beams.length);
-  beams.forEach((b, i) =>
-    beamIM.setMatrixAt(i, M4.compose(V3.set(b[0], b[1], b[2]), QUAT.identity(), SCALE.set(1, 1, b[3]))));
-  beamIM.instanceMatrix.needsUpdate = true;
+
+  /* 🔒 เก็บตำแหน่งไว้ แล้วให้ paintStructure() เป็นคนวาด — ตอนล็อกแถวจะได้ซ่อนโครงแถวอื่นได้ */
+  postAt = posts; beamAt = beams;
+  paintStructure();
 
   /* กล่องสินค้า — สีต่อชิ้น · ช่องว่าง/ช่องที่ถูกกรอง = ย่อเหลือ 0 (ไม่วาด) */
   const n = L.slots.length;
@@ -581,6 +589,78 @@ function addLabel(text, x, y, z, size, opts) {
 }
 
 const ZERO = new THREE.Vector3(0, 0, 0);
+
+/**
+ * 🔒 วาดโครงเหล็ก (เสา+คาน) — ล็อกแถวอยู่ = เหลือเฉพาะแถวนั้น
+ * ไม่ลบของจริง แค่ย่อเหลือ 0 ⇒ ปลดล็อกแล้วกลับมาทันที ไม่ต้องสร้างฉากใหม่
+ */
+/* 🏷 ป้าย "ตั้ง" สำหรับมุมมองหน้าตรงตอนล็อกแถว
+   🪤 ป้ายเลขล็อก/แถวของเดิม "นอนอยู่กับพื้น" ⇒ พอมองหน้าตรง 90° เลยมองไม่เห็นเลยสักอัน
+      = ล็อกแถวแล้วไม่รู้ว่าช่องไหนคือล็อกอะไร ⇒ ต้องมีป้ายที่หันเข้าหากล้อง */
+let lockTags = [];
+function clearLockTags() {
+  for (const m of lockTags) { scene.remove(m); m.geometry.dispose(); m.material.map.dispose(); m.material.dispose(); }
+  lockTags = [];
+}
+function billboard(text, x, y, z, size, faceRight, color) {
+  const cv = document.createElement("canvas");
+  cv.width = 256; cv.height = 128;
+  const g = cv.getContext("2d");
+  g.fillStyle = color || "#cbd5e1";
+  g.font = "bold 86px -apple-system,Segoe UI,sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(text, 128, 64);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size * 1.7, size * 0.85),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, depthTest: false }));
+  m.rotation.y = faceRight ? Math.PI / 2 : -Math.PI / 2;
+  m.position.set(x, y, z);
+  m.renderOrder = 5;
+  m.matrixAutoUpdate = false; m.updateMatrix();
+  scene.add(m);
+  lockTags.push(m);
+}
+/** เลขล็อกใต้ชั้น + เลขชั้นด้านข้าง — ขึ้นเฉพาะตอนล็อกแถว */
+function showLockTags(key) {
+  clearLockTags();
+  if (!key || !DATA) return;
+  const L = DATA.layout, C = L.cell, ST = L.struct;
+  const row = L.rows.find((r) => r.key === key);
+  if (!row) return;
+  const rows = L.rows.map((r) => r.key), i = rows.indexOf(key);
+  const faceRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > (row.originX + C.d / 2) * S;
+  /* ขยับป้ายมาด้านที่กล้องอยู่นิดนึง จะได้ไม่จมอยู่ในชั้นวาง */
+  const x = (row.originX + (faceRight ? C.d + 20 : -20)) * S;
+  /* ป้ายเล็กๆ พอ — ใหญ่ไปแล้วทับกันเอง (1 ล็อกกว้าง 2.57 หน่วย · ป้ายกินราว 40%)
+     ใส่แค่ตัวเลข: อยู่ใต้ชั้น = เลขล็อก · อยู่ริมซ้าย = เลขชั้น (ดูครั้งเดียวก็เข้าใจ) */
+  const tag = (C.w * 0.26) * S;
+  row.bayCenterZ.forEach((z, n) =>
+    billboard(String(n + 1), x, -tag * 0.85, z * S, tag, faceRight, "#e2e8f0"));
+  const zEdge = (row.zStart - C.w * 0.5) * S;
+  for (let lv = 1; lv <= L.levels; lv++) {
+    const y = ((lv - 1) * (C.h + ST.beam) + C.h / 2) * S;
+    billboard(String(lv), x, y, zEdge, tag * 0.95, faceRight, "#94a3b8");
+  }
+  /* หัวตารางเล็กๆ บอกว่าแถวเลขพวกนั้นคืออะไร */
+  billboard("ล็อก →", x, -tag * 0.85, zEdge, tag * 1.05, faceRight, "#64748b");
+  billboard("ชั้น ↑", x, (L.levels * (C.h + ST.beam)) * S + tag * 0.6, zEdge, tag * 1.05, faceRight, "#64748b");
+}
+
+function paintStructure() {
+  if (!postIM || !beamIM) return;
+  const only = lockedRow;
+  postAt.forEach((p, i) => {
+    const on = !only || postOf[i] === only;
+    M4.compose(V3.set(p[0], p[1], p[2]), QUAT.identity(), on ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
+    postIM.setMatrixAt(i, M4);
+  });
+  beamAt.forEach((b, i) => {
+    const on = !only || beamOf[i] === only;
+    M4.compose(V3.set(b[0], b[1], b[2]), QUAT.identity(), on ? SCALE.set(1, 1, b[3]) : SCALE.copy(ZERO));
+    beamIM.setMatrixAt(i, M4);
+  });
+  postIM.instanceMatrix.needsUpdate = true;
+  beamIM.instanceMatrix.needsUpdate = true;
+}
 /** ทาสี + ซ่อน/โชว์ตามสถานะล่าสุด */
 function paintSlots() {
   if (!boxIM) return;
@@ -1027,6 +1107,8 @@ function toggleLockRow(key) {
   closePop();
   updateLockUI();
   paintSlots();          // แถวอื่นจางหาย
+  paintStructure();      // 🔒 ซ่อนโครงเหล็กแถวอื่นด้วย — ไม่งั้นมองทะลุไปเห็นเสาแถวอื่นจนลาย
+  showLockTags(lockedRow); // 🏷 เลขล็อก/ชั้น แบบป้ายตั้ง (ป้ายพื้นมองไม่เห็นตอนมองหน้าตรง)
   renderMap();           // อัปเดตปุ่ม/สถานะ locked · dim
   if (lockedRow) focusRowSide(lockedRow);
   else setView("3D");    // ปลดล็อก = กลับภาพรวม
@@ -1053,10 +1135,14 @@ function focusRowSide(key) {
   const i = rows.indexOf(key);
   /* แถวซ้ายสุด ⇒ ทางเดินอยู่ทางขวา (มองจาก +X) · ขวาสุด ⇒ มองจาก -X · กลาง = ฝั่งที่กล้องอยู่ (ขยับน้อยสุด) */
   const fromRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > cx;
-  const r = fitRadius(row.zLen * S, Y * 1.12, 1.12) + (C.d / 2) * S;
+  /* 🎯 มองหน้าตรง 90° เป๊ะ — เดิม 1.4 เรเดียน (≈80°) มองเฉียงลงนิดนึง ชั้นเลยซ้อนกันจนอ่านยาก
+     ภูม 2026-11-13: *"มันลายจนมองยากเลย … อยากได้แบบมันขึ้นมาประมาณนี้ จะได้มองง่ายๆ"*
+     เผื่อขอบบน-ล่าง-ซ้าย-ขวา จะได้เห็นครบทั้ง 4 ชั้นเต็มแถว */
+  /* เผื่อที่ให้ป้ายเลขล็อก (ใต้ชั้น) และเลขชั้น (ริมซ้าย) ไม่ให้ตกขอบจอ */
+  const r = fitRadius(row.zLen * S * 1.14, Y * 1.5, 1.05) + (C.d / 2) * S;
   pushHistory();
   markView(null);
-  flyTo(new THREE.Vector3(cx, Y / 2, cz), r, fromRight ? 0 : Math.PI, 1.4);
+  flyTo(new THREE.Vector3(cx, Y / 2, cz), r, fromRight ? 0 : Math.PI, Math.PI / 2);
 }
 
 /* ══ ⑧ ค้นหา ════════════════════════════════════════════════════════ */

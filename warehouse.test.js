@@ -768,6 +768,40 @@ ok("🔴 ของที่คีย์ไว้ช่องที่ไม่�
   assert.ok(D3.includes("ไม่มีในผังโกดังแล้ว"), "ต้องบอกเป็นภาษาคนว่าต้องทำอะไรต่อ");
 });
 
+/* ════ ⑬ 🔒 ล็อกแถว — ต้องมองง่าย ไม่ใช่ลาย (ภูม 2026-11-13) ════════ */
+section("ล็อกแถว");
+
+const LOCK3D = fs.readFileSync("warehouse-3d.html", "utf8");
+
+ok("🔴 ล็อกแถวแล้วต้องซ่อนโครงเหล็กแถวอื่นด้วย ไม่ใช่ซ่อนแค่กล่อง", () => {
+  /* ภูม: *"พอกดล็อกแถวแล้ว … มันลายจนมองยากเลยอะ"*
+     ต้นเหตุ = ซ่อนแค่กล่องของแถวอื่น แต่เสา/คานยังบังเต็มหน้า มองทะลุไป 3 แถว */
+  assert.ok(LOCK3D.includes("postOf.push(row.key)"), "ต้องจำว่าเสาชิ้นไหนของแถวไหน");
+  assert.ok(LOCK3D.includes("beamOf.push(row.key)"), "ต้องจำว่าคานชิ้นไหนของแถวไหน");
+  assert.ok(/function paintStructure\(\)/.test(LOCK3D), "ต้องมีตัววาดโครงเหล็ก");
+  assert.ok(/const on = !only \|\| postOf\[i\] === only/.test(LOCK3D), "ต้องซ่อนเสาแถวอื่น");
+  assert.ok(/const on = !only \|\| beamOf\[i\] === only/.test(LOCK3D), "ต้องซ่อนคานแถวอื่น");
+  const i = LOCK3D.indexOf("function toggleLockRow");
+  assert.ok(LOCK3D.slice(i, i + 600).includes("paintStructure()"), "สลับล็อกแล้วต้องทาโครงใหม่");
+});
+
+ok("🔴 มุมตอนล็อกต้องเป็นหน้าตรง 90° เป๊ะ (เอียงนิดเดียวชั้นก็ซ้อนกันจนอ่านยาก)", () => {
+  const i = LOCK3D.indexOf("function focusRowSide");
+  const body = LOCK3D.slice(i, i + 1600);   // เผื่อคอมเมนต์ยาว
+  assert.ok(/flyTo\([\s\S]*?Math\.PI \/ 2\);/.test(body), "ต้องยิงกล้องที่ phi = 90°");
+  assert.ok(!/, 1\.4\);/.test(body), "ห้ามกลับไปใช้มุมเอียงเดิม");
+});
+
+ok("🔴 ต้องมีป้ายเลขล็อก/เลขชั้นแบบตั้ง (ป้ายพื้นนอนอยู่ มองหน้าตรงไม่เห็น)", () => {
+  /* 🪤 เจอจริง: ล็อกแถวแล้วมองหน้าตรง ป้ายเลขล็อกของเดิมหายหมด
+     เพราะมันวางนอนกับพื้น (rotation.x = -90°) ⇒ มองจากด้านข้างเลยเห็นเป็นเส้นบางๆ
+     = ล็อกแถวแล้วไม่รู้ว่าช่องไหนคือล็อกอะไร */
+  assert.ok(LOCK3D.includes("function billboard("), "ต้องมีป้ายแบบหันเข้าหากล้อง");
+  assert.ok(/rotation\.y = faceRight \? Math\.PI \/ 2 : -Math\.PI \/ 2/.test(LOCK3D), "ป้ายต้องตั้งหันเข้าหากล้อง");
+  assert.ok(LOCK3D.includes("showLockTags(lockedRow)"), "ล็อก/ปลดล็อกต้องอัปเดตป้าย");
+  assert.ok(LOCK3D.includes("function clearLockTags"), "ปลดล็อกต้องเก็บป้ายคืน (ไม่งั้นค้างทับจอ)");
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

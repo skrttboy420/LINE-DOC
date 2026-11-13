@@ -178,7 +178,11 @@ function render() {
   applySize();
   const list = labels(), s = sizeNow(), per = perSheet(s);
   const mm = list.length ? moduleMm(s, list[0].code) : 0;
-  $("note").innerHTML = "จะพิมพ์ <b>" + list.length + " ป้าย</b> — A4 แนวตั้ง " + s.cols +
+  /* 🏭 ภูมเคาะ 13/11: รหัสช่องเหมือนกันทั้ง 2 โกดัง ⇒ ป้ายชุดเดียวใช้ได้ทั้งคู่
+     (ไม่ต้องพิมพ์ชุดใหม่ให้โกดัง 2 · โกดังไหนให้เลือกเอาที่หน้ายิง/หน้าคีย์) */
+  $("note").innerHTML = "🏭 <b>ป้ายชุดนี้ใช้ได้ทั้งโกดัง 1 และโกดัง 2</b> " +
+    '<span style="opacity:.75">(รหัสช่องเหมือนกัน — เลือกโกดังตอนยิงที่หน้ายิงรับเข้า)</span><br>' +
+    "จะพิมพ์ <b>" + list.length + " ป้าย</b> — A4 แนวตั้ง " + s.cols +
     " ป้าย/แถว · " + per + " ป้าย/แผ่น ⇒ <b>" + Math.ceil(list.length / per) + " แผ่น</b>" +
     "<br>ป้ายขนาด " + labelW(s).toFixed(0) + " × " + s.lh + " มม. · แท่งบาร์โค้ดบางสุด ≈ " +
     mm.toFixed(2) + " มม." +

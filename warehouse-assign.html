@@ -20,6 +20,10 @@
          display:flex;align-items:center;gap:10px}
   header b{font-size:16px}
   header .sub{font-size:11px;opacity:.85}
+  /* 🏭 โกดังที่กำลังคีย์ — รหัสช่องซ้ำกันได้ 2 โกดัง ⇒ ต้องเห็นชัดตลอด (ภูม 13/11) */
+  #whPick{background:rgba(0,0,0,.25);color:#fff;border:1.5px solid rgba(255,255,255,.45);
+    border-radius:9px;padding:6px 9px;font:700 12.5px/1 inherit;cursor:pointer}
+  #whPick option{color:#111}
   header .demo{background:#7c3aed;color:#fff;border-radius:999px;padding:4px 10px;
        font-size:11px;font-weight:700;display:none}
   header a{margin-left:auto;color:#fff;text-decoration:none;background:rgba(255,255,255,.2);
@@ -60,6 +64,7 @@
 <body>
 <header>
   <div><b>📥 คีย์ตำแหน่งของ</b><div class="sub" id="who">โกดังสมุทรสาคร</div></div>
+  <select id="whPick" title="โกดังที่กำลังคีย์"></select>
   <span class="demo" id="demoTag">🔬 โหมดลองดู</span>
   <a id="scanLink" href="#" style="margin-left:auto">📷 ยิงบาร์โค้ด</a>
   <a id="view3d" href="#" style="margin-left:0">🏭 จอ 3D</a>
@@ -111,8 +116,36 @@ const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURICompone
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-$("view3d").href = api("/warehouse");
-$("scanLink").href = api("/warehouse/scan");
+/* ══ 🏭 โกดังที่กำลังคีย์ (ภูม 2026-11-13) ═══════════════════════════════
+ * 🔑 รหัสช่องเหมือนกันทั้ง 2 โกดัง ⇒ ถ้าไม่รู้ว่าอยู่โกดังไหน ของจะลงผิดตึกแล้วหาไม่เจอ
+ *    ⇒ ต้องส่ง wh ไปกับทุกการบันทึก + โชว์ให้เห็นตลอดบนหัวจอ
+ */
+const WH_KEY = "wh3d.wh";
+let WH_LIST = [{ id: "WH1", name: "โกดัง 1" }, { id: "WH2", name: "โกดัง 2" }];
+let WH = String(new URLSearchParams(location.search).get("wh") ||
+  (() => { try { return localStorage.getItem(WH_KEY); } catch { return ""; } })() || "WH1")
+  .trim().toUpperCase();
+if (!WH_LIST.some((w) => w.id === WH)) WH = "WH1";
+
+const whNameOf = (id) => (WH_LIST.find((w) => w.id === id) || {}).name || id;
+function paintWh() {
+  $("whPick").innerHTML = WH_LIST.map((w) =>
+    '<option value="' + esc(w.id) + '"' + (w.id === WH ? " selected" : "") + ">🏭 " + esc(w.name) + "</option>").join("");
+  $("view3d").href = api("/warehouse?wh=" + encodeURIComponent(WH));
+  $("scanLink").href = api("/warehouse/scan?wh=" + encodeURIComponent(WH));
+}
+$("whPick").addEventListener("change", () => {
+  WH = $("whPick").value;
+  try { localStorage.setItem(WH_KEY, WH); } catch {}
+  try {
+    const u = new URL(location.href); u.searchParams.set("wh", WH);
+    history.replaceState(null, "", u);
+  } catch {}
+  paintWh();
+  /* โหลดของใหม่ทั้งจอ — ของโกดังเดิมค้างอยู่ = ชี้ช่องผิดโกดัง */
+  location.reload();
+});
+paintWh();
 
 /* จำชื่อคนคีย์ไว้ในเครื่องนี้ — ไลน์ไม่ได้บอกเราว่าใครเปิดลิงก์ */
 const BY_KEY = "pacred-wh-by";
@@ -135,7 +168,7 @@ function msg(text, kind) {
 
 /* ── โหลดผัง + ของที่วางอยู่ + สถานะงาน ── */
 async function boot() {
-  const r = await fetch(api("/warehouse/api/view"));
+  const r = await fetch(api("/warehouse/api/view?wh=" + encodeURIComponent(WH)));
   const v = await r.json();
   if (!r.ok) return msg(esc(v.error || "เปิดหน้านี้ไม่ได้"), "err");
   LAYOUT = v.layout; COLOR = v.pickColor; LEGEND = v.pickLegend;
@@ -260,7 +293,7 @@ $("save").addEventListener("click", async () => {
   try {
     const r = await fetch(api("/warehouse/api/place"), {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tracking, slot, by: byName(),
+      body: JSON.stringify({ tracking, slot, wh: WH, by: byName(),
         boxes: Number($("boxes").value) || 1, note: $("note").value.trim() }),
     });
     const j = await r.json();
@@ -287,8 +320,11 @@ async function find() {
   $("findOut").innerHTML = rows.length
     ? rows.map((p) => {
         const job = JOBS.get(p.tracking);
+        /* 🏭 ค้นเจอข้ามโกดังได้ — ต้องบอกว่าอยู่โกดังไหน ไม่งั้นเดินหาผิดตึก */
+        const inOther = p.wh && p.wh !== WH;
         return '<div class="box"><div><b class="mono">' + esc(p.tracking) + "</b> — " +
-          esc(p.member_code || "—") + "</div><div>อยู่ที่ <b>" + esc(p.slot) + "</b> · " + esc(p.boxes) + " กล่อง</div>" +
+          esc(p.member_code || "—") + "</div><div>อยู่ที่ <b>" + esc(p.slot) + "</b> · " + esc(p.boxes) + " กล่อง" +
+          (inOther ? ' · <b style="color:#f59e0b">🏭 ' + esc(whNameOf(p.wh)) + "</b>" : "") + "</div>" +
           (job ? '<div style="color:' + COLOR[job.pick] + '">' + esc(job.pickLabel) + "</div>" : "") +
           '<div style="margin-top:7px;display:flex;gap:7px;flex-wrap:wrap">' +
           '<button class="rm" data-load="' + esc(p.tracking) + '">🚚 เอาขึ้นรถ</button>' +

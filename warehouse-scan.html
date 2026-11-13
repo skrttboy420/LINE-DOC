@@ -27,6 +27,10 @@
          display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   header b{font-size:16px}
   header .sub{font-size:11px;opacity:.85}
+  /* 🏭 โกดังที่กำลังยิงเข้า — รหัสช่องซ้ำกันได้ 2 โกดัง ⇒ ต้องเห็นชัดตลอด (ภูม 13/11) */
+  #whPick{background:rgba(0,0,0,.25);color:#fff;border:1.5px solid rgba(255,255,255,.5);
+    border-radius:9px;padding:6px 9px;font:700 12.5px/1 inherit;cursor:pointer}
+  #whPick option{color:#111}
   header .demo{background:#7c3aed;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700;display:none}
   header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.2);
            border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap}
@@ -109,6 +113,7 @@
 <body>
 <header>
   <div><b>📷 ยิงรับเข้าชั้น</b><div class="sub">ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค</div></div>
+  <select id="whPick" title="โกดังที่กำลังยิงเข้า"></select>
   <span class="demo" id="demoTag">🔬 โหมดลองดู</span>
   <div class="sp">
     <a id="lblLink" href="#">🖨 ป้ายโลเคชั่น</a>
@@ -187,9 +192,33 @@ const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURICompone
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-$("lblLink").href = api("/warehouse/labels");
-$("keyLink").href = api("/warehouse/assign");
-$("v3dLink").href = api("/warehouse");
+/* ══ 🏭 โกดังที่กำลังยิงเข้า (ภูม 2026-11-13) ══════════════════════════
+ * 🔑 รหัสช่องเหมือนกันทั้ง 2 โกดัง ⇒ ยิงผิดโกดัง = ของหายทั้งใบ
+ *    ⇒ ส่ง wh ไปกับทุกการยิง + โชว์บนหัวจอตลอด + จำไว้ในเครื่อง
+ */
+const WH_KEY = "wh3d.wh";
+let WH_LIST = [{ id: "WH1", name: "โกดัง 1" }, { id: "WH2", name: "โกดัง 2" }];
+let WH = String(new URLSearchParams(location.search).get("wh") ||
+  (() => { try { return localStorage.getItem(WH_KEY); } catch { return ""; } })() || "WH1")
+  .trim().toUpperCase();
+if (!WH_LIST.some((w) => w.id === WH)) WH = "WH1";
+const whNameOf = (id) => (WH_LIST.find((w) => w.id === id) || {}).name || id;
+
+function paintWh() {
+  $("whPick").innerHTML = WH_LIST.map((w) =>
+    '<option value="' + esc(w.id) + '"' + (w.id === WH ? " selected" : "") + ">🏭 " + esc(w.name) + "</option>").join("");
+  $("lblLink").href = api("/warehouse/labels?wh=" + encodeURIComponent(WH));
+  $("keyLink").href = api("/warehouse/assign?wh=" + encodeURIComponent(WH));
+  $("v3dLink").href = api("/warehouse?wh=" + encodeURIComponent(WH));
+}
+$("whPick").addEventListener("change", () => {
+  WH = $("whPick").value;
+  try { localStorage.setItem(WH_KEY, WH); } catch {}
+  try { const u = new URL(location.href); u.searchParams.set("wh", WH); history.replaceState(null, "", u); } catch {}
+  paintWh();
+  location.reload();                              // ของโกดังเดิมค้างอยู่ = ชี้ช่องผิดโกดัง
+});
+paintWh();
 
 /* 🖱 เครื่องที่มีเมาส์/เครื่องยิง = โฟกัสช่องยิงให้เลย
    📱 จอสัมผัส = ไม่โฟกัสเอง ไม่งั้นคีย์บอร์ดเด้งทับจอทุกครั้งที่แตะ */
@@ -375,7 +404,7 @@ async function submit(raw) {
   try {
     const r = await fetch(api("/warehouse/api/scan"), {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tracking: text, slot: fullSlot(), by: byName() }),
+      body: JSON.stringify({ tracking: text, slot: fullSlot(), wh: WH, by: byName() }),
     });
     const j = await r.json();
     if (!r.ok || j.error) throw new Error(j.error || "บันทึกไม่สำเร็จ");
@@ -591,7 +620,7 @@ async function onDecode(text) {
 
 /* ── เริ่ม ──────────────────────────────────────────────────────── */
 (async () => {
-  const r = await fetch(api("/warehouse/api/view"));
+  const r = await fetch(api("/warehouse/api/view?wh=" + encodeURIComponent(WH)));
   const v = await r.json();
   if (!r.ok) return showErr(v.error || "เปิดหน้านี้ไม่ได้");
   LAYOUT = v.layout;

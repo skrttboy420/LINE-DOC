@@ -39,6 +39,44 @@
   #demoTag{display:none;background:#7c3aed;color:#fff;border-radius:999px;
     padding:4px 11px;font-size:11px;font-weight:700;white-space:nowrap}
 
+  /* 🏭 ปุ่มสลับโกดัง — ภูม 2026-11-13: *"ตอนนี้เรามีมากกว่า 1 โกดังแล้ว"*
+     รหัสช่องซ้ำกันได้ 2 โกดัง ⇒ ต้องเห็นตลอดเวลาว่ากำลังดูโกดังไหน */
+  #whTabs{display:flex;gap:3px;background:rgba(0,0,0,.24);border-radius:11px;padding:3px}
+  #whTabs button{background:transparent;border:0;color:rgba(255,255,255,.78);cursor:pointer;
+    font:600 12.5px/1 inherit;padding:7px 12px;border-radius:9px;white-space:nowrap;
+    display:flex;gap:6px;align-items:center}
+  #whTabs button.on{background:#fff;color:var(--red);box-shadow:0 1px 6px rgba(0,0,0,.25)}
+  #whTabs button i{font-style:normal;font-size:10.5px;font-weight:700;opacity:.62}
+  @media(max-width:640px){ #whTabs button{padding:7px 10px;font-size:12px} }
+
+  /* 🧺 ฟอร์มใส่กรงเหล็ก — อยู่ในป๊อปอัพช่องนั้นเลย (ไม่ใช้กล่องถามของเบราว์เซอร์
+     เพราะต้อง "เลือกชนิด + ตั้งชื่อ" พร้อมกัน · พิมพ์เลข 1/2 ในกล่อง prompt มันงง) */
+  #cageForm{display:none;border-top:1px solid rgba(148,163,184,.25);padding:11px 13px;
+    background:rgba(2,6,23,.55)}
+  #cageForm .lb{font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:6px}
+  #cageForm .kinds{display:flex;gap:7px;margin-bottom:9px}
+  #cageForm .kinds button{flex:1;background:rgba(148,163,184,.14);border:2px solid transparent;
+    color:#cbd5e1;border-radius:10px;padding:9px 8px;font:600 12px/1.3 inherit;cursor:pointer}
+  #cageForm .kinds button.on[data-kind="small"]{border-color:#22d3ee;color:#67e8f9;background:rgba(34,211,238,.13)}
+  #cageForm .kinds button.on[data-kind="nocode"]{border-color:#a855f7;color:#d8b4fe;background:rgba(168,85,247,.13)}
+  #cageForm input{width:100%;box-sizing:border-box;background:#0b1220;border:1px solid rgba(148,163,184,.35);
+    color:#e2e8f0;border-radius:9px;padding:9px 10px;font:600 13px/1 inherit;margin-bottom:9px}
+  #cageForm .btns{display:flex;gap:7px}
+  #cageForm .btns button{flex:1;border:0;border-radius:9px;padding:9px;font:700 12.5px/1 inherit;cursor:pointer}
+  #cageForm .btns .ok{background:#16a34a;color:#fff}
+  #cageForm .btns .no{background:rgba(148,163,184,.2);color:#cbd5e1}
+
+  /* 🏷 ป้ายข้อมูลตอนเอาเมาส์จ่อช่อง (ภูม 13/11 ส่งภาพตัวอย่างมา) */
+  #tip{position:fixed;z-index:30;display:none;pointer-events:none;max-width:260px;
+    background:#0b1220;border:2px solid #22c55e;border-radius:12px;padding:9px 11px;
+    box-shadow:0 10px 30px rgba(0,0,0,.55)}
+  #tip .code{font:800 15px/1.2 ui-monospace,Menlo,Consolas,monospace;color:#fff;letter-spacing:.5px}
+  #tip .k{font-size:10px;letter-spacing:.9px;color:#64748b;font-weight:700;margin-top:6px}
+  #tip .v{font:600 12.5px/1.35 ui-monospace,Menlo,Consolas,monospace;color:#e2e8f0;
+    word-break:break-all}
+  #tip .more{font-size:11px;color:#94a3b8;margin-top:5px}
+  #tip .cage{font-size:11.5px;font-weight:700;margin-top:6px}
+
   /* ── แถบสรุป + นาฬิกา ── */
   #summary{position:fixed;left:0;right:0;top:52px;z-index:11;display:flex;gap:9px;align-items:stretch;
     padding:9px 14px;flex-wrap:wrap;background:linear-gradient(180deg,rgba(15,23,42,.96),rgba(15,23,42,0))}
@@ -245,6 +283,7 @@
 
 <header>
   <div><b>🏭 โกดัง 3D</b><div class="sub" id="meta">กำลังโหลด…</div></div>
+  <div id="whTabs" title="สลับโกดัง"></div>
   <span id="demoTag">🔬 โหมดลองดู — ไม่ใช่ของจริง</span>
   <form id="search" onsubmit="return false">
     <input id="q" placeholder="ค้นหา: A0101 · เลขแทรค · รหัสลูกค้า" autocomplete="off">
@@ -272,6 +311,7 @@
     <span class="x" onclick="closePop()">✕</span><span class="cnt" id="popCnt"></span></div>
   <div class="pb" id="popBody"></div>
   <div class="padd" id="popAdd"></div>
+  <div id="cageForm"></div>
 </div>
 
 <div id="hint">
@@ -283,6 +323,7 @@
 <div id="views"></div>
 
 <div id="offline"></div>
+<div id="tip"></div>
 <div id="lockbar"></div>
 <div id="toast"></div>
 <div id="load">กำลังโหลดผังโกดัง…</div>
@@ -295,8 +336,25 @@ const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURICompone
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-$("assignLink").href = api("/warehouse/assign");
-$("scanLink").href = api("/warehouse/scan");
+/* ══ 🏭 โกดังที่กำลังดู (ภูม 2026-11-13) ═══════════════════════════════
+ * 🔑 รหัสช่องเหมือนกันทั้ง 2 โกดัง (A0101-L มีทั้งคู่) ⇒ ทุกหน้า **ต้องพกรหัสโกดังไปด้วย**
+ *    ไม่งั้นยิงของลงผิดโกดังแล้วพนักงานเดินหาผิดตึก
+ * จำไว้ในเครื่อง + ติดไปใน URL ⇒ รีเฟรช/แชร์ลิงก์แล้วยังอยู่โกดังเดิม
+ */
+const WH_KEY = "wh3d.wh";
+let WH = String(new URLSearchParams(location.search).get("wh") ||
+  (() => { try { return localStorage.getItem(WH_KEY); } catch { return ""; } })() || "WH1")
+  .trim().toUpperCase();
+let WH_LIST = [{ id: "WH1", name: "โกดัง 1" }, { id: "WH2", name: "โกดัง 2" }];
+const whNameOf = (id) => (WH_LIST.find((w) => w.id === id) || {}).name || id;
+if (!WH_LIST.some((w) => w.id === WH)) WH = "WH1";
+
+/** ลิงก์หน้ายิง/หน้าคีย์ ต้องพารหัสโกดังไปด้วยเสมอ */
+function syncLinks() {
+  $("assignLink").href = api("/warehouse/assign?wh=" + encodeURIComponent(WH));
+  $("scanLink").href = api("/warehouse/scan?wh=" + encodeURIComponent(WH));
+}
+syncLinks();
 
 let toastT = null;
 function toast(msg, ms) {
@@ -673,8 +731,10 @@ function paintStructure() {
 function paintSlots() {
   if (!boxIM) return;
   slotList.forEach((s, i) => {
-    // 🔒 ล็อกแถว = ซ่อนกล่องของแถวอื่น (โฟกัสเฉพาะแถวที่ล็อก)
-    const show = s.items.length > 0 && !hidden.has(s.status) && (!lockedRow || s.row === lockedRow);
+    /* 🔒 ล็อกแถว = ซ่อนกล่องของแถวอื่น (โฟกัสเฉพาะแถวที่ล็อก)
+       🧺 ช่องที่มีกรง = ไม่วาดกล่องใหญ่ทับกรง — ของในกรงวาดเป็นกล่องเล็กหลายใบใน paintCages()
+          (ไม่งั้นกล่องใหญ่บังโครงตะแกรงจนไม่รู้ว่ามีกรง) */
+    const show = s.items.length > 0 && !s.cage && !hidden.has(s.status) && (!lockedRow || s.row === lockedRow);
     const b = s.box;
     M4.compose(V3.set(b.x * S, b.y * S, b.z * S), QUAT.identity(),
       show ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
@@ -684,6 +744,127 @@ function paintSlots() {
   });
   boxIM.instanceMatrix.needsUpdate = true;
   if (boxIM.instanceColor) boxIM.instanceColor.needsUpdate = true;
+  paintCages();                                    // 🧺 กรงเหล็กเดินตามข้อมูล/ล็อกแถวชุดเดียวกัน
+}
+
+/* ══ 🧺 กรงเหล็ก (Wire Mesh Cage) — ภูม 2026-11-13 ═══════════════════════
+ * ภูม: *"เรามีกรงเหล็กที่ไว้ให้พวกสินค้าชิ้นเล็กๆและพวกสินค้าที่เป็น nocode"*
+ *      *"กรงมันขนาดเท่า[ช่อง] มันไม่ได้กินทั้งล็อก ซ้ายขวานะ"*
+ * ⇒ กรง 1 ใบ = 1 ช่อง (ฝั่ง -L หรือ -R) · ฟ้า = กรงชิ้นเล็ก · ม่วง = กรง No-Code
+ * ⇒ ของในกรง = กล่องที่วางในช่องนั้น (ยิงเข้าตามปกติ) ⇒ วาดกล่องเล็กหลายใบในกรงตามจำนวนจริง
+ */
+const CAGE_COLOR = { small: 0x22d3ee, nocode: 0xa855f7 };
+
+/** โครงตะแกรง: ขอบกล่อง 12 เส้น + เส้นตะแกรงบนผนัง 4 ด้าน + พื้นกรง (ด้านบนเปิด) */
+function cageWire(w, h, d) {
+  const x = w / 2, y = h / 2, z = d / 2, p = [];
+  const seg = (a, b) => p.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+  const c = [[-x,-y,-z],[x,-y,-z],[x,-y,z],[-x,-y,z],[-x,y,-z],[x,y,-z],[x,y,z],[-x,y,z]];
+  for (const [a, b] of [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]])
+    seg(c[a], c[b]);
+  const NX = 4, NZ = 4, NY = 3;
+  for (let i = 1; i < NX; i++) {                     // เส้นตั้ง ผนังหน้า/หลัง
+    const px = -x + (w * i) / NX;
+    seg([px,-y,-z],[px,y,-z]); seg([px,-y,z],[px,y,z]);
+    seg([px,-y,-z],[px,-y,z]);                       // พื้นกรง
+  }
+  for (let i = 1; i < NZ; i++) {                     // เส้นตั้ง ผนังซ้าย/ขวา
+    const pz = -z + (d * i) / NZ;
+    seg([-x,-y,pz],[-x,y,pz]); seg([x,-y,pz],[x,y,pz]);
+  }
+  for (let i = 1; i < NY; i++) {                     // เส้นนอนรอบกรง
+    const py = -y + (h * i) / NY;
+    seg([-x,py,-z],[x,py,-z]); seg([-x,py,z],[x,py,z]);
+    seg([-x,py,-z],[-x,py,z]); seg([x,py,-z],[x,py,z]);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(p, 3));
+  return geo;
+}
+
+/** ป้ายชื่อกรง + จำนวนชิ้นข้างใน — หันเข้าหากล้องเสมอ (Sprite) */
+function cageBadge(text, hex) {
+  const cv = document.createElement("canvas");
+  cv.width = 512; cv.height = 112;
+  const g = cv.getContext("2d");
+  g.fillStyle = "rgba(11,18,32,.93)";
+  g.strokeStyle = hex; g.lineWidth = 7;
+  const r = 26;
+  g.beginPath();
+  g.moveTo(r + 4, 4); g.arcTo(508, 4, 508, 108, r); g.arcTo(508, 108, 4, 108, r);
+  g.arcTo(4, 108, 4, 4, r); g.arcTo(4, 4, 508, 4, r); g.closePath();
+  g.fill(); g.stroke();
+  g.fillStyle = "#fff";
+  g.font = "bold 46px -apple-system,Segoe UI,sans-serif";
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(text, 256, 58, 470);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true,
+  }));
+  sp.scale.set(1.45, 0.32, 1);
+  return sp;
+}
+
+let cageGroup = null;
+function clearCages() {
+  if (!cageGroup) return;
+  cageGroup.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      if (o.material.map) o.material.map.dispose();
+      o.material.dispose();
+    }
+  });
+  scene.remove(cageGroup);
+  cageGroup = null;
+}
+
+function paintCages() {
+  if (!built || !DATA) return;
+  clearCages();
+  const caged = slotList.filter((s) => s.cage && (!lockedRow || s.row === lockedRow));
+  if (!caged.length) return;
+
+  const C = DATA.layout.cell;
+  const w = (C.d - 8) * S, h = (C.h - 24) * S, d = (C.w / 2 - 8) * S;
+  cageGroup = new THREE.Group();
+
+  for (const s of caged) {
+    const hex = CAGE_COLOR[s.cage.kind] || CAGE_COLOR.small;
+    const g = new THREE.Group();
+    g.add(new THREE.LineSegments(cageWire(w, h, d),
+      new THREE.LineBasicMaterial({ color: hex, transparent: true, opacity: 0.95 })));
+
+    /* 📦 กล่องเล็กข้างใน — ตามจำนวนพัสดุจริง (มากสุด 12 ใบ พอให้เห็นว่าเต็ม)
+       🎨 สีกล่อง = สีสถานะของช่อง (เขียว/เหลือง/แดง) เหมือนกล่องปกติ
+          ⇒ กรงไม่ได้ทำให้ "ห้ามหยิบ" หายไปจากสายตา · สีโครงกรงบอกชนิดกรงแยกกัน */
+    const n = hidden.has(s.status) ? 0 : Math.min(12, s.cage.items || 0);
+    if (n) {
+      const bw = w / 3.4, bh = h / 4.2, bd = d / 2.6;
+      const im = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(bw, bh, bd),
+        new THREE.MeshLambertMaterial({ color: (DATA.pickColor && DATA.pickColor[s.status]) || 0xcbd5e1 }), n);
+      const m4 = new THREE.Matrix4(), v3 = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1);
+      for (let i = 0; i < n; i++) {
+        const col = i % 3, row = Math.floor(i / 3) % 2, lay = Math.floor(i / 6);
+        v3.set((col - 1) * (w / 3.2), -h / 2 + bh / 2 + 0.01 + lay * (bh * 1.06),
+          (row ? 1 : -1) * (d / 4.4));
+        m4.compose(v3, q, sc);
+        im.setMatrixAt(i, m4);
+      }
+      im.instanceMatrix.needsUpdate = true;
+      g.add(im);
+    }
+
+    const badge = cageBadge(s.cage.name + " (" + (s.cage.items || 0) + ")", "#" + hex.toString(16).padStart(6, "0"));
+    badge.position.set(0, h / 2 + 0.22, 0);
+    g.add(badge);
+
+    /* วางให้นั่งบนคานของช่องนั้น (box.y = กลางช่อง ⇒ ถอยลงมาครึ่งช่องแล้วบวกครึ่งกรง) */
+    g.position.set(s.box.x * S, (s.box.y - C.h / 2) * S + h / 2 + 0.02, s.box.z * S);
+    cageGroup.add(g);
+  }
+  scene.add(cageGroup);
 }
 
 /* ══ ④ มุมมองสำเร็จรูป ══════════════════════════════════════════════ */
@@ -765,6 +946,61 @@ el.addEventListener("click", (e) => {
   openSlot(s.slot, dbl ? 3.4 : null);               // ดับเบิลคลิก = ซูมเข้าใกล้
 });
 
+/* ══ 🏷 ป้ายข้อมูลตอนเอาเมาส์จ่อช่อง (ภูม 2026-11-13) ════════════════════
+ * ภูม: *"เวลาเอาเม้าท์ไปจ่อที่ล็อกไหนก็ตาม ให้ขึ้นข้อมูลแบบประมาณนี้ด้วยได้ไหม
+ *        คือเราจะได้รู้ว่าอันนี้ล็อกอะไร"* (ส่งภาพตัวอย่างมาด้วย)
+ * 🔑 ใช้ข้อมูลที่โหลดมาแล้ว — ไม่ยิงเน็ตเพิ่มสักครั้ง
+ * 🔒 ที่อยู่/เบอร์ลูกค้า **ไม่ขึ้นบนป้ายจ่อ** (ภาพรวมมีแค่ธง · ของพวกนั้นดูตอนกดเปิดช่อง)
+ * 📱 จอสัมผัสไม่มี hover ⇒ ทำเฉพาะเมาส์
+ */
+let tipRAF = 0, tipAt = null;
+function hideTip() { $("tip").style.display = "none"; }
+
+function tipHtml(s) {
+  const color = (DATA && DATA.pickColor && DATA.pickColor[s.status]) || "#94a3b8";
+  let h = '<div class="code">' + esc(s.slot) + "</div>";
+  if (s.cage) {
+    const cg = s.cage.kind === "nocode" ? "#a855f7" : "#22d3ee";
+    h += '<div class="cage" style="color:' + cg + '">🧺 ' + esc(s.cage.name) +
+      " (" + s.cage.items + ")</div>";
+  }
+  const first = s.items[0];
+  if (!first) {
+    h += '<div class="more">' + (s.cage ? "กรงว่าง — ยังไม่มีของในกรง" : "ช่องว่าง — ยังไม่มีของ") + "</div>";
+    return { html: h, color: color };
+  }
+  h += '<div class="k">TRACKING:</div><div class="v">' + esc(first.tracking) + "</div>" +
+    '<div class="k">👤 CUSTOMER:</div><div class="v">' + esc(first.memberCode || "— ไม่มีรหัสลูกค้า") + "</div>";
+  if (s.items.length > 1) h += '<div class="more">+ อีก ' + (s.items.length - 1) + " รายการในช่องนี้</div>";
+  return { html: h, color: color };
+}
+
+function showTipAt(at) {
+  if (!at || !DATA) return hideTip();
+  const s = pickSlot(at.x, at.y);
+  if (!s) return hideTip();
+  const t = $("tip");
+  const built = tipHtml(s);
+  t.innerHTML = built.html;
+  t.style.borderColor = built.color;
+  t.style.display = "block";
+  /* วางใกล้เมาส์ แล้วพลิกด้านเมื่อชนขอบจอ (ไม่งั้นป้ายล้นออกนอกจอ) */
+  const r = t.getBoundingClientRect();
+  const x = at.x + 16 + r.width > innerWidth ? at.x - 16 - r.width : at.x + 16;
+  const y = at.y + 14 + r.height > innerHeight ? at.y - 14 - r.height : at.y + 14;
+  t.style.left = Math.max(6, x) + "px";
+  t.style.top = Math.max(6, y) + "px";
+}
+
+el.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse" || drag || pointers.size) return hideTip();
+  tipAt = { x: e.clientX, y: e.clientY };
+  if (tipRAF) return;                               // จ่อแล้วยิง raycast ทุกเฟรมพอ ไม่ใช่ทุก event
+  tipRAF = requestAnimationFrame(() => { tipRAF = 0; showTipAt(tipAt); });
+});
+el.addEventListener("pointerleave", hideTip);
+el.addEventListener("pointerdown", hideTip);
+
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   const prev = camHistory.pop();
@@ -803,7 +1039,12 @@ function openSlot(code, zoom) {
   const s = slotOf(code);
   if (!s) return;
   $("popTitle").textContent = s.slot + " · " + s.label;
-  $("popPill").innerHTML = '<span class="pill" style="background:' + s.color + '">' + esc(s.statusLabel) + "</span>";
+  $("popPill").innerHTML = '<span class="pill" style="background:' + s.color + '">' + esc(s.statusLabel) + "</span>" +
+    /* 🧺 ช่องนี้มีกรงเหล็กอยู่ — บอกตั้งแต่หัว เพราะของข้างในคือ "กล่องเล็กหลายใบ" */
+    (s.cage
+      ? '<span class="pill" style="background:' + (s.cage.kind === "nocode" ? "#a855f7" : "#0891b2") +
+        '">🧺 ' + esc(s.cage.name) + "</span>"
+      : "");
 
   /* 📦 หลายแทรคในช่องเดียว — บอกตั้งแต่หัวว่ามีกี่ใบ กี่กล่อง กี่ลูกค้า */
   const owners = [...new Set(s.items.map((i) => i.memberCode).filter(Boolean))];
@@ -846,13 +1087,19 @@ function openSlot(code, zoom) {
   /* ➕ เพิ่มของเข้าช่องนี้ได้เลยจากตรงนี้ — ไม่ต้องไปเลือก โซน/ล็อก/ชั้น/ฝั่ง ใหม่อีกรอบ
      ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย …
      พอกดไปแล้ว ก็เท่ากับเลือกล็อกเรียบร้อย ก็ยิงแทรคได้เลย"* */
+  const slotQ = "&wh=" + encodeURIComponent(WH) + "&slot=" + encodeURIComponent(s.slot);
   $("popAdd").innerHTML =
-    '<a class="go" href="' + esc(api("/warehouse/scan") + "&slot=" + encodeURIComponent(s.slot)) + '">' +
+    '<a class="go" href="' + esc(api("/warehouse/scan") + slotQ) + '">' +
     "📷 ยิงของเข้าช่องนี้</a>" +
-    '<a href="' + esc(api("/warehouse/assign") + "&slot=" + encodeURIComponent(s.slot)) + '">' +
-    "⌨️ คีย์เลขเอง</a>";
+    '<a href="' + esc(api("/warehouse/assign") + slotQ) + '">' +
+    "⌨️ คีย์เลขเอง</a>" +
+    /* 🧺 กรงเหล็ก — ช่องว่างใส่กรงได้ · ช่องที่มีกรงแล้วแก้ชื่อ/เอาออกได้ */
+    (s.cage
+      ? '<a id="cageEdit" href="#">🧺 แก้ไขกรง</a><a id="cageDrop" href="#">🗑 เอากรงออก</a>'
+      : '<a id="cageAdd" href="#">+ ใส่กรงเหล็ก</a>');
 
   wireActions();
+  wireCage(s);
   loadAddresses(s.items);                          // 🔒 ที่อยู่ขอทีหลัง เฉพาะกล่องที่เปิดดู
   $("pop").style.display = "block";
   resize();
@@ -861,7 +1108,102 @@ function openSlot(code, zoom) {
   highlight(s.slot);
   paintMapSelection();
 }
-window.closePop = () => { $("pop").style.display = "none"; openCode = null; highlight(null); paintMapSelection(); };
+window.closePop = () => {
+  $("pop").style.display = "none";
+  $("cageForm").style.display = "none";            // ปิดช่อง = ปิดฟอร์มกรงที่ค้างอยู่ด้วย
+  openCode = null; highlight(null); paintMapSelection();
+};
+
+/* ══ 🧺 ใส่กรง / แก้ชื่อกรง / เอากรงออก ═════════════════════════════════
+ * ภูม: *"เลือกประเภทกรง (กรงชิ้นเล็ก หรือ กรง No-Code) และกรอก/แก้ไข ชื่อกรงได้"*
+ * ใช้กล่องถามของเบราว์เซอร์ (prompt) แบบเดียวกับปุ่มย้าย/ลบที่มีอยู่แล้ว — จังหวะเดียวกัน ไม่ต้องเรียนใหม่
+ */
+async function saveCage(s, kind, name) {
+  const r = await fetch(api("/warehouse/api/cage"), {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ wh: WH, slot: s.slot, kind: kind, name: name }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+/** ฟอร์มใส่/แก้กรง — เลือกชนิด + ตั้งชื่อ ในที่เดียว */
+function openCageForm(s, cur) {
+  let kind = (cur && cur.kind) === "nocode" ? "nocode" : "small";
+  const f = $("cageForm");
+  const defName = (k) => (k === "nocode" ? "กรง No-Code " : "กรงชิ้นเล็ก ") + s.slot;
+
+  f.innerHTML =
+    '<div class="lb">🧺 ' + (cur ? "แก้ไขกรงเหล็ก" : "ใส่กรงเหล็กที่ช่อง " + esc(s.slot)) + "</div>" +
+    '<div class="kinds">' +
+      '<button type="button" data-kind="small">🧊 กรงสินค้าชิ้นเล็ก</button>' +
+      '<button type="button" data-kind="nocode">🟣 กรง No-Code<br><span style="font-weight:400;opacity:.8">ของที่ไม่มีรหัสลูกค้า</span></button>' +
+    "</div>" +
+    '<input id="cageName" maxlength="40" placeholder="ชื่อกรง เช่น กรงชิ้นเล็ก A1" value="' +
+      esc((cur && cur.name) || defName(kind)) + '">' +
+    '<div class="btns"><button type="button" class="ok" id="cageSave">บันทึก</button>' +
+    '<button type="button" class="no" id="cageCancel">ยกเลิก</button></div>';
+  f.style.display = "block";
+
+  const paintKinds = () => {
+    for (const b of f.querySelectorAll(".kinds button"))
+      b.className = b.dataset.kind === kind ? "on" : "";
+  };
+  paintKinds();
+
+  for (const b of f.querySelectorAll(".kinds button"))
+    b.addEventListener("click", () => {
+      const was = kind;
+      kind = b.dataset.kind;
+      paintKinds();
+      /* ยังไม่ได้แก้ชื่อเอง = เปลี่ยนชนิดแล้วชื่อตั้งต้นเปลี่ยนตาม */
+      const nameEl = $("cageName");
+      if (!nameEl.value.trim() || nameEl.value === defName(was)) nameEl.value = defName(kind);
+    });
+
+  $("cageCancel").addEventListener("click", () => { f.style.display = "none"; });
+  $("cageSave").addEventListener("click", async () => {
+    const name = $("cageName").value.trim();
+    if (!name) return toast("ตั้งชื่อกรงก่อน (ไว้ค้นหา/เรียกกันหน้างาน)", 3200);
+    $("cageSave").disabled = true;
+    try {
+      await saveCage(s, kind, name);
+      f.style.display = "none";
+      toast("🧺 " + (cur ? "แก้กรงแล้ว · " : "ใส่กรงที่ช่อง " + s.slot + " แล้ว · ") + name, 3500);
+      await load(true);
+      openSlot(s.slot);
+    } catch (e) {
+      $("cageSave").disabled = false;
+      toast("❌ " + e.message, 4500);
+    }
+  });
+  $("cageName").focus();
+}
+
+function wireCage(s) {
+  $("cageForm").style.display = "none";            // เปิดช่องใหม่ = ปิดฟอร์มเก่าเสมอ
+  const add = $("cageAdd"), edit = $("cageEdit"), drop = $("cageDrop");
+  if (add) add.addEventListener("click", (e) => { e.preventDefault(); openCageForm(s, null); });
+  if (edit) edit.addEventListener("click", (e) => { e.preventDefault(); openCageForm(s, s.cage); });
+  if (drop) drop.addEventListener("click", async (e) => {
+    e.preventDefault();
+    /* ⚠️ เอากรงออก = เอาแต่ "ตัวกรง" ของที่อยู่ข้างในยังวางอยู่ช่องเดิม (ไม่หายไปไหน) */
+    if (!confirm("เอากรง \"" + s.cage.name + "\" ออกจากช่อง " + s.slot + " ?\n\n" +
+      "ของ " + (s.cage.items || 0) + " รายการที่อยู่ในกรง ยังอยู่ช่องเดิม ไม่ได้ถูกลบ")) return;
+    try {
+      const r = await fetch(api("/warehouse/api/cage"), {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ wh: WH, slot: s.slot, drop: true }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || r.status);
+      toast("🧺 เอากรงออกจาก " + s.slot + " แล้ว (ของยังอยู่ช่องเดิม)", 3500);
+      await load(true);
+      openSlot(s.slot);
+    } catch (e2) { toast("❌ " + e2.message, 4500); }
+  });
+}
 
 /**
  * 🔒 ขอที่อยู่ "รายกล่อง" ตอนเปิดดู — ไม่ดึงที่อยู่ลูกค้าทั้งโกดังมารอไว้
@@ -1163,10 +1505,17 @@ function focusRowSide(key) {
 }
 
 /* ══ ⑧ ค้นหา ════════════════════════════════════════════════════════ */
-$("search").addEventListener("submit", () => doSearch($("q").value));
-$("go").addEventListener("click", () => doSearch($("q").value));
+$("search").addEventListener("submit", () => { doSearch($("q").value).catch(() => {}); });
+$("go").addEventListener("click", () => { doSearch($("q").value).catch(() => {}); });
 
-function doSearch(term) {
+/**
+ * ค้นหา — เลขแทรค · รหัสลูกค้า · รหัสช่อง · **ชื่อกรงเหล็ก**
+ *
+ * 🏭 ข้ามโกดังอัตโนมัติ (ภูม 2026-11-13): หาในโกดังที่เปิดอยู่ก่อน · ไม่เจอค่อยถามเซิร์ฟเวอร์
+ *    ทั้ง 2 โกดัง · เจอที่อีกโกดัง = สลับให้เลย แล้วซูมไปช่องนั้น + ขึ้นป้ายบอกว่าสลับให้แล้ว
+ * @param noHop true = ห้ามข้ามโกดังอีก (กันวนลูปตอนเรียกซ้ำหลังสลับ)
+ */
+async function doSearch(term, noHop) {
   const q = String(term || "").trim();
   if (!q) return;
   const up = q.toUpperCase().replace(/[\s-]/g, "");
@@ -1183,7 +1532,21 @@ function doSearch(term) {
   const match = (i) => String(i.tracking || "").toUpperCase().includes(needle) ||
                        String(i.memberCode || "").toUpperCase().includes(needle);
   const found = slotList.filter((s) => s.items.some(match));
-  if (!found.length) return toast('ไม่เจอ "' + q + '" ในชั้นวาง — ของอาจยังไม่ถูกคีย์ตำแหน่ง');
+
+  /* 🧺 ชื่อกรง — ภูม: *"รองรับการค้นหาทั้งชื่อกรง และเลขแทร็กกิ้งที่อยู่ข้างในกรง"*
+     เจอกรง = ซูมไปที่กรง + เปิดลิสต์ของในกรง (ป๊อปอัพช่องนั้นคือรายการในกรงอยู่แล้ว) */
+  if (!found.length) {
+    const cage = slotList.find((s) => s.cage && String(s.cage.name).toUpperCase().includes(needle));
+    if (cage) {
+      toast("🧺 " + cage.cage.name + " — " + (cage.cage.items || 0) + " รายการในกรง", 3500);
+      return go(cage);
+    }
+  }
+
+  if (!found.length) {
+    if (noHop) return toast('ไม่เจอ "' + q + '" ในชั้นวาง — ของอาจยังไม่ถูกคีย์ตำแหน่ง');
+    return searchOtherWarehouses(q);
+  }
   if (found.length > 1) {
     toast("เจอ " + found.length + " ช่อง — ดูรายการทางขวา", 3500);
     renderAlerts(found.flatMap((s) => s.items.filter(match).map((i) =>
@@ -1191,6 +1554,24 @@ function doSearch(term) {
       "🔎 ผลค้นหา", true);
   }
   go(found[0]);
+}
+
+/** ไม่เจอในโกดังนี้ ⇒ ถามเซิร์ฟเวอร์ว่ามีในอีกโกดังไหม แล้วสลับไปให้เลย */
+async function searchOtherWarehouses(q) {
+  let j = null;
+  try {
+    const r = await fetch(api("/warehouse/api/find?q=" + encodeURIComponent(q)));
+    if (r.ok) j = await r.json();
+  } catch { /* เน็ตสะดุด = บอกแบบเดิม ไม่ต้องพัง */ }
+
+  const other = (x) => x && String(x.wh || "WH1").toUpperCase() !== WH;
+  const hit = ((j && j.rows) || []).find(other) || ((j && j.cages) || []).find(other);
+  if (!hit) return toast('ไม่เจอ "' + q + '" ในชั้นวางทั้ง 2 โกดัง — ของอาจยังไม่ถูกคีย์ตำแหน่ง', 4200);
+
+  const to = String(hit.wh || "WH1").toUpperCase();
+  const ok = await switchWh(to, "สลับมายัง" + whNameOf(to) + " อัตโนมัติ — เจอของที่นี่");
+  if (!ok) return;
+  await doSearch(q, true);                          // ข้อมูลเป็นของโกดังใหม่แล้ว ค้นซ้ำในเครื่อง
 }
 
 /* ══ ⑨ แถบสรุป · รายการเตือน · นาฬิกา ═══════════════════════════════ */
@@ -1204,6 +1585,13 @@ const STATS = [
 function applyData(v) {
   DATA = v;
   slotList = v.layout.slots;
+  /* 🏭 ทะเบียนโกดังมาจากเซิร์ฟเวอร์ (พร้อมจำนวนของแต่ละโกดัง) — ปุ่มสลับเดินตาม */
+  if (v.warehouses && v.warehouses.length) {
+    WH_LIST = v.warehouses;
+    if (v.wh && v.wh !== WH) WH = v.wh;            // เซิร์ฟเวอร์ตัดสินว่าของชุดนี้คือโกดังไหน
+    renderWhTabs();
+    syncLinks();
+  }
   if (!built) buildScene(v);
   paintSlots();
 
@@ -1225,7 +1613,9 @@ function applyData(v) {
   tickClock();
 
   const t = v.layout.totals;
-  $("meta").textContent = t.bays + " ล็อก · " + t.slots + " ช่องวาง · ว่าง " + (v.counts.empty || 0);
+  $("meta").textContent = (v.whName || whNameOf(WH)) + " · " + t.bays + " ล็อก · " +
+    t.slots + " ช่องวาง · ว่าง " + (v.counts.empty || 0) +
+    (v.counts.cages ? " · กรงเหล็ก " + v.counts.cages : "");
 
   /** แปลเหตุที่ต่อเว็บไม่ติด เป็น "ต้องไปทำอะไร" — ไม่งั้นอ่านแล้วก็ยังไม่รู้จะทำยังไงต่อ */
   function fixHint(err) {
@@ -1371,8 +1761,43 @@ function tickClock() {
 setInterval(tickClock, 1000);
 
 /* ══ ⑩ โหลด / โหลดซ้ำ ═══════════════════════════════════════════════ */
+/* ══ 🏭 ปุ่มสลับโกดัง ═══════════════════════════════════════════════════ */
+function renderWhTabs() {
+  $("whTabs").innerHTML = WH_LIST.map((w) =>
+    '<button type="button" data-wh="' + esc(w.id) + '" class="' + (w.id === WH ? "on" : "") + '">' +
+    esc(w.name) + (w.placed != null ? "<i>" + w.placed + "</i>" : "") + "</button>").join("");
+  for (const b of $("whTabs").querySelectorAll("button"))
+    b.addEventListener("click", () => { switchWh(b.dataset.wh); });
+}
+
+/**
+ * สลับโกดัง — โหลดข้อมูลของโกดังนั้นมาทั้งชุด (โมเดล · การ์ดสรุป · แผนผัง เดินตามเอง)
+ * @param why ข้อความนำหน้าในป้ายแจ้ง เช่น "สลับมา" หรือ "สลับมาอัตโนมัติที่"
+ */
+async function switchWh(id, why) {
+  const to = String(id || "").trim().toUpperCase();
+  if (!to || to === WH || !WH_LIST.some((w) => w.id === to)) return false;
+  WH = to;
+  try { localStorage.setItem(WH_KEY, WH); } catch {}
+  /* ติดไว้ใน URL ด้วย — รีเฟรชแล้วยังอยู่โกดังเดิม + ส่งลิงก์ให้คนอื่นได้ */
+  try {
+    const u = new URL(location.href); u.searchParams.set("wh", WH);
+    history.replaceState(null, "", u);
+  } catch {}
+  syncLinks();
+  /* ของเก่าบนจอเป็นของอีกโกดัง — ล้างทิ้งก่อน ไม่งั้นค้างจนโหลดเสร็จแล้วสับสน */
+  closePop();
+  lockedRow = null; updateLockUI();
+  renderWhTabs();
+  await load(true);
+  setView("3D", true);
+  toast("🏭 " + (why || "สลับมา" + whNameOf(WH)), 3600);
+  return true;
+}
+renderWhTabs();
+
 async function load(quiet) {
-  const r = await fetch(api("/warehouse/api/view"));
+  const r = await fetch(api("/warehouse/api/view?wh=" + encodeURIComponent(WH)));
   if (!r.ok) {
     const msg = esc((await r.json().catch(() => ({}))).error || r.status);
     if (quiet) return toast("โหลดข้อมูลใหม่ไม่สำเร็จ: " + msg, 4000);

@@ -812,9 +812,12 @@ ok("🔴 กดช่องในจอ 3D แล้วต้องเพิ่�
      ถูกกลืนจนกลายเป็น `//...` = คอมเมนต์ แล้วข้อความอธิบายกลายเป็นค่าที่ assert เอาไปตรวจ
      (สตริงไม่ว่าง = ผ่านตลอด) ⇒ ที่นี่ใช้ includes เทียบข้อความตรงๆ ไม่ใช้ regex */
   assert.ok(D3.includes('<div class="padd" id="popAdd">'), "ต้องมีแถวปุ่มเพิ่มของในป๊อปอัพ");
-  const slotArg = '+ "&slot=" + encodeURIComponent(s.slot)';
-  assert.ok(D3.includes('api("/warehouse/scan") ' + slotArg), "ปุ่มยิงต้องพาช่องที่กดไปด้วย");
-  assert.ok(D3.includes('api("/warehouse/assign") ' + slotArg), "ปุ่มคีย์เองต้องพาช่องที่กดไปด้วย");
+  /* 🏭 ตั้งแต่ 13/11 ต้องพา **โกดัง** ไปด้วย — รหัสช่องซ้ำกันได้ 2 โกดัง
+     ส่งแต่ช่องเปล่าๆ = หน้ายิงเดาโกดังเอง แล้วของลงผิดตึก */
+  const slotQ = '"&wh=" + encodeURIComponent(WH) + "&slot=" + encodeURIComponent(s.slot)';
+  assert.ok(D3.includes("const slotQ = " + slotQ), "ลิงก์ต้องพาทั้งโกดังและช่องที่กด");
+  assert.ok(D3.includes('api("/warehouse/scan") + slotQ'), "ปุ่มยิงต้องพาช่องที่กดไปด้วย");
+  assert.ok(D3.includes('api("/warehouse/assign") + slotQ'), "ปุ่มคีย์เองต้องพาช่องที่กดไปด้วย");
 });
 
 ok("🔴 หน้ายิง/หน้าคีย์ ต้องรับช่องที่ส่งมาแล้วเลือกให้เสร็จ", () => {
@@ -967,6 +970,121 @@ ok("🔒 ท่อกรงอยู่หลังด่านคีย์เ�
   const page = readFile("warehouse-page.js");
   assert.ok(/app\.post\("\/warehouse\/api\/cage", json, async \(req, res\) => \{\s*if \(!guard\(req, res\)\) return;/.test(page),
     "ท่อกรงต้องมี guard บรรทัดแรก");
+});
+
+
+/* ════ ⑬ 🏭 จอ 3D: ปุ่มสลับโกดัง · ป้ายจ่อเมาส์ · กรงเหล็ก ═════════════ */
+section("จอ 3D — สลับโกดัง · ป้ายจ่อเมาส์ · กรงเหล็ก");
+
+const D3H = readFile("warehouse-3d.html");
+
+ok("มีปุ่มสลับโกดังบนแถบหัว + ขึ้นว่ากำลังดูโกดังไหน", () => {
+  assert.ok(D3H.includes('<div id="whTabs"'), "ต้องมีแถวปุ่มสลับโกดังในแถบหัว");
+  assert.ok(D3H.includes("#whTabs button.on"), "ต้องมีสถานะ active ให้เห็นว่าอยู่โกดังไหน");
+  assert.ok(D3H.includes("function renderWhTabs("), "ต้องวาดปุ่มจากทะเบียนโกดัง ไม่ใช่ฝังตายในหน้า");
+});
+
+ok("🔴 ทุกคำขอของจอต้องพารหัสโกดังไปด้วย", () => {
+  /* 🪤 ลืมที่เดียว = จอโกดัง 2 โชว์ของโกดัง 1 แล้วพนักงานเดินหาผิดตึก */
+  assert.ok(D3H.includes('api("/warehouse/api/view?wh=" + encodeURIComponent(WH))'),
+    "ตัวโหลดภาพรวมต้องส่งโกดัง");
+  assert.ok(D3H.includes('"/warehouse/assign?wh=" + encodeURIComponent(WH)'), "ลิงก์หน้าคีย์ต้องพาโกดัง");
+  assert.ok(D3H.includes('"/warehouse/scan?wh=" + encodeURIComponent(WH)'), "ลิงก์หน้ายิงต้องพาโกดัง");
+  assert.ok(/body: JSON\.stringify\(\{ wh: WH, slot: s\.slot/.test(D3H), "ท่อกรงต้องส่งโกดัง");
+});
+
+ok("สลับโกดังแล้วจำไว้ (รีเฟรช/แชร์ลิงก์แล้วยังอยู่โกดังเดิม)", () => {
+  assert.ok(D3H.includes('localStorage.setItem(WH_KEY, WH)'), "ต้องจำโกดังไว้ในเครื่อง");
+  assert.ok(D3H.includes('u.searchParams.set("wh", WH)'), "ต้องติดโกดังไว้ใน URL");
+});
+
+ok("🔴 สลับโกดังต้องล้างของเก่าบนจอ ไม่ใช่ค้างไว้", () => {
+  const i = D3H.indexOf("async function switchWh(");
+  assert.ok(i > 0, "ต้องมีตัวสลับโกดัง");
+  const body = D3H.slice(i, i + 1400);
+  assert.ok(body.includes("closePop()"), "ต้องปิดป๊อปอัพของช่องโกดังเดิม");
+  assert.ok(body.includes("lockedRow = null"), "ต้องปลดล็อกแถวของโกดังเดิม");
+  assert.ok(body.includes("await load(true)"), "ต้องโหลดข้อมูลของโกดังใหม่");
+  assert.ok(body.includes("toast("), "ต้องขึ้นป้ายบอกว่าสลับมาโกดังไหน");
+});
+
+ok("🔴 ค้นหาข้ามโกดัง — ไม่เจอในโกดังนี้ ต้องไปหาอีกโกดังแล้วสลับให้", () => {
+  /* ภูม: *"หากผู้ใช้งานค้นหาแทร็กกิ้งที่อยู่ในอีกโกดังหนึ่ง ให้ระบบ Auto-Switch
+     สลับไปที่โกดังนั้นให้ทันที พร้อมเลื่อนกล้อง 3D ซูมไปยังช่องชั้นเป้าหมาย"* */
+  const i = D3H.indexOf("async function searchOtherWarehouses(");
+  assert.ok(i > 0, "ต้องมีตัวค้นข้ามโกดัง");
+  const body = D3H.slice(i, i + 1200);
+  assert.ok(body.includes('api("/warehouse/api/find?q='), "ต้องถามเซิร์ฟเวอร์ (เครื่องเรามีแค่โกดังเดียว)");
+  assert.ok(body.includes("switchWh("), "เจอที่อีกโกดัง = ต้องสลับให้");
+  assert.ok(body.includes("อัตโนมัติ"), "ต้องบอกว่าสลับให้อัตโนมัติ");
+  assert.ok(body.includes("doSearch(q, true)"), "สลับแล้วต้องค้นซ้ำเพื่อซูมไปช่องนั้น");
+  assert.ok(D3H.includes("async function doSearch(term, noHop)"), "ต้องมีตัวกันวนลูปสลับไปมา");
+});
+
+ok("ป้ายจ่อเมาส์บอกช่อง + แทรค + ลูกค้า (ตามภาพที่ภูมส่ง)", () => {
+  assert.ok(D3H.includes('<div id="tip">'), "ต้องมีป้ายจ่อเมาส์");
+  assert.ok(D3H.includes("TRACKING:") && D3H.includes("CUSTOMER:"), "ต้องมีหัวข้อตามภาพตัวอย่าง");
+  assert.ok(D3H.includes("function showTipAt("), "ต้องมีตัววาดป้าย");
+  assert.ok(/e\.pointerType !== "mouse"/.test(D3H), "จอสัมผัสไม่มี hover ⇒ ต้องข้าม");
+});
+
+ok("🔒 ป้ายจ่อเมาส์ห้ามหลุดที่อยู่/เบอร์ลูกค้า", () => {
+  /* ภาพรวมขอมาแค่ธง — ถ้าป้ายจ่อไปโชว์ที่อยู่ แปลว่ามีใครแอบดึงข้อมูลส่วนตัวมาทั้งโกดัง */
+  const i = D3H.indexOf("function tipHtml(");
+  const body = D3H.slice(i, D3H.indexOf("function showTipAt("));
+  for (const k of ["address", "receiver", ".tel"])
+    assert.ok(!body.includes(k), "ป้ายจ่อเมาส์ห้ามมี " + k);
+});
+
+ok("🧺 กรงเหล็ก: ฟ้า = ชิ้นเล็ก · ม่วง = No-Code · มีป้ายชื่อ + จำนวน", () => {
+  assert.ok(/CAGE_COLOR = \{ small: 0x22d3ee, nocode: 0xa855f7 \}/.test(D3H),
+    "สีต้องตรงตามที่ภูมสั่ง (ฟ้า/ม่วง)");
+  assert.ok(D3H.includes("function cageWire("), "ต้องมีโครงตะแกรงโปร่ง");
+  assert.ok(D3H.includes("function cageBadge("), "ต้องมีป้ายชื่อกรง");
+  assert.ok(/cageBadge\(s\.cage\.name \+ " \(" \+ \(s\.cage\.items \|\| 0\) \+ "\)"/.test(D3H),
+    "ป้ายต้องมีชื่อกรง + จำนวนชิ้นข้างใน");
+});
+
+ok("🔴 ช่องที่มีกรง ต้องไม่วาดกล่องใหญ่ทับโครงกรง", () => {
+  assert.ok(/const show = s\.items\.length > 0 && !s\.cage &&/.test(D3H),
+    "ไม่งั้นกล่องใหญ่บังตะแกรงจนไม่รู้ว่ามีกรง");
+  assert.ok(D3H.includes("DATA.pickColor[s.status]) || 0xcbd5e1"),
+    "กล่องเล็กในกรงต้องใช้สีสถานะ ไม่งั้น 'ห้ามหยิบ' หายไปจากสายตา");
+});
+
+ok("🧺 ฟอร์มใส่กรง: เลือกชนิด + ตั้งชื่อ ในที่เดียว", () => {
+  assert.ok(D3H.includes("function openCageForm("), "ต้องมีฟอร์มใส่/แก้กรง");
+  assert.ok(D3H.includes('data-kind="small"') && D3H.includes('data-kind="nocode"'),
+    "ต้องเลือกชนิดกรงได้ 2 แบบ");
+  assert.ok(D3H.includes('id="cageName"'), "ต้องตั้งชื่อกรงได้");
+  assert.ok(D3H.includes('id="cageAdd"') && D3H.includes('id="cageEdit"') && D3H.includes('id="cageDrop"'),
+    "ต้องมีทั้งปุ่มใส่ · แก้ · เอาออก");
+});
+
+ok("🔴 เอากรงออก ต้องบอกว่าของข้างในไม่หาย", () => {
+  const i = D3H.indexOf("if (drop) drop.addEventListener(");
+  assert.ok(i > 0, "ต้องมีปุ่มเอากรงออก");
+  const body = D3H.slice(i, i + 1100);
+  assert.ok(body.includes("confirm("), "ต้องถามยืนยันก่อน");
+  assert.ok(body.includes("ยังอยู่ช่องเดิม"), "ต้องบอกว่าของในกรงไม่ได้ถูกลบ");
+});
+
+ok("🧺 ค้นชื่อกรงได้จากช่องค้นหาเดียวกัน", () => {
+  assert.ok(/s\.cage && String\(s\.cage\.name\)\.toUpperCase\(\)\.includes\(needle\)/.test(D3H),
+    "ต้องค้นจากชื่อกรงในเครื่องก่อน");
+});
+
+/* ── 🏭 หน้ายิง / หน้าคีย์ ต้องรู้ว่าอยู่โกดังไหน ───────────────────── */
+ok("🔴 หน้ายิง/หน้าคีย์ เลือกโกดังได้ + ส่งโกดังไปกับทุกการบันทึก", () => {
+  /* 🪤 รหัสช่องซ้ำกัน 2 โกดัง ⇒ ไม่ส่งโกดัง = ของลงผิดตึกแบบเงียบๆ */
+  const SC = readFile("warehouse-scan.html");
+  const AS = readFile("warehouse-assign.html");
+  for (const [name, src] of [["หน้ายิง", SC], ["หน้าคีย์", AS]]) {
+    assert.ok(src.includes('id="whPick"'), name + ": ต้องมีตัวเลือกโกดังบนหัวจอ");
+    assert.ok(src.includes('new URLSearchParams(location.search).get("wh")'), name + ": ต้องรับ ?wh= ที่ส่งมาจากจอ 3D");
+    assert.ok(src.includes("wh: WH"), name + ": ต้องส่งโกดังไปกับการบันทึก");
+    assert.ok(src.includes('api("/warehouse/api/view?wh=" + encodeURIComponent(WH))'), name + ": ต้องโหลดผังของโกดังที่เลือก");
+  }
 });
 
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */

@@ -86,8 +86,27 @@ const JOBS = [
   /* ⬛ NOT-IN-SYSTEM ไม่อยู่ในลิสต์นี้โดยตั้งใจ = "มีของวาง แต่หาแทรคในระบบไม่เจอ" */
 ];
 
+/* 🏭 โหมดลองดูมี 2 โกดังเหมือนของจริง (ภูม 2026-11-13) — ของเดิมทั้งหมดอยู่โกดัง 1 */
+const WH_LIST = [{ id: "WH1", name: "โกดัง 1" }, { id: "WH2", name: "โกดัง 2" }];
+const WH_NAME = (id) => (WH_LIST.find((w) => w.id === id) || {}).name || id;
+const normWh = (x) => (WH_LIST.some((w) => w.id === String(x || "").toUpperCase())
+  ? String(x).toUpperCase() : "WH1");
+
+/* ของในโกดัง 2 — จงใจใช้ "ช่องเดียวกับโกดัง 1" เพื่อพิสูจน์ว่าของไม่ปนกัน */
+const PLACEMENTS_WH2 = [
+  { tracking: "SF5160011122233", slot: "A0101-L", boxes: 4, member_code: "PR930", placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "JT5577788899900", slot: "B0103-R", boxes: 1, member_code: "PR455", placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "NOCODE-SMALL-01", slot: "C0102-L", boxes: 1, member_code: null,    placed_by: "แบม", placed_at: now(), wh: "WH2" },
+];
+
+/* 🧺 กรงเหล็กตัวอย่าง — กรงชิ้นเล็ก (ฟ้า) ที่โกดัง 1 · กรง No-Code (ม่วง) ที่โกดัง 2 */
+const CAGES = [
+  { id: "WH1-B0205-L", wh: "WH1", slot: "B0205-L", kind: "small",  name: "กรงชิ้นเล็ก A1",  made_by: "ภูม", made_at: now() },
+  { id: "WH2-C0102-L", wh: "WH2", slot: "C0102-L", kind: "nocode", name: "กรง No-Code 01", made_by: "ภูม", made_at: now() },
+];
+
 /* 📦 ของบนชั้นในโหมดลองดู — เก็บในหน่วยความจำ (เริ่มจากชุดตัวอย่างข้างบน) */
-const shelf = PLACEMENTS.slice();
+const shelf = PLACEMENTS.map((p) => Object.assign({ wh: "WH1" }, p)).concat(PLACEMENTS_WH2);
 const LOG = [];
 const { parseSlot, slotLabel } = require("./warehouse-layout");
 
@@ -112,12 +131,48 @@ const demo = {
     const jobs = set === null ? JOBS : JOBS.map((j) => (set.has(j.tracking) ? j : stripContact(j)));
     return { jobs, ok: true, at: now() };
   },
-  view: async () =>
-    Object.assign(mergeView(shelf, JOBS_FLAGS), {
+  view: async (whIn) => {
+    const wh = normWh(whIn);
+    const mine = shelf.filter((p) => normWh(p.wh) === wh);
+    const cages = CAGES.filter((c) => c.wh === wh);
+    return Object.assign(mergeView(mine, JOBS_FLAGS, cages), {
+      wh: wh, whName: WH_NAME(wh),
+      warehouses: WH_LIST.map((w) =>
+        Object.assign({ placed: shelf.filter((p) => normWh(p.wh) === w.id).length }, w)),
       live: { ok: true, at: now(), error: null },
-      placedCount: shelf.length,
+      placedCount: mine.length,
       demo: true,
-    }),
+    });
+  },
+
+  /* 🧺 กรงเหล็ก — เก็บในหน่วยความจำเหมือนของอย่างอื่นในโหมดลองดู */
+  listCages: async (whIn) => CAGES.filter((c) => c.wh === normWh(whIn)),
+  allCages: async () => CAGES.slice(),
+  findCages: async (q) => {
+    const needle = String(q || "").trim().toUpperCase();
+    if (!needle) return [];
+    return CAGES.filter((c) => c.name.toUpperCase().includes(needle) || c.slot === needle);
+  },
+  putCage: async (opts, who) => {
+    const o = opts || {};
+    const wh = normWh(o.wh);
+    const sl = parseSlot(o.slot);
+    if (!sl) throw new Error('ช่อง "' + o.slot + '" ไม่มีในผังโกดัง');
+    const kind = o.kind === "nocode" ? "nocode" : "small";
+    const name = String(o.name || "").trim() ||
+      (kind === "nocode" ? "กรง No-Code " : "กรงชิ้นเล็ก ") + slotLabel(sl.slot);
+    const id = wh + "-" + sl.slot;
+    const row = { id, wh, slot: sl.slot, kind, name, made_by: String(who || "ลองดู"), made_at: now() };
+    const i = CAGES.findIndex((c) => c.id === id);
+    if (i >= 0) CAGES[i] = row; else CAGES.push(row);
+    return { ok: true, cage: row, label: slotLabel(sl.slot) };
+  },
+  removeCage: async (whIn, slot) => {
+    const id = normWh(whIn) + "-" + String(slot || "").toUpperCase();
+    const i = CAGES.findIndex((c) => c.id === id);
+    if (i >= 0) CAGES.splice(i, 1);
+    return { ok: true, slot: slot };
+  },
 
   place: async (tracking, slot, who, opts) => {
     const t = String(tracking || "").trim();
@@ -125,13 +180,16 @@ const demo = {
     const s = parseSlot(slot);
     if (!s) throw new Error('ช่อง "' + slot + '" ไม่มีในผังโกดัง');
     const o = opts || {};
+    const wh = normWh(o.wh);
     const i = shelf.findIndex((p) => p.tracking === t);
     const from = i >= 0 ? shelf[i].slot : null;
-    if (from === s.slot) return { ok: true, unchanged: true, slot: s.slot, label: slotLabel(s.slot) };
+    const fromWh = i >= 0 ? normWh(shelf[i].wh) : null;
+    /* ⚠️ ช่องเดียวกันแต่คนละโกดัง = ย้ายจริง (รหัสช่องซ้ำกันได้) */
+    if (from === s.slot && fromWh === wh) return { ok: true, unchanged: true, wh, slot: s.slot, label: slotLabel(s.slot) };
 
     const job = JOBS.find((j) => j.tracking === t);
     const row = {
-      tracking: t, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level, side: s.side,
+      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level, side: s.side,
       member_code: (job && job.memberCode) || null,
       boxes: Math.max(1, Number(o.boxes) || 1),
       note: o.note || null,
@@ -140,7 +198,8 @@ const demo = {
     };
     if (i >= 0) shelf[i] = row; else shelf.push(row);
     LOG.unshift({ tracking: t, action: from ? "move" : "place", from_slot: from, to_slot: s.slot, by_who: row.placed_by, at: now() });
-    return { ok: true, moved: !!from, from, slot: s.slot, label: slotLabel(s.slot) };
+    return { ok: true, moved: !!from, from, fromWh, movedWarehouse: !!(from && fromWh !== wh),
+      wh, slot: s.slot, label: slotLabel(s.slot) };
   },
 
   remove: async (tracking, who, note, kind) => {

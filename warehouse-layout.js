@@ -207,7 +207,9 @@ function slotBox(location, side) {
   const x0 = rowOriginX(s.row);
   const z0 = bayZ0(s.row, s.bay);
   const y0 = (s.level - 1) * LEVEL_PITCH + STRUCT.beam; // ของวางบนคาน
-  const zSide = s.side === "L" ? z0 : z0 + halfW;
+  /* 🔑 ซ้าย/ขวา ตามที่เห็นจากทางเดิน (ภูม 2026-11-13 ยืนยันจากจอ: SF…2437 ที่เห็นอยู่ "ซ้าย" ต้องเป็น -L ไม่ใช่ -R)
+     ⇒ L = ครึ่งลึกของล็อก (z0 + halfW)  ·  R = ครึ่งใกล้ประตู (z0)  (เดิมสลับกันอยู่) */
+  const zSide = s.side === "L" ? z0 + halfW : z0;
   return {
     x: x0 + CELL.d / 2,
     y: y0 + CELL.h / 2,

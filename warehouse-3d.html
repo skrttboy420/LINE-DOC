@@ -151,11 +151,21 @@
   .mrow.locked .lk{background:var(--ready);border-color:var(--ready);color:#fff}
   .mrow.locked .rk{color:var(--ready)}
   .mrow.dim{opacity:.35}
+  /* 🧱 แถวชั้นคู่ (B) — 2 บรรทัดติดกันตามตำแหน่งจริงในโกดัง */
+  .fstack{display:flex;flex-direction:column;gap:4px;flex:1}
+  .fside{display:flex;align-items:flex-start;gap:5px}
+  .fside .fk{flex:none;min-width:34px;height:23px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--line);background:#1e293b;color:#94a3b8;font-size:10.5px;font-weight:700}
+  .fside .fk:hover{border-color:#94a3b8;color:#fff}
+  .fside.on .fk{background:var(--ready);border-color:var(--ready);color:#fff}
   #lockbar{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:13;display:none;
     align-items:center;gap:12px;background:var(--ready);color:#fff;border-radius:999px;
     padding:9px 17px;font-size:13px;font-weight:700;box-shadow:0 8px 28px rgba(0,0,0,.5);max-width:92vw}
   #lockbar button{background:var(--red);color:#fff;border:0;border-radius:999px;padding:6px 15px;
     font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;flex:none}
+  /* 🧱 ปุ่มสลับฝั่งของแถวชั้นคู่ — จางไว้ ฝั่งที่ดูอยู่ถึงจะทึบ */
+  #lockbar button.sd{background:rgba(255,255,255,.22)}
+  #lockbar button.sd.on{background:#fff;color:var(--ready)}
 
   #alerts{right:12px;width:min(330px,calc(100vw - 24px));max-height:calc(100vh - 210px);
     overflow:auto;padding:0;font-size:12px}
@@ -570,21 +580,25 @@ function buildScene(view) {
   /* 🔑 พิกัด Z มาจากผัง (zStart / zLen) ไม่คิดเองที่นี่
      🪤 เดิมหน้านี้คิด z เอง ⇒ ตอนสลับทิศ "ล็อก 1 อยู่ฝั่งหน้าโกดัง" กล่องย้ายแต่เสา/คานไม่ย้าย */
   const posts = [], beams = [];
-  postOf = []; beamOf = [];                        // 🔒 เสา/คานชิ้นนี้เป็นของแถวไหน
+  postOf = []; beamOf = [];                        // 🔒 เสา/คานชิ้นนี้เป็นของ "หน้าชั้น" ไหน
   const H = L.levels * (C.h + ST.beam);
+  /* 🧱 วาดทีละ "หน้าชั้น" ไม่ใช่ทีละแถว — แถว B เป็นชั้นคู่หันหลังชนกัน = ชั้นวาง 2 ตัว
+     (ภูม 2026-11-13) ⇒ เสา/คานต้องมี 2 ชุด และซ่อนทีละฝั่งได้ตอนล็อก */
   for (const row of L.rows) {
-    for (let i = 0; i <= row.bays; i++) {
-      const z = row.zStart + i * (C.w + ST.post);
-      for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
-        posts.push([(row.originX + dx) * S, (H / 2) * S, z * S]);
-        postOf.push(row.key);
+    for (const f of row.faces) {
+      for (let i = 0; i <= f.count; i++) {
+        const z = f.zStart + i * (C.w + ST.post);
+        for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
+          posts.push([(f.originX + dx) * S, (H / 2) * S, z * S]);
+          postOf.push(f.key);
+        }
       }
-    }
-    for (let lv = 0; lv < L.levels; lv++) {
-      const y = lv * (C.h + ST.beam) + ST.beam / 2;
-      for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
-        beams.push([(row.originX + dx) * S, y * S, (row.zStart + row.zLen / 2) * S, row.zLen * S]);
-        beamOf.push(row.key);
+      for (let lv = 0; lv < L.levels; lv++) {
+        const y = lv * (C.h + ST.beam) + ST.beam / 2;
+        for (const dx of [ST.post / 2, C.d - ST.post / 2]) {
+          beams.push([(f.originX + dx) * S, y * S, (f.zStart + f.zLen / 2) * S, f.zLen * S]);
+          beamOf.push(f.key);
+        }
       }
     }
   }
@@ -623,11 +637,14 @@ function buildScene(view) {
   boxIM.instanceMatrix.needsUpdate = true;
   hitIM.instanceMatrix.needsUpdate = true;
 
-  /* ป้ายแถว + ป้ายเลขล็อก — ตำแหน่งมาจากผังเหมือนกัน (labelZ · bayCenterZ) */
+  /* ป้ายแถว + ป้ายเลขล็อก — ตำแหน่งมาจากผังเหมือนกัน (labelZ · bayCenterZ)
+     🧱 แถวชั้นคู่: ป้ายเลขล็อกของแต่ละหน้าเป็นของตัวเอง (ฝั่งซ้าย 1-5 · ฝั่งขวา 6-10) */
   for (const row of L.rows) {
-    addLabel(row.key, (row.originX + C.d / 2) * S, 0.02, row.labelZ * S, 1.5);
-    row.bayCenterZ.forEach((z, i) =>
-      addLabel(String(i + 1), (row.originX + C.d / 2) * S, 0.02, z * S, 0.8));
+    for (const f of row.faces) {
+      addLabel(row.key, (f.originX + C.d / 2) * S, 0.02, f.labelZ * S, 1.5);
+      f.bayCenterZ.forEach((z, i) =>
+        addLabel(String(f.first + i), (f.originX + C.d / 2) * S, 0.02, z * S, 0.8));
+    }
   }
 
   /* 🚪 ป้าย "หน้าโกดัง" ถอดออกแล้ว (ภูม 2026-11-13: *"ดูไม่สวย ลบออกไปเลย"*)
@@ -686,35 +703,37 @@ function billboard(text, x, y, z, size, faceRight, color) {
   lockTags.push(m);
 }
 /** เลขล็อกใต้ชั้น + เลขชั้นด้านข้าง — ขึ้นเฉพาะตอนล็อกแถว */
-function showLockTags(key) {
+function showLockTags(faceKey) {
   clearLockTags();
-  if (!key || !DATA) return;
+  if (!faceKey || !DATA) return;
   const L = DATA.layout, C = L.cell, ST = L.struct;
-  const row = L.rows.find((r) => r.key === key);
+  const row = faceOf(faceKey);
   if (!row) return;
-  /* 🧭 ฝั่งเดียวกับกล้องเสมอ (ดู focusRowSide) — ไม่งั้นป้ายไปอยู่หลังชั้นวางจนมองไม่เห็น */
-  const faceRight = true;
+  /* 🧭 ป้ายอยู่ฝั่งเดียวกับกล้อง = ฝั่งทางเดินของหน้าชั้นนั้น (ดู focusRowSide)
+     ไม่งั้นป้ายไปอยู่หลังชั้นวางจนมองไม่เห็น */
+  const faceRight = row.from === "+X";
   /* ขยับป้ายมาด้านที่กล้องอยู่นิดนึง จะได้ไม่จมอยู่ในชั้นวาง */
   const x = (row.originX + (faceRight ? C.d + 20 : -20)) * S;
   /* ป้ายเล็กๆ พอ — ใหญ่ไปแล้วทับกันเอง (1 ล็อกกว้าง 2.57 หน่วย · ป้ายกินราว 40%)
-     ใส่แค่ตัวเลข: อยู่ใต้ชั้น = เลขล็อก · อยู่ริมซ้าย = เลขชั้น (ดูครั้งเดียวก็เข้าใจ) */
+     ใส่แค่ตัวเลข: อยู่ใต้ชั้น = เลขล็อก · ริมสุด = เลขชั้น (ดูครั้งเดียวก็เข้าใจ)
+     🧱 แถวชั้นคู่: เลขล็อกของหน้านั้นจริงๆ (ฝั่งขวาเริ่มที่ 6 ไม่ใช่ 1) */
   const tag = (C.w * 0.26) * S;
   row.bayCenterZ.forEach((z, n) =>
-    billboard(String(n + 1), x, -tag * 0.85, z * S, tag, faceRight, "#e2e8f0"));
+    billboard(String(row.first + n), x, -tag * 0.85, z * S, tag, faceRight, "#e2e8f0"));
   const zEdge = (row.zStart - C.w * 0.5) * S;
   for (let lv = 1; lv <= L.levels; lv++) {
     const y = ((lv - 1) * (C.h + ST.beam) + C.h / 2) * S;
     billboard(String(lv), x, y, zEdge, tag * 0.95, faceRight, "#94a3b8");
   }
   /* หัวตารางเล็กๆ บอกว่าแถวเลขพวกนั้นคืออะไร
-     ⬅️ มุมนี้ (ฝั่งเดียวกันทุกแถว) ล็อก 1 อยู่ขวาสุด แล้วไล่เลขไปทางซ้าย ⇒ ลูกศรต้องชี้ซ้าย */
-  billboard("← ล็อก", x, -tag * 0.85, zEdge, tag * 1.05, faceRight, "#64748b");
+     ↔️ ยืนคนละฝั่ง เลขก็ไล่คนละทาง ⇒ ลูกศรต้องชี้ตามจริง ไม่งั้นอ่านแล้วหลง */
+  billboard(faceRight ? "← ล็อก" : "ล็อก →", x, -tag * 0.85, zEdge, tag * 1.05, faceRight, "#64748b");
   billboard("ชั้น ↑", x, (L.levels * (C.h + ST.beam)) * S + tag * 0.6, zEdge, tag * 1.05, faceRight, "#64748b");
 }
 
 function paintStructure() {
   if (!postIM || !beamIM) return;
-  const only = lockedRow;
+  const only = lockedFace;                         // 🧱 ซ่อนทีละ "หน้าชั้น" (แถว B มี 2 หน้า)
   postAt.forEach((p, i) => {
     const on = !only || postOf[i] === only;
     M4.compose(V3.set(p[0], p[1], p[2]), QUAT.identity(), on ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
@@ -735,7 +754,7 @@ function paintSlots() {
     /* 🔒 ล็อกแถว = ซ่อนกล่องของแถวอื่น (โฟกัสเฉพาะแถวที่ล็อก)
        🧺 ช่องที่มีกรง = ไม่วาดกล่องใหญ่ทับกรง — ของในกรงวาดเป็นกล่องเล็กหลายใบใน paintCages()
           (ไม่งั้นกล่องใหญ่บังโครงตะแกรงจนไม่รู้ว่ามีกรง) */
-    const show = s.items.length > 0 && !s.cage && !hidden.has(s.status) && (!lockedRow || s.row === lockedRow);
+    const show = s.items.length > 0 && !s.cage && !hidden.has(s.status) && (!lockedFace || s.face === lockedFace);
     const b = s.box;
     M4.compose(V3.set(b.x * S, b.y * S, b.z * S), QUAT.identity(),
       show ? SCALE.set(1, 1, 1) : SCALE.copy(ZERO));
@@ -823,7 +842,7 @@ function clearCages() {
 function paintCages() {
   if (!built || !DATA) return;
   clearCages();
-  const caged = slotList.filter((s) => s.cage && (!lockedRow || s.row === lockedRow));
+  const caged = slotList.filter((s) => s.cage && (!lockedFace || s.face === lockedFace));
   if (!caged.length) return;
 
   const C = DATA.layout.cell;
@@ -928,7 +947,8 @@ function pickSlot(clientX, clientY) {
   for (const h of hits) {
     const s = slotList[h.instanceId];
     if (!s) continue;
-    if (lockedRow && s.row !== lockedRow) continue;  // 🔒 ล็อกแถว = คลิกข้ามแถวไม่ได้
+    /* 🔒 ล็อกอยู่ = คลิกได้เฉพาะหน้าชั้นที่ล็อก (แถวชั้นคู่: อีกฝั่งที่ชนหลังกันต้องไม่บังการคลิก) */
+    if (lockedFace && s.face !== lockedFace) continue;
     if (!firstAny) firstAny = s;
     if (s.items.length && !hidden.has(s.status)) return s;
   }
@@ -1366,6 +1386,7 @@ function highlight(code) {
    ⇒ เลือกจากผัง 2 มิติ แล้วให้กล้องบินไปเอง — ไม่ต้องสู้กับกล้องอีก */
 let openBay = null;
 let lockedRow = null;                             // 🔒 แถวที่ล็อกอยู่ (null = ไม่ล็อก)
+let lockedFace = null;                            // 🔒 หน้าชั้นที่ล็อก (A · B1 · B2 · C)
 
 $("mapHead").addEventListener("click", () => {
   const min = $("map").classList.toggle("min");
@@ -1384,29 +1405,45 @@ function worstOf(list) {
 function renderMap() {
   if (!DATA) return;
   $("mapRows").innerHTML = DATA.layout.rows.map((row) => {
-    const cells = [];
-    for (let bay = 1; bay <= row.bays; bay++) {
+    /* 🧱 แถวชั้นคู่ = ปุ่ม 2 บรรทัดติดกันตามตำแหน่งจริง (ฝั่งซ้าย 1-5 · ฝั่งขวา 6-10)
+       ภูม 2026-11-13: *"แสดงปุ่มของแถว B เป็น 2 แถว/คอลัมน์ติดกัน ตามตำแหน่งจริงในโกดัง"* */
+    const bayBtn = (bay) => {
       const list = slotsOfBay(row.key, bay);
       const boxes = list.reduce((n, s) => n + (s.boxes || 0), 0);
       const col = DATA.pickColor[worstOf(list)] || "#1e293b";
       const on = openBay && openBay.row === row.key && openBay.bay === bay;
-      cells.push(
-        '<button class="bay' + (boxes ? " has" : "") + (on ? " on" : "") + '" data-r="' + row.key +
+      return '<button class="bay' + (boxes ? " has" : "") + (on ? " on" : "") + '" data-r="' + row.key +
         '" data-b="' + bay + '" title="' + esc(row.name + " ล็อก " + bay) + '"' +
         (boxes ? ' style="background:' + col + '22;border-color:' + col + '"' : "") + ">" + bay +
-        (boxes ? '<span class="pin" style="background:' + col + '">' + boxes + "</span>" : "") + "</button>");
+        (boxes ? '<span class="pin" style="background:' + col + '">' + boxes + "</span>" : "") + "</button>";
+    };
+    const cells = [];
+    if (row.faces.length > 1) {
+      for (const f of row.faces) {
+        const btns = f.bays.map(bayBtn).join("");
+        cells.push('<div class="fside' + (lockedFace === f.key ? " on" : "") + '">' +
+          '<button class="fk" data-face="' + esc(f.key) + '" title="ดูเฉพาะ' + esc(f.name) +
+          ' (ล็อก ' + f.first + "-" + (f.first + f.count - 1) + ')">' + esc(f.short || f.name) + "</button>" +
+          '<div class="bays">' + btns + "</div></div>");
+      }
+    } else {
+      for (let bay = 1; bay <= row.bays; bay++) cells.push(bayBtn(bay));
     }
     return '<div class="mrow' + (lockedRow === row.key ? " locked" : "") +
       (lockedRow && lockedRow !== row.key ? " dim" : "") + '">' +
       '<button class="lk" data-lock="' + row.key + '" title="ล็อกแถว ' + row.key +
       ' (ดู/กดได้เฉพาะแถวนี้)">' + (lockedRow === row.key ? "🔒" : "🔓") + "</button>" +
-      '<div class="rk">' + row.key + '</div><div class="bays">' +
+      '<div class="rk">' + row.key + '</div><div class="' +
+      (row.faces.length > 1 ? "fstack" : "bays") + '">' +
       cells.join("") + "</div></div>";
   }).join("");
   for (const b of $("mapRows").querySelectorAll(".bay"))
     b.addEventListener("click", () => openBayDetail(b.dataset.r, Number(b.dataset.b)));
   for (const b of $("mapRows").querySelectorAll(".lk"))
     b.addEventListener("click", (e) => { e.stopPropagation(); toggleLockRow(b.dataset.lock); });
+  /* 🧱 ปุ่มชื่อฝั่งของแถวชั้นคู่ = ล็อกดูเฉพาะฝั่งนั้น (อีกฝั่งที่ชนหลังกันจะไม่บังการคลิก) */
+  for (const b of $("mapRows").querySelectorAll(".fk"))
+    b.addEventListener("click", (e) => { e.stopPropagation(); setLockFace(b.dataset.face); });
   renderBayDetail();
 }
 
@@ -1462,31 +1499,70 @@ function paintMapSelection() {
 /* ══ 🔒 ล็อกแถว (ภูม 2026-11-13) ═══════════════════════════════════════
    กดแม่กุญแจหน้าแถว ⇒ กล้องสไลด์มามุมข้าง (Side Elevation) ของแถวนั้น ·
    แถวอื่นจางหาย (ซ่อนกล่อง) · คลิกได้เฉพาะแถวที่ล็อก · แถบ "ปลดล็อก" ลอยบนกลางจอ */
+/** หน้าชั้นจากรหัสหน้า (A · B1 · B2 · C) */
+function faceOf(faceKey) {
+  if (!faceKey || !DATA) return null;
+  for (const r of DATA.layout.rows)
+    for (const f of r.faces) if (f.key === faceKey) return Object.assign({ row: r }, f);
+  return null;
+}
+
+/**
+ * 🔒 ล็อก/ปลดล็อกแถว — แถวชั้นคู่ (B) ล็อกทีละฝั่ง แล้วมีปุ่มสลับฝั่ง
+ * ภูม 2026-11-13: *"ให้มีปุ่มย่อยสำหรับสลับดู ฝั่งซ้าย (B1-B5) และ ฝั่งขวา (B6-B10)
+ *   เพื่อให้กล้องหมุนไปตั้งฉากตรงหน้าฝั่งที่เลือกแบบเต็มตา และไม่ถูกอีกฝั่งที่หันหลังชนกันบังการคลิก"*
+ */
 function toggleLockRow(key) {
-  lockedRow = lockedRow === key ? null : key;
+  const row = DATA && DATA.layout.rows.find((r) => r.key === key);
+  if (!row) return;
+  const off = lockedRow === key;
+  lockedRow = off ? null : key;
+  lockedFace = off ? null : (row.faces[0] || {}).key || key;
+  applyLock();
+}
+
+/** สลับฝั่งของแถวชั้นคู่ (ไม่ปลดล็อก) */
+function setLockFace(faceKey) {
+  const f = faceOf(faceKey);
+  if (!f || lockedFace === faceKey) return;
+  lockedRow = f.row.key;
+  lockedFace = faceKey;
+  applyLock();
+}
+
+function applyLock() {
   closePop();
   updateLockUI();
   paintSlots();          // แถวอื่นจางหาย
   paintStructure();      // 🔒 ซ่อนโครงเหล็กแถวอื่นด้วย — ไม่งั้นมองทะลุไปเห็นเสาแถวอื่นจนลาย
-  showLockTags(lockedRow); // 🏷 เลขล็อก/ชั้น แบบป้ายตั้ง (ป้ายพื้นมองไม่เห็นตอนมองหน้าตรง)
+  showLockTags(lockedFace); // 🏷 เลขล็อก/ชั้น แบบป้ายตั้ง (ป้ายพื้นมองไม่เห็นตอนมองหน้าตรง)
   renderMap();           // อัปเดตปุ่ม/สถานะ locked · dim
-  if (lockedRow) focusRowSide(lockedRow);
+  if (lockedFace) focusRowSide(lockedFace);
   else setView("3D");    // ปลดล็อก = กลับภาพรวม
 }
 
 function updateLockUI() {
   const bar = $("lockbar");
   if (!lockedRow || !DATA) { bar.style.display = "none"; return; }
-  const name = (DATA.layout.rows.find((r) => r.key === lockedRow) || {}).name || lockedRow;
-  bar.innerHTML = "🔒 กำลังล็อกแถว " + esc(lockedRow) + " (" + esc(name) +
-    ") — กดได้เฉพาะแถวนี้<button id='unlockBtn'>ปลดล็อก</button>";
+  const row = DATA.layout.rows.find((r) => r.key === lockedRow) || {};
+  const name = row.name || lockedRow;
+  /* 🧱 แถวชั้นคู่ = มีปุ่มสลับฝั่งในแถบเดียวกัน (ฝั่งซ้าย 1-5 · ฝั่งขวา 6-10) */
+  const sides = (row.faces || []).length > 1
+    ? row.faces.map((f) =>
+        "<button class='sd" + (lockedFace === f.key ? " on" : "") + "' data-face='" + esc(f.key) + "'>" +
+        esc(f.name) + " (" + f.first + "-" + (f.first + f.count - 1) + ")</button>").join("")
+    : "";
+  bar.innerHTML = "🔒 กำลังล็อกแถว " + esc(lockedRow) + " (" + esc(name) + ") — กดได้เฉพาะฝั่งนี้" +
+    sides + "<button id='unlockBtn'>ปลดล็อก</button>";
   bar.style.display = "flex";
+  for (const b of bar.querySelectorAll("button.sd"))
+    b.addEventListener("click", () => setLockFace(b.dataset.face));
   $("unlockBtn").addEventListener("click", () => toggleLockRow(lockedRow));
 }
 
 /* 🎥 กล้องมุมข้างของแถวที่ล็อก — มองจากฝั่งทางเดินเข้าหน้าชั้น เห็นความยาวแถว (Z) × สูง (Y) เต็มตา */
-function focusRowSide(key) {
-  const row = DATA.layout.rows.find((r) => r.key === key);
+function focusRowSide(faceKey) {
+  const row = faceOf(faceKey);
   if (!row || !EXTENT) return;
   const C = DATA.layout.cell, Y = EXTENT.y * S;
   const cx = (row.originX + C.d / 2) * S;
@@ -1497,8 +1573,10 @@ function focusRowSide(key) {
      🪤 ของเดิม: แถวแรกมองจาก +X · แถวสุดท้ายมองจาก -X · แถวกลางแล้วแต่ว่ากล้องอยู่ไหนตอนกด
         ⇒ ซ้าย/ขวาบนจอ **สลับกันระหว่างแถว** · แถว B ยังสลับไปมาเองด้วย
         (ตรวจของจริง 13/11: แถว A กล่องซ้ายของคู่ = A0101-L ถูก · แถว C ได้ -R = สลับ)
-     ⇒ ล็อกไว้ฝั่งเดียว: ล็อกแถวไหนก็ **ช่อง -L อยู่ซ้าย · -R อยู่ขวา** เหมือนกันหมด */
-  const fromRight = true;
+     ⇒ ตอนนี้กล้องเดินตาม "ทางเดินของหน้าชั้นนั้น" ที่ผังบอกมา (face.from)
+        ซึ่งเป็นตัวเดียวกับที่ผังใช้ตัดสิน -L/-R ⇒ **ช่อง -L อยู่ซ้ายเสมอ** ทุกแถวทุกฝั่ง
+        (แถว C ชิดกำแพงซ้าย ⇒ ทางเดินฝั่ง -X ⇒ กล้องไปยืนฝั่งนั้น ตามที่ภูมชี้ในรูป) */
+  const fromRight = row.from === "+X";
   /* 🎯 มองหน้าตรง 90° เป๊ะ — เดิม 1.4 เรเดียน (≈80°) มองเฉียงลงนิดนึง ชั้นเลยซ้อนกันจนอ่านยาก
      ภูม 2026-11-13: *"มันลายจนมองยากเลย … อยากได้แบบมันขึ้นมาประมาณนี้ จะได้มองง่ายๆ"*
      เผื่อขอบบน-ล่าง-ซ้าย-ขวา จะได้เห็นครบทั้ง 4 ชั้นเต็มแถว */

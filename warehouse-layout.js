@@ -41,14 +41,42 @@ const SIDE_TH = Object.freeze({ L: "ซ้าย", R: "ขวา" });
    ✅ ภูมยืนยัน 12/11: **แถวที่สั้น 6 ล็อก คือ C** (ไม่ใช่ A) — *"ล็อก A ที่ 6 ล็อกต้องเป็น C"*
    🪤 รอบก่อนผมแก้ผิดวิธี: ไป "ย้ายตำแหน่งแถว A" แทนที่จะ "สลับว่าแถวไหนมี 6 ล็อก"
       ⇒ ชั้นวางย้ายข้ามโกดังทั้งแถว ทั้งที่ของจริงไม่ได้ย้ายไปไหน */
+/* 🧭 "หน้าชั้น" (face) = ด้านที่คนยืนในทางเดินแล้วมองเข้าหาชั้นวาง (ภูม 2026-11-13)
+ *
+ * 🔑 หัวใจ: **ซ้าย/ขวา (-L/-R) = ซ้ายขวาของคนที่ยืนในทางเดินของชั้นนั้น**
+ *    ⇒ แถวที่ทางเดินอยู่คนละฝั่งกัน ป้าย -L/-R ก็กลับด้านกัน
+ *    ภูม: *"แถว C … กล่องที่กดไปมันควรเป็น C0101-L ไม่ใช่ R แค่แถว C อะ เพราะมันชิดกำแพงซ้าย"*
+ *
+ * from: "+X" = ทางเดินอยู่ฝั่ง X มาก (ยืนที่ X มาก มองย้อนเข้าหาชั้น)
+ *       "-X" = ทางเดินอยู่ฝั่ง X น้อย
+ * first/count = ล็อกที่อยู่บนหน้านี้ (เรียงตาม Z จากประตูเข้าไป)
+ */
 const ROWS = Object.freeze([
-  Object.freeze({ key: "A", name: "โซนขวา",  bays: 10, note: "ตั้งยาวเต็มพื้นที่" }),
-  Object.freeze({ key: "B", name: "โซนกลาง", bays: 10, note: "ตั้งยาวเต็มพื้นที่" }),
+  Object.freeze({
+    key: "A", name: "โซนขวา", bays: 10, note: "ตั้งยาวเต็มพื้นที่ · ชิดกำแพงขวา",
+    faces: Object.freeze([
+      Object.freeze({ key: "A", name: "แถว A", from: "+X", first: 1, count: 10 }),
+    ]),
+  }),
+  /* 🔴 ภูม 2026-11-13: *"วางชั้นวาง 2 แถวหันหลังชนกันตรงกลางโกดัง"*
+     ฝั่งซ้าย (หันหน้าออกทางเดินฝั่งแถว A) = ล็อก 1-5 · ฝั่งขวา (หันออกทางเดินฝั่งแถว C) = ล็อก 6-10
+     จับคู่กันพอดี 1↔6 · 2↔7 · 3↔8 · 4↔9 · 5↔10 (อยู่ตรงกัน แค่คนละด้านของชั้นที่ชนหลังกัน) */
+  Object.freeze({
+    key: "B", name: "โซนกลาง", bays: 10, note: "ชั้นวางคู่หันหลังชนกันกลางโกดัง",
+    faces: Object.freeze([
+      Object.freeze({ key: "B1", name: "ฝั่งซ้าย", short: "ซ้าย", from: "-X", first: 1, count: 5 }),
+      Object.freeze({ key: "B2", name: "ฝั่งขวา", short: "ขวา", from: "+X", first: 6, count: 5 }),
+    ]),
+  }),
   /* 🔴 ภูม 12/11: *"แกย้ายแถว C มาติดฝั่งหน้าโกดังทำไม มันอยู่ติดฝั่งหลังโกดังก็ถูกแล้ว"*
-     ⇒ ชั้นวาง C สั้น 6 ล็อก และ **ตั้งชิดผนังด้านหลัง** · ช่วงที่ว่างอยู่ทางฝั่งประตู */
+     ⇒ ชั้นวาง C สั้น 6 ล็อก และ **ตั้งชิดผนังด้านหลัง** · ช่วงที่ว่างอยู่ทางฝั่งประตู
+     🔴 ภูม 13/11: C ชิดกำแพงซ้าย ⇒ ทางเดินอยู่ฝั่ง -X ⇒ ซ้าย/ขวากลับด้านกับแถว A */
   Object.freeze({
     key: "C", name: "โซนซ้าย", bays: 6, alignBack: true,
-    note: "ชั้นวางตั้งชิดด้านหลังโกดัง · ช่วงติดประตูเว้นไว้ (ออฟฟิศ)",
+    note: "ชั้นวางตั้งชิดด้านหลังโกดัง · ชิดกำแพงซ้าย · ช่วงติดประตูเว้นไว้ (ออฟฟิศ)",
+    faces: Object.freeze([
+      Object.freeze({ key: "C", name: "แถว C", from: "-X", first: 1, count: 6 }),
+    ]),
   }),
 ]);
 
@@ -124,6 +152,48 @@ function baysOf(rowKey) {
   return r ? r.bays : 0;
 }
 
+/** แถวนี้ — คืนตัวแถวทั้งก้อน (หรือ null) */
+function rowOf(rowKey) {
+  return ROWS.find((x) => x.key === String(rowKey || "").trim().toUpperCase()) || null;
+}
+
+/** หน้าชั้นทั้งหมดของแถวนี้ (แถวธรรมดา 1 หน้า · แถว B ชั้นคู่ 2 หน้า) */
+function facesOf(rowKey) {
+  const r = rowOf(rowKey);
+  return r ? r.faces.slice() : [];
+}
+
+/** หน้าชั้นที่ล็อกนี้อยู่ + ลำดับที่เท่าไหร่บนหน้านั้น (นับจาก 0) */
+function faceOfBay(rowKey, bay) {
+  const r = rowOf(rowKey);
+  if (!r) return null;
+  for (let i = 0; i < r.faces.length; i++) {
+    const f = r.faces[i];
+    if (bay >= f.first && bay < f.first + f.count) {
+      return { face: f, index: i, idx: bay - f.first };
+    }
+  }
+  return null;
+}
+
+/** หน้าชั้นจากรหัสหน้า เช่น "B2" */
+function faceByKey(faceKey) {
+  const k = String(faceKey || "").trim().toUpperCase();
+  for (const r of ROWS)
+    for (let i = 0; i < r.faces.length; i++)
+      if (r.faces[i].key.toUpperCase() === k) return { row: r, face: r.faces[i], index: i };
+  return null;
+}
+
+/** ชั้นวางของหน้านี้เริ่มที่ X เท่าไหร่ (หน้าที่ 2 ของชั้นคู่ = ถัดเข้าไปอีก 1 ความลึก) */
+function faceOriginX(rowKey, faceKey) {
+  const r = rowOf(rowKey);
+  if (!r) throw new Error('ไม่มีแถว "' + rowKey + '"');
+  const i = faceKey == null ? 0 : r.faces.findIndex((f) => f.key === String(faceKey).toUpperCase());
+  if (i < 0) throw new Error('แถว ' + r.key + ' ไม่มีหน้าชั้น "' + faceKey + '"');
+  return rowOriginX(r.key) + i * CELL.d;
+}
+
 /**
  * สร้างรหัสโลเคชั่น — locationCode("A", 5, 1) → "A0105" (ชั้น 01 ล็อก 05)
  * @throws ถ้าแถว/ล็อก/ชั้น อยู่นอกผังจริง (กันคีย์ช่องที่ไม่มีอยู่)
@@ -195,15 +265,25 @@ function slotLabel(code) {
 
 /** ความยาวพื้นที่ทั้งหมดตามแกน Z (แถวที่ยาวที่สุดกินเท่านี้) */
 function fullZ() {
-  return Math.max.apply(null, ROWS.map((r) => r.bays)) * BAY_PITCH;
+  /* ความยาวโกดัง = หน้าชั้นที่ยาวที่สุด (แถว B ชั้นคู่ยาวแค่ 5 ล็อก ไม่ใช่ 10) */
+  let most = 0;
+  for (const r of ROWS) for (const f of r.faces) most = Math.max(most, f.count);
+  return most * BAY_PITCH;
 }
 
 /** ชั้นวางของแถวนี้เริ่มที่ X เท่าไหร่ (นับจากฝั่งซ้ายเมื่อยืนหันหน้าเข้าโกดัง) */
 function rowOriginX(rowKey) {
-  const i = ROWS.findIndex((r) => r.key === String(rowKey || "").toUpperCase());
-  if (i < 0) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
-  const n = DOOR.rowAatFarX ? ROWS.length - 1 - i : i;
-  return n * (CELL.d + STRUCT.aisle);
+  const key = String(rowKey || "").toUpperCase();
+  if (!ROWS.some((r) => r.key === key)) throw new Error("ไม่มีแถว \"" + key + "\"");
+  /* 🔑 แต่ละแถวลึกไม่เท่ากันแล้ว (B เป็นชั้นคู่ = ลึก 2 เท่า) ⇒ บวกสะสมไปทีละแถว
+     ไม่ใช่คูณลำดับเหมือนเดิม ไม่งั้นทางเดินจะกินกันเอง */
+  const order = DOOR.rowAatFarX ? ROWS.slice().reverse() : ROWS.slice();
+  let x = 0;
+  for (const r of order) {
+    if (r.key === key) return x;
+    x += r.faces.length * CELL.d + STRUCT.aisle;
+  }
+  return x;
 }
 
 /** ชั้นวางแถวนี้ตั้งชิดด้านหลังโกดังไหม (แถวที่สั้นกว่าเพื่อน) */
@@ -212,27 +292,51 @@ function alignsBack(rowKey) {
   return !!(r && r.alignBack);
 }
 
-/** ช่วง Z ที่ชั้นวางของแถวนี้กินจริง (ไว้วาดเสา/คาน + ป้าย — จะได้ไม่ต้องคิดเองซ้ำ) */
+/**
+ * ช่วง Z ที่ "หน้าชั้น" นั้นกินจริง (ไว้วาดเสา/คาน + ป้าย)
+ * แถว B ชั้นคู่: ทั้ง 2 หน้ายาวเท่ากัน (5 ล็อก) และอยู่ตรงกันพอดี
+ */
+function faceZSpan(rowKey, faceKey) {
+  const r = rowOf(rowKey);
+  if (!r) throw new Error('ไม่มีแถว "' + rowKey + '"');
+  const f = faceKey == null ? r.faces[0] : r.faces.find((x) => x.key === String(faceKey).toUpperCase());
+  if (!f) throw new Error('แถว ' + r.key + ' ไม่มีหน้าชั้น "' + faceKey + '"');
+  return spanOfLen(r, f.count * BAY_PITCH);
+}
+
+function spanOfLen(row, len) {
+  /* แถวที่ตั้งชิดด้านหลัง = ดันไปสุดผนังลึก · ที่เหลือเว้นไว้ทางฝั่งประตู */
+  const gap = row.alignBack ? fullZ() - len : 0;
+  const start = DOOR.bayOneAtFarZ ? fullZ() - len - gap : gap;
+  return { start: start, len: len, end: start + len };
+}
+
+/** ช่วง Z ของทั้งแถว (= หน้าที่ยาวที่สุด) — ของเดิมที่หน้า 3D เรียกอยู่ */
 function rowZSpan(rowKey) {
   const bays = baysOf(rowKey);
   if (!bays) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
-  const len = bays * BAY_PITCH;
+  const row = rowOf(rowKey);
+  const len = Math.max.apply(null, row.faces.map((f) => f.count)) * BAY_PITCH;
   /* แถวที่ตั้งชิดด้านหลัง = ดันไปสุดผนังลึก · ที่เหลือเว้นไว้ทางฝั่งประตู */
   const gap = alignsBack(rowKey) ? fullZ() - len : 0;
   const start = DOOR.bayOneAtFarZ ? fullZ() - len - gap : gap;
   return { start: start, len: len, end: start + len };
 }
 
-/** ขอบของล็อกนั้นบนแกน Z — ล็อก 1 = ล็อกที่อยู่ใกล้ประตูที่สุดของแถวนั้น */
+/**
+ * ขอบของล็อกนั้นบนแกน Z — ล็อก 1 = ล็อกที่อยู่ใกล้ประตูที่สุด**ของหน้าชั้นนั้น**
+ * 🔑 แถว B ชั้นคู่: ล็อก 6 เป็นล็อกแรกของหน้าขวา ⇒ อยู่ตรงกับล็อก 1 ของหน้าซ้ายพอดี
+ */
 function bayZ0(rowKey, bay) {
   const bays = baysOf(rowKey);
   if (!bays) throw new Error("ไม่มีแถว \"" + rowKey + "\"");
   if (!Number.isInteger(bay) || bay < 1 || bay > bays)
     throw new Error("แถว " + rowKey + " มี " + bays + " ล็อก — ล็อกที่ " + bay + " ไม่มีอยู่");
-  const span = rowZSpan(rowKey);
+  const hit = faceOfBay(rowKey, bay);
+  const span = faceZSpan(rowKey, hit.face.key);
   return DOOR.bayOneAtFarZ
-    ? span.end - bay * BAY_PITCH
-    : span.start + (bay - 1) * BAY_PITCH;
+    ? span.end - (hit.idx + 1) * BAY_PITCH
+    : span.start + hit.idx * BAY_PITCH;
 }
 
 /**
@@ -242,12 +346,16 @@ function bayZ0(rowKey, bay) {
 function slotBox(location, side) {
   const s = parseSlot(slotCode(location, side));
   const halfW = CELL.w / 2;                             // 1 ฝั่งกว้างครึ่งช่อง = 125
-  const x0 = rowOriginX(s.row);
+  const hit = faceOfBay(s.row, s.bay);
+  const x0 = faceOriginX(s.row, hit.face.key);
   const z0 = bayZ0(s.row, s.bay);
   const y0 = (s.level - 1) * LEVEL_PITCH + STRUCT.beam; // ของวางบนคาน
-  /* 🔑 ซ้าย/ขวา ตามที่เห็นจากทางเดิน (ภูม 2026-11-13 ยืนยันจากจอ: SF…2437 ที่เห็นอยู่ "ซ้าย" ต้องเป็น -L ไม่ใช่ -R)
-     ⇒ L = ครึ่งลึกของล็อก (z0 + halfW)  ·  R = ครึ่งใกล้ประตู (z0)  (เดิมสลับกันอยู่) */
-  const zSide = s.side === "L" ? z0 + halfW : z0;
+  /* 🔑 ซ้าย/ขวา = ซ้ายขวาของ **คนที่ยืนในทางเดินของหน้าชั้นนั้น** (ภูม 2026-11-13)
+     ยืนฝั่ง +X มองย้อนเข้าหาชั้น ⇒ ครึ่งที่ Z มากอยู่ทางซ้ายมือ
+     ยืนฝั่ง -X (แถว C ชิดกำแพงซ้าย · หน้าซ้ายของแถว B) ⇒ กลับด้าน
+     🪤 ของเดิมใช้สูตรเดียวทุกแถว ⇒ แถว C กดกล่องซ้ายแล้วได้ -R (ภูมเจอจากจอ) */
+  const farIsLeft = hit.face.from === "+X";
+  const zSide = (s.side === "L") === farIsLeft ? z0 + halfW : z0;
   return {
     x: x0 + CELL.d / 2,
     y: y0 + CELL.h / 2,
@@ -258,8 +366,11 @@ function slotBox(location, side) {
 
 /** ขนาดรวมของโกดังที่ผังนี้กิน (ไว้ตั้งกล้อง/วาดพื้น) */
 function layoutExtent() {
+  /* กว้าง = ความลึกของทุกหน้าชั้นรวมกัน + ทางเดินระหว่างแถว (B ชั้นคู่กิน 2 ความลึก) */
+  let faces = 0;
+  for (const r of ROWS) faces += r.faces.length;
   return {
-    x: ROWS.length * CELL.d + (ROWS.length - 1) * STRUCT.aisle,
+    x: faces * CELL.d + (ROWS.length - 1) * STRUCT.aisle,
     y: LEVELS * LEVEL_PITCH,
     z: fullZ(),
   };
@@ -277,10 +388,28 @@ function buildLayout() {
         ถ้าหน้า 3D คิดเอง วันหนึ่งที่สลับทิศ กล่องจะย้ายแต่โครงเหล็กไม่ย้าย */
   const rows = ROWS.map((r) => {
     const span = rowZSpan(r.key);
+    /* 🧱 หน้าชั้นแต่ละหน้า = ชั้นวาง 1 ตัว (เสา/คาน/ป้ายของตัวเอง)
+       แถวธรรมดามีหน้าเดียว · แถว B ชั้นคู่หันหลังชนกันมี 2 หน้า */
+    const faces = r.faces.map((f) => {
+      const fs = faceZSpan(r.key, f.key);
+      const bz = [];
+      for (let n = 0; n < f.count; n++) bz.push(bayZ0(r.key, f.first + n) + CELL.w / 2);
+      return {
+        key: f.key, name: f.name, short: f.short || f.name, from: f.from,
+        first: f.first, count: f.count,
+        bays: Array.from({ length: f.count }, (_, n) => f.first + n),
+        originX: faceOriginX(r.key, f.key),
+        zStart: fs.start, zLen: fs.len, zEnd: fs.end,
+        bayCenterZ: bz,
+        labelZ: DOOR.bayOneAtFarZ ? fs.end + 150 : fs.start - 150,
+      };
+    });
     const bayZ = [];
     for (let bay = 1; bay <= r.bays; bay++) bayZ.push(bayZ0(r.key, bay) + CELL.w / 2);
     return {
       key: r.key, name: r.name, bays: r.bays, note: r.note,
+      double: r.faces.length > 1,
+      faces: faces,
       originX: rowOriginX(r.key),
       zStart: span.start, zLen: span.len, zEnd: span.end,
       bayCenterZ: bayZ,
@@ -297,6 +426,8 @@ function buildLayout() {
           slots.push({
             slot: location + "-" + side,
             location: location, row: r.key, bay: bay, level: level, side: side,
+            /** หน้าชั้นที่ช่องนี้อยู่ — แถวชั้นคู่ใช้แยกว่าอยู่ฝั่งไหน (B1 / B2) */
+            face: faceOfBay(r.key, bay).face.key,
             label: slotLabel(location + "-" + side),
             box: slotBox(location, side),
             status: "empty",
@@ -367,6 +498,7 @@ module.exports = {
   WAREHOUSES, DEFAULT_WH, isWh, normWh, whName,
   CELL, STRUCT, LEVELS, SIDES, SIDE_TH, ROWS, BAY_PITCH, LEVEL_PITCH, DOOR,
   baysOf, locationCode, parseLocation, slotCode, parseSlot, slotLabel,
+  rowOf, facesOf, faceOfBay, faceByKey, faceOriginX, faceZSpan,
   rowOriginX, bayZ0, rowZSpan, fullZ,
   slotBox, layoutExtent, buildLayout, allLocations, legacyGuess, convertOldCode,
 };

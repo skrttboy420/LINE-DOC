@@ -55,6 +55,16 @@ const { planNotifications, summarizeBacklog } = require("./notify-feed");
 /* 💰 โควตาข้อความ push ของ LINE — กันยิงรัวตอนโควตาหมด (ภูม 2026-11-13) */
 const { createLineBudget } = require("./line-budget");
 const lineBudget = createLineBudget();
+
+/* 🪫 โหมดประหยัดโควตา — กองแจ้งเตือนไว้ แล้วส่งรวมเป็นรอบ (ภูม 2026-11-13 สั่งเปิด)
+   ตั้งรอบเองได้: NOTIFY_HOURS=9,13,17 · ปิดโหมดนี้: NOTIFY_MODE=live
+   🔑 ตั้งต้นเป็นโหมดประหยัด เพราะแพลนฟรีให้ push แค่ 300 ข้อความ/เดือน
+      โหมดเดิม (ทุก 5 นาที) หมดโควตาภายในไม่กี่ชั่วโมงแล้วเงียบทั้งเดือน */
+const { createNotifySaver } = require("./notify-saver");
+const SAVER_ON = String(process.env.NOTIFY_MODE || "saver").toLowerCase() !== "live";
+const notifySaver = createNotifySaver({
+  hours: String(process.env.NOTIFY_HOURS || "9,13,17").split(",").map((x) => Number(x.trim())),
+});
 const { renderNotification } = require("./notify-template");
 const { createTemplateStore } = require("./notify-template-store");
 const { mountStaffAdmin } = require("./staff-admin");
@@ -530,6 +540,12 @@ async function pushNotify(message, category) {
     return false;
   }
 
+  /* 🪫 โหมดประหยัด = กองไว้ก่อน แล้วส่งรวมทีเดียวตามรอบ (ไม่ยิงทันที) */
+  if (SAVER_ON && message && message.type === "text") {
+    for (const to of targets) notifySaver.queue(to, message.text, Date.now());
+    return true;
+  }
+
   /* 💰 โควตาหมดอยู่ = ไม่ต้องยิงให้เปลือง (ดู line-budget.js) */
   if (!lineBudget.canPush()) {
     lineBudget.noteSkip(targets.size);
@@ -559,6 +575,39 @@ function warnQuota() {
     "🔴 [line-quota] โควตาข้อความ push ของ LINE หมด — หยุดยิงชั่วคราว 1 ชม. · " + s.text +
     "\n   แจ้งเตือนจะเงียบจนกว่าจะอัปแพลน LINE OA หรือขึ้นเดือนใหม่ (ตอบกลับตอนมีคนทักยังทำงานปกติ)",
   );
+}
+
+/**
+ * 🪫 ถึงรอบแล้ว = เทกองที่สะสมไว้ออกไปทีเดียว (1 คน 1 ข้อความ)
+ * เรียกจากตัวจับเวลาเดิมทุก 5 นาที — ไม่ได้เพิ่ม timer ใหม่
+ */
+async function flushSaver() {
+  if (!SAVER_ON || !notifySaver.shouldSend(Date.now())) return;
+  if (!lineBudget.canPush()) { warnQuota(); return; }
+
+  const batch = notifySaver.flush(Date.now());
+  /* 🔑 คีย์ของเรื่องที่ "ยังไม่ได้บอกจริง" — คืนให้ `told` ตอนจบ เพื่อให้รอบหน้าเสนอใหม่
+     (เลนเด้งทันทีก็ทำแบบนี้ด้วย told.delete — ไม่ทำ = งานค้างหายเงียบทั้งวัน) */
+  const giveBack = [];
+  let stop = false;
+  for (const m of batch) {
+    /* โควตาตายกลางก้อน = ที่เหลือไม่ได้ส่ง ⇒ คืนคีย์ทั้งหมดของคนที่เหลือ */
+    if (stop) { for (const k of m.keys) giveBack.push(k); for (const k of m.spilled) giveBack.push(k); continue; }
+    try {
+      await lineClient.pushMessage(m.to, { type: "text", quickReply: QUICK, text: m.text });
+      lineBudget.noteOk();
+      /* เรื่องที่ถูกตัดท้ายเพราะข้อความยาวเกิน = ยังไม่ได้บอก ⇒ คืนให้รอบถัดไปลงรายละเอียด */
+      for (const k of m.spilled) giveBack.push(k);
+      console.log("[saver] ส่งสรุปหา " + m.to + " (" + m.shown + "/" + m.items + " เรื่อง)");
+    } catch (e) {
+      console.error("[saver] ส่งไม่ออก:", (e && e.message) || e);
+      for (const k of m.keys) giveBack.push(k);
+      for (const k of m.spilled) giveBack.push(k);
+      if (lineBudget.noteFail(e)) { warnQuota(); stop = true; }
+    }
+  }
+  for (const k of giveBack) told.delete(k);
+  if (giveBack.length) console.log("[saver] คืน " + giveBack.length + " เรื่องให้รอบถัดไป");
 }
 
 /** ถาม LINE ว่าโควตาเดือนนี้เหลือเท่าไหร่ — ไว้โชว์หน้า /admin และเตือนก่อนหมด */
@@ -653,6 +702,14 @@ async function runNotifyRound() {
   const plans = planNotifications(feed, staff, notifyIsNew, templates);
   if (plans.length === 0) return;   // ✅ ไม่มีของใหม่ = เงียบสนิท (ภูมสั่ง)
 
+  /* 🪫 โหมดประหยัด = กองไว้ก่อน แล้วรอรอบสรุป
+     🔑 ส่งคีย์กันซ้ำไปด้วย — ถ้าตอนเทกองส่งไม่ออก flushSaver จะคืนคีย์ให้รอบหน้าเสนอใหม่
+        (ไม่ส่งคีย์ = กองถูกล้างแล้วงานหายเงียบ เพราะ `told` จำไปแล้วว่าบอกแล้ว) */
+  if (SAVER_ON) {
+    for (const plan of plans) notifySaver.queue(plan.lineUserId, plan.text, Date.now(), plan.keys);
+    return;
+  }
+
   /* 💰 โควตาหมดอยู่ = คืนคีย์ทั้งหมดแล้วออก ไม่ต้องยิงให้โดนปฏิเสธทีละคน
      🪤 ของจริง 13/11: ยิง 13 คน ทุก 5 นาที ทั้งที่โควตาหมด = ~3,700 คำขอเปล่า/วัน */
   if (!lineBudget.canPush()) {
@@ -687,8 +744,13 @@ setInterval(function () {
   tellPending().catch(e => console.error("[poll]", (e && e.message) || e));
   // 🔔 เกาะรอบเดียวกัน — ไม่เพิ่ม timer ใหม่ (ภูม: *"เด้งทุก 5 หรือ 10 นาทีได้ไหม"*)
   runNotifyRound().catch(e => console.error("[notify]", (e && e.message) || e));
+  // 🪫 โหมดประหยัด: เช็คว่าถึงรอบส่งสรุปหรือยัง (เกาะ timer เดิม ไม่เพิ่มตัวใหม่)
+  flushSaver().catch(e => console.error("[saver]", (e && e.message) || e));
 }, PENDING_POLL_MS);
 console.log("⏱ เช็คงานรอตอบพิกัด + แจ้งเตือนตามหมวด ทุก " + (PENDING_POLL_MS / 60000) + " นาที");
+console.log(SAVER_ON
+  ? "🪫 " + notifySaver.status(Date.now()).text
+  : "🔔 โหมดเด้งทันที (NOTIFY_MODE=live) — กินโควตา LINE เยอะ");
 
 /* 💰 ถามโควตาข้อความ LINE ทุกชั่วโมง + ตอนเริ่ม — จะได้รู้ก่อนที่มันจะเงียบไปทั้งเดือน */
 refreshLineQuota();
@@ -2229,7 +2291,7 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 
 // 🛠 หน้าจัดการสิทธิ์ (ภูม 2026-10-20) — ต้องต่อ "หลัง" /webhook
 //    เพราะ /webhook ต้องได้ body ดิบไปตรวจลายเซ็น LINE ก่อนที่ express.json() จะแตะ
-mountStaffAdmin(app, staffRegistry, templateStore, lineBudget);
+mountStaffAdmin(app, staffRegistry, templateStore, lineBudget, SAVER_ON ? notifySaver : null);
 
 // 🏭 หน้าโกดัง 3D (ภูม 2026-11-12) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
 mountWarehouse(app, warehouse);

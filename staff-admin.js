@@ -157,12 +157,15 @@ async function load() {
   var qb = document.getElementById("quota");
   if (qb) {
     var q = d.lineQuota;
-    if (!q) { qb.style.display = "none"; }
+    /* ถามโควตาไม่ได้ก็ยังต้องเห็นว่าโหมดประหยัดเปิดอยู่ไหม ⇒ ซ่อนเฉพาะตอนไม่มีทั้งคู่ */
+    if (!q && !d.saver) { qb.style.display = "none"; }
     else {
-      var bad = q.blocked || q.left === 0, warn = q.low;
+      var bad = q ? (q.blocked || q.left === 0) : false, warn = q ? q.low : false;
       qb.style.display = "block";
       qb.style.background = bad ? "#7f1d1d" : warn ? "#78350f" : "#064e3b";
-      qb.innerHTML = "<b>ข้อความแจ้งเตือน (push) ของ LINE:</b> " + q.text +
+      var sv = d.saver ? "<div style='margin-top:7px;font-size:13px;opacity:.95'>" + d.saver.text + "</div>" : "";
+      qb.innerHTML = "<b>ข้อความแจ้งเตือน (push) ของ LINE:</b> " +
+        (q ? q.text : "ถามโควตาไม่ได้ (ไม่มีโทเคน/เน็ตสะดุด)") + sv +
         (bad ? "<div style='margin-top:6px;font-size:13px;opacity:.92'>" +
           "ตอบกลับตอนมีคนทักยังทำงานปกติ — ที่เงียบคือเฉพาะ “บอทเด้งมาเอง”<br>" +
           "แก้ได้ทางเดียวคืออัปแพลน LINE OA (หรือรอขึ้นเดือนใหม่ โควตาจะคืนมาเท่าเดิม)</div>" : "");
@@ -314,7 +317,7 @@ load();
  * @param {ReturnType<typeof import("./notify-template-store").createTemplateStore>} [templateStore]
  *        ไม่ส่ง = หน้าจัดการยังใช้ได้ แค่แก้ข้อความไม่ได้ (fail-soft)
  */
-function mountStaffAdmin(app, registry, templateStore, lineBudget) {
+function mountStaffAdmin(app, registry, templateStore, lineBudget, notifySaver) {
   const express = require("express");
   const json = express.json();
 
@@ -349,6 +352,8 @@ function mountStaffAdmin(app, registry, templateStore, lineBudget) {
         /* 💰 โควตาข้อความ push ของ LINE — โชว์ตรงนี้ จะได้ไม่ต้องไปงมใน log
            (ภูม 2026-11-13: โควตาหมดแล้วแจ้งเตือนเงียบไปหลายวันโดยไม่มีใครรู้) */
         lineQuota: lineBudget ? lineBudget.status() : null,
+        /* 🪫 โหมดประหยัดโควตา — บอกว่ารอบถัดไปกี่โมง · ค้างอยู่กี่เรื่อง */
+        saver: notifySaver ? notifySaver.status(Date.now()) : null,
         categories: registry.CATEGORIES,
         sensitive: [...registry.SENSITIVE],
         templates, templatesReady,

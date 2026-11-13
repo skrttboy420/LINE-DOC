@@ -22,6 +22,11 @@ const TH_OFFSET_MIN = 7 * 60;
 const MAX_CHARS = 4500;
 /** รอบส่งตั้งต้น (เวลาไทย) */
 const DEFAULT_HOURS = [9, 13, 17];
+/** ของที่กองค้างนานเกินนี้ = ทิ้ง (โควตาหมดทั้งเดือน กองจะบวม + ของจะเก่าจนไม่มีประโยชน์)
+ *  ⚠️ ต้องสั้นกว่า 24 ชม. ที่ `told` ใน index.js ลืมคีย์ ⇒ ของที่ยังค้างจริงจะถูกเสนอใหม่เป็นของสด */
+const MAX_AGE_MS = 12 * 60 * 60 * 1000;
+/** กองต่อคนไม่เกินนี้ (เผื่อเว็บมีคิวระเบิด) — เกินแล้วทิ้งของเก่าสุดก่อน */
+const MAX_PER_PERSON = 60;
 
 /** วัน-ชั่วโมงตามเวลาไทยของเวลานี้ */
 function thParts(ms, offsetMin) {
@@ -44,11 +49,44 @@ function createNotifySaver(opt) {
     .sort((a, b) => a - b);
   const tz = o.tzOffsetMin == null ? TH_OFFSET_MIN : o.tzOffsetMin;
   const cap = o.maxChars || MAX_CHARS;
+  const maxAge = o.maxAgeMs == null ? MAX_AGE_MS : o.maxAgeMs;
+  const perPerson = o.maxPerPerson == null ? MAX_PER_PERSON : o.maxPerPerson;
 
-  /** lineUserId → [{ text, at }] */
+  /** lineUserId → [{ text, at, keys }] */
   const bag = new Map();
   /** รอบล่าสุดที่ส่งไปแล้ว เช่น "2026-11-13@13" */
   let firedKey = null;
+  /** คีย์ของที่ถูกทิ้งจากกอง — index.js มาเก็บไปคืนให้ `told` เสนอใหม่ */
+  const expired = [];
+
+  /** ทิ้งของเก่าเกิน + ของที่ล้นกอง แล้วจำคีย์ไว้คืน */
+  function dropOld(nowMs) {
+    if (!nowMs) return;
+    for (const [to, list] of Array.from(bag)) {
+      const keep = [];
+      for (const it of list) {
+        if (maxAge > 0 && it.at && nowMs - it.at > maxAge) {
+          for (const k of it.keys || []) expired.push(k);
+          continue;
+        }
+        keep.push(it);
+      }
+      while (keep.length > perPerson) {
+        const gone = keep.shift();
+        for (const k of gone.keys || []) expired.push(k);
+      }
+      if (keep.length) bag.set(to, keep);
+      else bag.delete(to);
+    }
+  }
+
+  /** เก็บคีย์ของที่ถูกทิ้งไปใช้ (ล้างออกจากกองนี้) — ส่งเวลามาด้วย = กวาดของเก่าก่อน */
+  function takeExpired(nowMs) {
+    dropOld(nowMs);
+    const out = expired.slice();
+    expired.length = 0;
+    return out;
+  }
 
   /**
    * เก็บของเข้ากอง (ยังไม่ส่ง)
@@ -60,6 +98,7 @@ function createNotifySaver(opt) {
     if (!id || !body) return false;
     if (!bag.has(id)) bag.set(id, []);
     bag.get(id).push({ text: body, at: at || 0, keys: Array.isArray(keys) ? keys.slice() : [] });
+    dropOld(at);
     return true;
   }
 
@@ -88,6 +127,7 @@ function createNotifySaver(opt) {
    * @returns {{to: string, text: string, items: number, shown: number, keys: string[], spilled: string[]}[]}
    */
   function flush(nowMs) {
+    dropOld(nowMs);
     const key = dueKey(nowMs);
     const p = thParts(nowMs, tz);
     const out = [];
@@ -148,7 +188,9 @@ function createNotifySaver(opt) {
     };
   }
 
-  return { queue, dueKey, shouldSend, flush, pending, nextHour, status, hours };
+  return { queue, dueKey, shouldSend, flush, pending, nextHour, status, hours, takeExpired };
 }
 
-module.exports = { createNotifySaver, TH_OFFSET_MIN, MAX_CHARS, DEFAULT_HOURS };
+module.exports = {
+  createNotifySaver, TH_OFFSET_MIN, MAX_CHARS, DEFAULT_HOURS, MAX_AGE_MS, MAX_PER_PERSON,
+};

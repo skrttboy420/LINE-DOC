@@ -126,6 +126,34 @@ ok("ไม่ส่งคีย์มาก็ไม่ล้ม (ข้อค�
   assert.deepEqual(out[0].spilled, []);
 });
 
+ok("🔴 โควตาหมดทั้งเดือน กองต้องไม่บวม — ของเก่าเกิน 12 ชม. ถูกทิ้ง + คืนคีย์", () => {
+  /* 🪤 ของจริง 13/11: โควตา 300/300 หมดแล้ว ⇒ เทกองไม่ออกเป็นสัปดาห์
+     ไม่มีตัวกวาด = วันที่โควตาคืนมา จะยิงสรุปของเก่าเป็นร้อยเรื่องทีเดียว */
+  const s = createNotifySaver({ hours: [9] });
+  s.queue("U1", "งานเมื่อวาน", th(9, 0) - 20 * 3600_000, ["เก่า1"]);
+  s.queue("U1", "งานเมื่อกี้", th(9, 0), ["ใหม่1"]);
+  const gone = s.takeExpired(th(9, 0));
+  assert.deepEqual(gone, ["เก่า1"], "ของเก่าต้องถูกทิ้งแล้วคืนคีย์ให้เสนอใหม่");
+  assert.equal(s.pending().items, 1, "ของสดต้องอยู่ในกองต่อ");
+  assert.deepEqual(s.takeExpired(th(9, 0)), [], "เก็บคีย์ไปแล้วต้องไม่ได้ซ้ำ");
+});
+
+ok("กองต่อคนไม่ล้น — เกินเพดานทิ้งของเก่าสุดก่อน", () => {
+  const s = createNotifySaver({ hours: [9], maxPerPerson: 3 });
+  for (let i = 0; i < 6; i++) s.queue("U1", "เรื่อง " + i, th(8, 0) + i, ["k" + i]);
+  assert.equal(s.pending().items, 3, "เหลือในกอง 3");
+  assert.deepEqual(s.takeExpired(), ["k0", "k1", "k2"], "ของเก่าสุดถูกทิ้งก่อน");
+  const out = s.flush(th(9, 1));
+  for (const n of ["3", "4", "5"]) assert.ok(out[0].text.includes("เรื่อง " + n), "ต้องเหลือของใหม่สุด");
+});
+
+ok("ไม่มีเวลาติดมา = ไม่ทิ้ง (ของที่กองข้ามคืนแบบไม่รู้เวลา)", () => {
+  const s = createNotifySaver({ hours: [9] });
+  s.queue("U1", "ไม่รู้เวลา");
+  assert.deepEqual(s.takeExpired(th(9, 0)), [], "ไม่รู้เวลา = ไม่กล้าทิ้ง");
+  assert.equal(s.pending().items, 1);
+});
+
 /* ── 🔌 ยามการต่อสาย: โค้ดจริงใน index.js ต้องใช้ของเหล่านี้จริง ───────── */
 const IDX = fs.readFileSync("index.js", "utf8");
 
@@ -151,6 +179,7 @@ ok("🔴 index.js: ส่งสรุปไม่ออก ต้องคืน
   assert.ok(i > 0, "ต้องมี flushSaver");
   const body = IDX.slice(i, IDX.indexOf("async function refreshLineQuota"));
   assert.ok(body.includes("told.delete("), "ต้องมีการคืนคีย์ (told.delete) ในเลนนี้");
+  assert.ok(body.includes("takeExpired("), "ต้องกวาดของเก่าในกองด้วย ไม่งั้นกองบวมทั้งเดือน");
   assert.ok(body.includes("spilled"), "เรื่องที่ถูกตัดท้ายก็ต้องคืน");
   assert.ok(body.includes("lineBudget.canPush()"), "โควตาหมด = ไม่ยิง");
   assert.ok(body.includes("noteFail(e)"), "เจอ 429 ต้องหยุดทั้งก้อน");

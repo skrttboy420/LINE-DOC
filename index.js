@@ -582,7 +582,17 @@ function warnQuota() {
  * เรียกจากตัวจับเวลาเดิมทุก 5 นาที — ไม่ได้เพิ่ม timer ใหม่
  */
 async function flushSaver() {
-  if (!SAVER_ON || !notifySaver.shouldSend(Date.now())) return;
+  if (!SAVER_ON) return;
+
+  /* 🧹 ของที่ค้างในกองนานเกิน 12 ชม. (โควตาหมดทั้งเดือน = เทไม่ออก) = ทิ้งแล้วคืนคีย์
+     ⇒ กองไม่บวม และของที่ยังค้างจริงจะถูกเสนอใหม่เป็นของสด ไม่ใช่สรุปเก่าเป็นสัปดาห์ */
+  const dropped = notifySaver.takeExpired(Date.now());
+  if (dropped.length) {
+    for (const k of dropped) told.delete(k);
+    console.log("[saver] ทิ้งของค้างในกอง " + dropped.length + " เรื่อง (เก่าเกิน/ล้นกอง) — รอบหน้าเสนอใหม่");
+  }
+
+  if (!notifySaver.shouldSend(Date.now())) return;
   if (!lineBudget.canPush()) { warnQuota(); return; }
 
   const batch = notifySaver.flush(Date.now());
@@ -749,7 +759,7 @@ setInterval(function () {
 }, PENDING_POLL_MS);
 console.log("⏱ เช็คงานรอตอบพิกัด + แจ้งเตือนตามหมวด ทุก " + (PENDING_POLL_MS / 60000) + " นาที");
 console.log(SAVER_ON
-  ? "🪫 " + notifySaver.status(Date.now()).text
+  ? notifySaver.status(Date.now()).text
   : "🔔 โหมดเด้งทันที (NOTIFY_MODE=live) — กินโควตา LINE เยอะ");
 
 /* 💰 ถามโควตาข้อความ LINE ทุกชั่วโมง + ตอนเริ่ม — จะได้รู้ก่อนที่มันจะเงียบไปทั้งเดือน */

@@ -599,8 +599,19 @@ async function onDecode(text) {
     $("demoTag").style.display = "inline-block";
     document.querySelector("header .sub").textContent = "ข้อมูลตัวอย่าง — ไม่ได้บันทึกลงฐานจริง";
   }
-  const sticky = loadSticky();
-  if (sticky && slotExists(sticky.code, sticky.side)) slot = { code: sticky.code, side: sticky.side };
+  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104-L)
+     ภูม 2026-11-13: *"ทำให้สามารถกดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย
+     พอกดไปแล้ว ก็เท่ากับเลือกล็อกเรียบร้อย ก็ยิงแทรคได้เลย"*
+     ⇒ มาถึงปุ๊บช่องถูกเลือกให้แล้ว ไม่ต้องยิงป้ายโลเคชั่นซ้ำ */
+  const fromUrl = parseCode(new URLSearchParams(location.search).get("slot") || "");
+  if (fromUrl && slotExists(fromUrl.code, fromUrl.side)) {
+    slot = { code: fromUrl.code, side: fromUrl.side };
+    saveSticky();
+    beep("slot");
+  } else {
+    const sticky = loadSticky();
+    if (sticky && slotExists(sticky.code, sticky.side)) slot = { code: sticky.code, side: sticky.side };
+  }
   paintSlot();
   focusScan();
 })().catch((e) => showErr("โหลดไม่สำเร็จ: " + e.message));

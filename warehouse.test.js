@@ -802,6 +802,29 @@ ok("🔴 ต้องมีป้ายเลขล็อก/เลขชั้�
   assert.ok(LOCK3D.includes("function clearLockTags"), "ปลดล็อกต้องเก็บป้ายคืน (ไม่งั้นค้างทับจอ)");
 });
 
+ok("🔴 กดช่องในจอ 3D แล้วต้องเพิ่มของเข้าช่องนั้นได้เลย (ไม่ต้องเลือกช่องใหม่)", () => {
+  /* ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย …
+     พอกดไปแล้ว ก็เท่ากับเลือกล็อกเรียบร้อย ก็ยิงแทรคได้เลย"* */
+  const D3 = fs.readFileSync("warehouse-3d.html", "utf8");
+  /* 🪤 ยาม 2 บรรทัดนี้เคย "เขียวหลอก" มาแล้ว — ตอนเขียนผ่าน shell เครื่องหมาย / ของ regex
+     ถูกกลืนจนกลายเป็น `//...` = คอมเมนต์ แล้วข้อความอธิบายกลายเป็นค่าที่ assert เอาไปตรวจ
+     (สตริงไม่ว่าง = ผ่านตลอด) ⇒ ที่นี่ใช้ includes เทียบข้อความตรงๆ ไม่ใช้ regex */
+  assert.ok(D3.includes('<div class="padd" id="popAdd">'), "ต้องมีแถวปุ่มเพิ่มของในป๊อปอัพ");
+  const slotArg = '+ "&slot=" + encodeURIComponent(s.slot)';
+  assert.ok(D3.includes('api("/warehouse/scan") ' + slotArg), "ปุ่มยิงต้องพาช่องที่กดไปด้วย");
+  assert.ok(D3.includes('api("/warehouse/assign") ' + slotArg), "ปุ่มคีย์เองต้องพาช่องที่กดไปด้วย");
+});
+
+ok("🔴 หน้ายิง/หน้าคีย์ ต้องรับช่องที่ส่งมาแล้วเลือกให้เสร็จ", () => {
+  const SC = fs.readFileSync("warehouse-scan.html", "utf8");
+  assert.ok(SC.includes('new URLSearchParams(location.search).get("slot")'), "หน้ายิงต้องอ่าน ?slot=");
+  assert.ok(SC.includes("if (fromUrl && slotExists(fromUrl.code, fromUrl.side))"),
+    "ต้องตรวจว่าช่องมีจริงก่อนเลือกให้ (กันลิงก์มั่ว)");
+  const AS = fs.readFileSync("warehouse-assign.html", "utf8");
+  assert.ok(AS.includes('get("slot")'), "หน้าคีย์เองต้องอ่าน ?slot=");
+  assert.ok(AS.includes("sel.zone = hit.row"), "ต้องติ๊ก โซน/ล็อก/ชั้น/ฝั่ง ให้ครบ");
+});
+
 /* ════ สรุป ═══════════════════════════════════════════════════════════ */
 console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
 process.exit(fail ? 1 : 0);

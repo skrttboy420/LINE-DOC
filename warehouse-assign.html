@@ -150,7 +150,17 @@ async function boot() {
     JOBS.set(i.tracking, i);
   }
   if (!v.live.ok) msg("⚠️ อ่านสถานะงานจากเว็บ Pacred ไม่ได้ — คีย์ตำแหน่งได้ปกติ แต่จะไม่เห็นว่าชำระแล้วหรือยัง", "err");
+
+  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104-L) ⇒ ติ๊กให้เสร็จ เหลือแค่ใส่เลขแทรค
+     ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย"* */
+  const want = String(new URLSearchParams(location.search).get("slot") || "").trim().toUpperCase();
+  const hit = want && LAYOUT.slots.find((s) => s.slot === want);
+  if (hit) {
+    sel.zone = hit.row; sel.bay = hit.bay; sel.level = hit.level; sel.side = hit.side;
+    msg("เลือกช่อง <b class='mono'>" + esc(hit.slot) + "</b> ให้แล้ว — ใส่เลขแทรคได้เลย", "ok");
+  }
   renderOpts();
+  if (hit) { const t = $("tracking"); if (t) t.focus(); }
 }
 
 function pills(host, items, key) {

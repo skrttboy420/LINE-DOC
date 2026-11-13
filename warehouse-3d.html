@@ -194,6 +194,23 @@
   #pop .v{font-size:13px}
   #pop .mono{font-family:ui-monospace,Menlo,monospace}
   #pop .addr{background:#1e293b;border-radius:8px;padding:9px;margin-top:5px;font-size:13px;line-height:1.6}
+
+  /* 📷 รูปสินค้าของกล่อง (ภูม 2026-11-13: *"เวลาพนักงานเช็คของเห็นภาพมันจะสะดวกมาก"*)
+     แถวเลื่อนแนวนอน — รูปเยอะแค่ไหนก็ไม่ดันป๊อปอัพจนล้นจอมือถือ */
+  #pop .pics{display:flex;gap:6px;margin-top:7px;overflow-x:auto;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:thin}
+  #pop .pics img{width:68px;height:68px;flex:none;border-radius:8px;object-fit:cover;
+    border:1px solid var(--line);background:#0b1220;cursor:zoom-in}
+  #pop .pics .wait{font-size:11.5px;color:#64748b;padding:3px 0}
+  /* 🔍 รูปใหญ่เต็มจอ — แตะที่ไหนก็ปิด (มือถือกดง่าย ไม่ต้องเล็งปุ่ม) */
+  #shot{position:fixed;inset:0;z-index:40;display:none;background:rgba(2,6,23,.94);
+    place-items:center;padding:16px;box-sizing:border-box}
+  #shot img{max-width:100%;max-height:100%;border-radius:10px;object-fit:contain}
+  #shot .cap{position:fixed;left:0;right:0;bottom:14px;text-align:center;color:#cbd5e1;
+    font-size:12.5px;text-shadow:0 1px 6px #000}
+  #shot .nav{position:fixed;top:50%;transform:translateY(-50%);width:46px;height:62px;
+    border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;font-size:22px;cursor:pointer}
+  #shot .nav.prev{left:8px} #shot .nav.next{right:8px}
   #pop .addr.none{background:#450a0a;border:1px solid #991b1b;color:#fecaca;font-weight:600}
   #pop .addr .who{color:#cbd5e1;font-size:12px}
   #pop .none{color:#64748b;font-size:12px}
@@ -333,6 +350,7 @@
 <div id="views"></div>
 
 <div id="offline"></div>
+<div id="shot"></div>
 <div id="tip"></div>
 <div id="lockbar"></div>
 <div id="toast"></div>
@@ -532,9 +550,19 @@ function resize() {
   $("views").style.top = narrow ? (below + offH) + "px" : "auto";
   /* 📱 ป๊อปอัพต้องอยู่เหนือแผนผังเสมอ — แผนผังย่อ/ขยายได้ ความสูงเลยไม่คงที่
      ⇒ วัดของจริงทุกครั้ง ไม่ใช้เลขตายตัว (ที่ทำให้กรอบทับกันรอบก่อน) */
-  $("pop").style.bottom = narrow
-    ? ($("map").getBoundingClientRect().height + 20) + "px"
-    : "12px";
+  const popBottom = narrow ? $("map").getBoundingClientRect().height + 20 : 12;
+  $("pop").style.bottom = popBottom + "px";
+  /* 📱 …และต้องไม่ขึ้นไปทับปุ่มมุมมอง (3D/Top/Front/Side) ที่ลอยอยู่ใต้แถบสรุป
+     🪤 ภูม 13/11: *"ในมือถือก็ต้องใช้ได้ไม่ทับกันไม่บัค"* — ของเดิมสูงตายตัว 46vh
+        พอแผนผังย่อ/ขยาย หรือจอเตี้ย แผ่นป๊อปอัพจะเลยขึ้นไปทับปุ่มมุมมอง
+     ⇒ คิดพื้นที่ที่เหลือจริง: สูงจอ − ขอบล่างของปุ่มมุมมอง − ระยะจากพื้น */
+  if (narrow) {
+    const viewsBottom = $("views").getBoundingClientRect().bottom;
+    const room = Math.max(170, innerHeight - viewsBottom - popBottom - 10);
+    $("pop").style.maxHeight = room + "px";
+  } else {
+    $("pop").style.maxHeight = "";
+  }
   if (typeof showAlerts === "function") showAlerts();
 }
 addEventListener("resize", resize);
@@ -1024,6 +1052,8 @@ el.addEventListener("pointerdown", hideTip);
 
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  /* 🔍 เปิดรูปใหญ่อยู่ = Esc ปิดรูปก่อน (ไม่ใช่เด้งมุมกล้องกลับทั้งที่ยังดูรูปอยู่) */
+  if ($("shot").style.display === "grid") { closeShot(); return; }
   const prev = camHistory.pop();
   closePop();
   if (!prev) return;
@@ -1084,6 +1114,8 @@ function openSlot(code, zoom) {
         " · ", esc(i.boxes), " กล่อง</div>",
         '<div class="k">ทำไม</div><div class="v" style="color:', DATA.pickColor[i.pick], '">',
         esc(i.why), "</div>",
+        /* 📷 รูปสินค้า — ขอรายกล่องตอนเปิดดู (ไม่มีรูปก็เก็บแถวทิ้ง ไม่เหลือช่องว่าง) */
+        '<div class="pics" data-pics="', esc(i.tracking), '"><div class="wait">⏳ กำลังโหลดรูปสินค้า…</div></div>',
         addressBlock(i),
         i.placedBy ? '<div class="k">คีย์โดย</div><div class="v">' + esc(i.placedBy) +
           (i.placedAt ? " · " + esc(new Date(i.placedAt).toLocaleString("th-TH")) : "") + "</div>" : "",
@@ -1130,6 +1162,7 @@ function openSlot(code, zoom) {
   paintMapSelection();
 }
 window.closePop = () => {
+  closeShot();                                     // ปิดช่อง = ปิดรูปใหญ่ที่ค้างอยู่ด้วย
   $("pop").style.display = "none";
   $("cageForm").style.display = "none";            // ปิดช่อง = ปิดฟอร์มกรงที่ค้างอยู่ด้วย
   openCode = null; highlight(null); paintMapSelection();
@@ -1233,24 +1266,68 @@ function wireCage(s) {
 const addrCache = new Map();
 async function loadAddresses(items) {
   for (const i of items || []) {
-    if (i.selfPickup || i.needsAddress || i.address) continue;
     const box = $("popBody").querySelector('[data-addr="' + CSS.escape(i.tracking) + '"]');
-    if (!box) continue;
+    const pics = $("popBody").querySelector('[data-pics="' + CSS.escape(i.tracking) + '"]');
+    if (!box && !pics) continue;                   // กล่องนี้ไม่ต้องขออะไรเพิ่ม
     const hit = addrCache.get(i.tracking);
-    if (hit) { paintAddr(box, hit); continue; }
+    if (hit) { if (box) paintAddr(box, hit); paintPics(pics, hit); continue; }
     try {
       const r = await fetch(api("/warehouse/api/job") + "&tracking=" + encodeURIComponent(i.tracking));
       const j = await r.json();
       if (!r.ok || j.error) throw new Error(j.error || "ขอไม่สำเร็จ");
       const got = j.job || {};
       addrCache.set(i.tracking, got);
-      paintAddr(box, got);
+      if (box) paintAddr(box, got);
+      paintPics(pics, got);
     } catch (e) {
-      box.style.color = "#fca5a5";
-      box.textContent = "ขอที่อยู่ไม่สำเร็จ — " + e.message;
+      if (box) { box.style.color = "#fca5a5"; box.textContent = "ขอที่อยู่ไม่สำเร็จ — " + e.message; }
+      if (pics) pics.innerHTML = '<div class="wait">เปิดรูปไม่สำเร็จ — ' + esc(e.message) + "</div>";
     }
   }
 }
+
+/**
+ * 📷 วาดแถวรูปสินค้าของกล่องนี้ (ภูม 2026-11-13)
+ * *"เวลากดดูแทรคไหน ให้ดึงรูปมาแสดงด้วย เวลาพนักงานเช็คของเห็นภาพมันจะสะดวกมากเลย"*
+ * 🔒 รูปมาตอน "เปิดดูรายกล่อง" เท่านั้น (ภาพรวมไม่แนบรูป — ของลูกค้าทั้งโกดัง)
+ * ไม่มีรูป = เก็บแถวทิ้งเลย ไม่ทิ้งช่องว่างให้รก
+ */
+function paintPics(host, got) {
+  if (!host) return;
+  const list = ((got && got.images) || []).filter(Boolean);
+  if (!list.length) { host.remove(); return; }
+  host.innerHTML = list.map((u, n) =>
+    '<img src="' + esc(u) + '" alt="รูปสินค้า ' + (n + 1) + '" loading="lazy" ' +
+    'referrerpolicy="no-referrer" data-n="' + n + '">').join("");
+  for (const im of host.querySelectorAll("img")) {
+    /* รูปเสีย/ลิงก์หมดอายุ = เอาออกเงียบๆ ไม่ต้องโชว์กรอบแตกให้สับสน */
+    im.addEventListener("error", () => { im.remove(); if (!host.querySelector("img")) host.remove(); });
+    im.addEventListener("click", () => openShot(list, Number(im.dataset.n) || 0));
+  }
+}
+
+/* 🔍 ดูรูปใหญ่เต็มจอ — แตะที่ไหนก็ปิด · มีหลายรูปกดเลื่อนได้ · Esc ปิด */
+let shotList = [], shotAt = 0;
+function openShot(list, n) {
+  shotList = list; shotAt = Math.max(0, Math.min(list.length - 1, n));
+  paintShot();
+  $("shot").style.display = "grid";
+}
+function paintShot() {
+  const many = shotList.length > 1;
+  $("shot").innerHTML =
+    '<img src="' + esc(shotList[shotAt]) + '" alt="รูปสินค้า" referrerpolicy="no-referrer">' +
+    (many ? '<button class="nav prev" data-step="-1">‹</button><button class="nav next" data-step="1">›</button>' : "") +
+    '<div class="cap">' + (many ? (shotAt + 1) + " / " + shotList.length + " · " : "") + "แตะที่ว่างเพื่อปิด</div>";
+  for (const b of $("shot").querySelectorAll(".nav"))
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();                         // กดลูกศรต้องไม่ปิดรูป
+      shotAt = (shotAt + Number(b.dataset.step) + shotList.length) % shotList.length;
+      paintShot();
+    });
+}
+function closeShot() { $("shot").style.display = "none"; shotList = []; }
+$("shot").addEventListener("click", closeShot);
 function paintAddr(box, got) {
   if (!got.address) {
     box.style.color = "#94a3b8";

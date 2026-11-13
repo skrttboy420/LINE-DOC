@@ -99,8 +99,12 @@ ok("🔴 ทิศของผัง — ยืนยันกับภูมแ
         ⇒ ยามนี้ล็อกทิศที่ภูมยืนยันไว้ ใครจะพลิกต้องมาแก้ตรงนี้ด้วย */
   assert.equal(L.DOOR.bayOneAtFarZ, false, "ล็อก 1 อยู่ต้นแกน Z (ฝั่งประตู)");
   assert.equal(L.DOOR.rowAatFarX, false, "แถว A อยู่ต้นแกน X");
-  assert.equal(L.bayZ0("B", 1), 0, "ล็อก 1 ชิดขอบฝั่งประตู");
-  assert.ok(L.bayZ0("B", 10) > L.bayZ0("B", 1), "ล็อกเลขมากกว่า = ลึกเข้าไปจากประตู");
+  assert.equal(L.bayZ0("A", 1), 0, "ล็อก 1 ของแถวที่ยาวเต็มพื้นที่ ชิดขอบฝั่งประตู");
+  assert.ok(L.bayZ0("A", 10) > L.bayZ0("A", 1), "ล็อกเลขมากกว่า = ลึกเข้าไปจากประตู");
+  /* 🔴 ภูม 13/11: *"ถอยแถว B ไปชิดหลังโกดังเหมือนแถว C"* ⇒ ปลายทั้ง 3 แถวเสมอกัน */
+  for (const k of ["A", "B", "C"])
+    assert.equal(L.rowZSpan(k).end, L.fullZ(), "แถว " + k + " ต้องชิดผนังด้านหลัง");
+  assert.ok(L.bayZ0("B", 1) > 0, "แถว B ตั้งชิดหลัง ⇒ ล็อก 1 ไม่ได้อยู่ติดประตูแล้ว");
 
   /* 🔴 แถว C สั้นกว่าเพื่อน (ภูม: *"ล็อก A ที่ 6 ล็อกต้องเป็น C"*)
      ส่วนที่หายอยู่ "ด้านใน" (ฝั่งออฟฟิศ) ไม่ใช่ด้านประตู */
@@ -534,7 +538,7 @@ ok("🔴 ตำแหน่งป๊อปอัพบนมือถือต�
   /* 🪤 เจอจริง: ตั้ง top:118px ตายตัว แล้วการ์ดสรุปตกเป็น 2 บรรทัดบนจอ 375px
      ⇒ ป๊อปอัพทับแถบสรุป + ทับปุ่มมุมมอง อ่านไม่รู้เรื่อง */
   assert.ok(!/#pop\{[^}]*top:\s*\d+px/.test(D3D), "ห้ามตั้ง top ของป๊อปอัพเป็นเลขตายตัว");
-  assert.ok(D3D.includes('$("pop").style.bottom = narrow'), "ต้องคำนวณตำแหน่งจาก JS");
+  assert.ok(D3D.includes('$("pop").style.bottom = popBottom + "px"'), "ต้องคำนวณตำแหน่งจาก JS");
   assert.ok(D3D.includes('$("map").getBoundingClientRect().height'), "ต้องวัดความสูงแผนผังจริง");
 });
 
@@ -1039,6 +1043,44 @@ ok("🧱 แถว B = ชั้นคู่หันหลังชนกัน
   }
   assert.equal(L.faceOfBay("B", 5).face.key, "B1");
   assert.equal(L.faceOfBay("B", 6).face.key, "B2");
+});
+
+ok("📷 เปิดดูกล่องไหน ต้องเห็นรูปสินค้าของกล่องนั้น", () => {
+  /* ภูม 2026-11-13: *"เวลากดดูแทรคไหน ให้ดึงรูปมาแสดงด้วย
+     เวลาพนักงานเช็คของเห็นภาพมันจะสะดวกมากเลย"* */
+  /* 🪤 เช็คแค่ 'data-pics=' ไม่พอ — ตัวอ่าน querySelector ก็มีคำนี้ ⇒ ถอดการ์ดออกยามก็ยังเขียว
+     ⇒ เช็คที่ "ตัววาดการ์ด" ตรงๆ ว่ายังใส่ที่วางรูปให้ทุกแทรค */
+  assert.ok(D3H.includes("'<div class=\"pics\" data-pics=\"'"), "ต้องมีที่วางรูปในการ์ดของแต่ละแทรค");
+  assert.ok(D3H.includes("function paintPics("), "ต้องมีตัววาดแถวรูป");
+  assert.ok(/\(\(got && got\.images\) \|\| \[\]\)/.test(D3H), "รูปต้องมาจากข้อมูลที่ขอรายกล่อง");
+  assert.ok(D3H.includes("function openShot("), "ต้องกดดูรูปใหญ่ได้");
+  assert.ok(D3H.includes('referrerpolicy="no-referrer"'), "ขอรูปข้ามเว็บ ไม่ต้องบอกว่ามาจากหน้าไหน");
+});
+
+ok("🔴 รูปเสียต้องไม่เหลือกรอบแตก · ไม่มีรูปต้องไม่เหลือช่องว่าง", () => {
+  const i = D3H.indexOf("function paintPics(");
+  const body = D3H.slice(i, i + 1200);
+  assert.ok(/if \(!list\.length\) \{ host\.remove\(\); return; \}/.test(body),
+    "ไม่มีรูป = เก็บแถวทิ้ง ไม่ทิ้งช่องว่างให้รก");
+  assert.ok(/addEventListener\("error"/.test(body), "รูปเปิดไม่ขึ้น = เอาออกเงียบๆ");
+});
+
+ok("🔴 ปิดช่อง/กด Esc ต้องปิดรูปใหญ่ด้วย (ไม่ค้างทับจอ)", () => {
+  assert.ok(D3H.includes("function closeShot()"), "ต้องมีตัวปิดรูป");
+  const esc = D3H.indexOf('if (e.key !== "Escape") return;');
+  assert.ok(D3H.slice(esc, esc + 260).includes("closeShot()"), "Esc ต้องปิดรูปก่อนย้อนมุมกล้อง");
+  const cp = D3H.indexOf("window.closePop = ");
+  assert.ok(D3H.slice(cp, cp + 260).includes("closeShot()"), "ปิดช่องต้องปิดรูปที่ค้างอยู่");
+});
+
+ok("🔴 มือถือ: ป๊อปอัพต้องไม่ทับปุ่มมุมมอง", () => {
+  /* ภูม 2026-11-13: *"ในมือถือก็ต้องใช้ได้ไม่ทับกันไม่บัค รีเช็คด้วยนะ"*
+     🪤 ของเดิมสูงตายตัว 46vh ⇒ พอแผนผังย่อ/จอเตี้ย แผ่นป๊อปอัพเลยขึ้นไปทับปุ่มมุมมอง */
+  const i = D3H.indexOf("function resize()");
+  const body = D3H.slice(i, i + 1600);
+  assert.ok(body.includes('$("views").getBoundingClientRect().bottom'),
+    "ต้องวัดขอบล่างของปุ่มมุมมองจริง ไม่ใช่เดาเป็น vh");
+  assert.ok(/\$\("pop"\)\.style\.maxHeight = room/.test(body), "ต้องจำกัดความสูงป๊อปอัพตามที่ว่างจริง");
 });
 
 ok("🧱 จอ 3D วาดชั้นคู่ + ล็อกทีละฝั่งได้", () => {

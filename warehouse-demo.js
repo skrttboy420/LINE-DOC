@@ -47,9 +47,20 @@ const PLACEMENTS = [
   { tracking: "JT5577788899900", slot: "A0202-L", boxes: 1, member_code: "PR455", placed_by: "ออม",   placed_at: now() },
 ];
 
+/* 📷 รูปตัวอย่างของโหมดลองดู — วาดเป็น SVG ฝังในตัว ไม่ต้องต่อเน็ต ไม่ใช่รูปลูกค้าจริง */
+const demoPic = (label, bg) =>
+  "data:image/svg+xml;utf8," + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="420" height="420">' +
+    '<rect width="420" height="420" fill="' + bg + '"/>' +
+    '<rect x="60" y="110" width="300" height="210" fill="#b45309" stroke="#78350f" stroke-width="8"/>' +
+    '<rect x="60" y="180" width="300" height="24" fill="#fcd34d"/>' +
+    '<text x="210" y="380" font-family="sans-serif" font-size="34" fill="#e2e8f0" text-anchor="middle">' +
+    label + "</text></svg>");
+
 const JOBS = [
   /* 🟢 ชำระแล้ว + ถึงไทยแล้ว = หยิบได้ */
   { tracking: "SF5147871049131", memberCode: "PR622", status: 6, paid: true,  arrivedAt: "2026-11-11", boxes: 2,  container: "GZE261108-1",
+    images: [demoPic("พัสดุ PR622", "#064e3b")],
     receiver: "สมชาย ใจดี", tel: "0812345678", carrier: "2",
     address: "99/12 ซอยลาดพร้าว 15 จอมพล จตุจักร กรุงเทพมหานคร 10900" },
   /* 🔴 ชำระแล้ว แต่ยังไม่มีที่อยู่จัดส่ง ⇒ ต้องไม่เขียว */
@@ -57,6 +68,7 @@ const JOBS = [
     needsAddress: true, carrier: null, address: null },
   /* 🟡 ยังไม่ชำระ = ห้ามหยิบ (กล่องที่พนักงานหยิบผิดจริง) */
   { tracking: "1792477204-2",    memberCode: "PR722", status: 5, paid: false, arrivedAt: "2026-11-12", boxes: 18, container: "GZS261101-2",
+    images: [demoPic("กล่อง 1/3", "#0f172a"), demoPic("กล่อง 2/3", "#1e293b"), demoPic("กล่อง 3/3", "#312e81")],
     receiver: "ศิริพร วงศ์ทอง", tel: "0891112222", carrier: "55",
     address: "14 หมู่ 3 บางปลา บางพลี สมุทรปราการ 10540" },
   { tracking: "772085135477267", memberCode: "PR857", status: 5, paid: false, arrivedAt: "2026-11-11", boxes: 1,  container: "GZS261101-2" },
@@ -119,7 +131,8 @@ const { parseSlot, slotLabel } = require("./warehouse-layout");
  */
 /* 🔒 โหมดลองดูต้องเลียนแบบ "ส่งแค่ธง" ของจริงด้วย (ภูม 2026-11-13)
    ไม่งั้นลองบนเดโมแล้วเห็นที่อยู่ครบทุกใบ นึกว่าของจริงก็เป็นแบบนั้น = ลองแล้วไม่ได้ลองจริง */
-const stripContact = (j) => Object.assign({}, j, { address: null, receiver: null, tel: null });
+/* 🔒 ลดข้อมูลเหมือนของจริง — ภาพรวมได้แค่ธง ไม่มีที่อยู่ ไม่มีรูป */
+const stripContact = (j) => Object.assign({}, j, { address: null, receiver: null, tel: null, images: [] });
 const JOBS_FLAGS = JOBS.map(stripContact);
 
 const demo = {

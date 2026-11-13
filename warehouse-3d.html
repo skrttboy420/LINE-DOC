@@ -692,8 +692,8 @@ function showLockTags(key) {
   const L = DATA.layout, C = L.cell, ST = L.struct;
   const row = L.rows.find((r) => r.key === key);
   if (!row) return;
-  const rows = L.rows.map((r) => r.key), i = rows.indexOf(key);
-  const faceRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > (row.originX + C.d / 2) * S;
+  /* 🧭 ฝั่งเดียวกับกล้องเสมอ (ดู focusRowSide) — ไม่งั้นป้ายไปอยู่หลังชั้นวางจนมองไม่เห็น */
+  const faceRight = true;
   /* ขยับป้ายมาด้านที่กล้องอยู่นิดนึง จะได้ไม่จมอยู่ในชั้นวาง */
   const x = (row.originX + (faceRight ? C.d + 20 : -20)) * S;
   /* ป้ายเล็กๆ พอ — ใหญ่ไปแล้วทับกันเอง (1 ล็อกกว้าง 2.57 หน่วย · ป้ายกินราว 40%)
@@ -706,8 +706,9 @@ function showLockTags(key) {
     const y = ((lv - 1) * (C.h + ST.beam) + C.h / 2) * S;
     billboard(String(lv), x, y, zEdge, tag * 0.95, faceRight, "#94a3b8");
   }
-  /* หัวตารางเล็กๆ บอกว่าแถวเลขพวกนั้นคืออะไร */
-  billboard("ล็อก →", x, -tag * 0.85, zEdge, tag * 1.05, faceRight, "#64748b");
+  /* หัวตารางเล็กๆ บอกว่าแถวเลขพวกนั้นคืออะไร
+     ⬅️ มุมนี้ (ฝั่งเดียวกันทุกแถว) ล็อก 1 อยู่ขวาสุด แล้วไล่เลขไปทางซ้าย ⇒ ลูกศรต้องชี้ซ้าย */
+  billboard("← ล็อก", x, -tag * 0.85, zEdge, tag * 1.05, faceRight, "#64748b");
   billboard("ชั้น ↑", x, (L.levels * (C.h + ST.beam)) * S + tag * 0.6, zEdge, tag * 1.05, faceRight, "#64748b");
 }
 
@@ -1490,15 +1491,20 @@ function focusRowSide(key) {
   const C = DATA.layout.cell, Y = EXTENT.y * S;
   const cx = (row.originX + C.d / 2) * S;
   const cz = (row.zStart + row.zLen / 2) * S;
-  const rows = DATA.layout.rows.map((r) => r.key);
-  const i = rows.indexOf(key);
-  /* แถวซ้ายสุด ⇒ ทางเดินอยู่ทางขวา (มองจาก +X) · ขวาสุด ⇒ มองจาก -X · กลาง = ฝั่งที่กล้องอยู่ (ขยับน้อยสุด) */
-  const fromRight = i === 0 ? true : i === rows.length - 1 ? false : camera.position.x > cx;
+  /* 🧭 มุมเดียวกันทุกแถว — มองจากฝั่งเดียวเสมอ (ภูม 2026-11-13)
+     *"ล็อก C เหมือนว่าจะปรับมุมกล้องผิดนะ ล็อกซ้ายมันดันอยู่ขวาแทนอะ
+       มันต้องคอยหมุนกล้องให้ถูกอะ"*
+     🪤 ของเดิม: แถวแรกมองจาก +X · แถวสุดท้ายมองจาก -X · แถวกลางแล้วแต่ว่ากล้องอยู่ไหนตอนกด
+        ⇒ ซ้าย/ขวาบนจอ **สลับกันระหว่างแถว** · แถว B ยังสลับไปมาเองด้วย
+        (ตรวจของจริง 13/11: แถว A กล่องซ้ายของคู่ = A0101-L ถูก · แถว C ได้ -R = สลับ)
+     ⇒ ล็อกไว้ฝั่งเดียว: ล็อกแถวไหนก็ **ช่อง -L อยู่ซ้าย · -R อยู่ขวา** เหมือนกันหมด */
+  const fromRight = true;
   /* 🎯 มองหน้าตรง 90° เป๊ะ — เดิม 1.4 เรเดียน (≈80°) มองเฉียงลงนิดนึง ชั้นเลยซ้อนกันจนอ่านยาก
      ภูม 2026-11-13: *"มันลายจนมองยากเลย … อยากได้แบบมันขึ้นมาประมาณนี้ จะได้มองง่ายๆ"*
      เผื่อขอบบน-ล่าง-ซ้าย-ขวา จะได้เห็นครบทั้ง 4 ชั้นเต็มแถว */
-  /* เผื่อที่ให้ป้ายเลขล็อก (ใต้ชั้น) และเลขชั้น (ริมซ้าย) ไม่ให้ตกขอบจอ */
-  const r = fitRadius(row.zLen * S * 1.14, Y * 1.5, 1.05) + (C.d / 2) * S;
+  /* เผื่อที่ให้ป้ายเลขล็อก (ใต้ชั้น) และคอลัมน์เลขชั้น (เลยปลายแถวออกไปครึ่งล็อก) ไม่ตกขอบจอ
+     🪤 แถวสั้น (C มี 6 ล็อก) เผื่อ 14% ไม่พอ — คอลัมน์เลขชั้นหลุดขอบขวา ⇒ เผื่อเป็น "หนึ่งล็อก" ไปเลย */
+  const r = fitRadius((row.zLen + C.w * 1.6) * S * 1.04, Y * 1.5, 1.05) + (C.d / 2) * S;
   pushHistory();
   markView(null);
   flyTo(new THREE.Vector3(cx, Y / 2, cz), r, fromRight ? 0 : Math.PI, Math.PI / 2);

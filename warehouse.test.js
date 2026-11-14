@@ -72,23 +72,23 @@ ok("อ่านได้แม้พิมพ์ตัวเล็ก/มีข
 ok("🔴 ป้ายเก่าที่ยังแปะอยู่บนชั้น (A0101-L) ต้องยิงแล้วเข้าช่อง A0101", () => {
   /* 🪤 ถ้าตัวแกะรหัสปฏิเสธป้ายเก่า: พนักงานยิงป้ายที่ติดอยู่จริง ระบบตอบ "ไม่มีช่องนี้"
         ⇒ งานหยุดกลางโกดัง ทั้งที่ช่องนั้นมีอยู่ (ป้ายใหม่ยังไม่ได้พิมพ์/ยังไม่ได้ไปติด) */
-  for (const old of ["A0101-L", "A0101-R", "a0101l", " A0101 - R ", "C0106-L"]) {
+  for (const old of ["A0101-L", "A0101-R", "a0101l", " A0101 - R ", "C0601-L"]) {
     const hit = L.parseSlot(old);
     assert.ok(hit, "อ่านป้ายเก่าไม่ออก: " + old);
     assert.ok(!/-/.test(hit.slot), "ต้องคืนรหัสที่ไม่มีหาง: " + old + " → " + hit.slot);
   }
   assert.equal(L.parseSlot("A0101-L").slot, "A0101");
   assert.equal(L.parseLocation("A0101-R").code, "A0101");
-  assert.equal(L.slotLabel("A0105-L"), L.slotLabel("A0105"), "ป้ายเก่า/ใหม่ต้องอ่านเป็นช่องเดียวกัน");
+  assert.equal(L.slotLabel("A0501-L"), L.slotLabel("A0501"), "ป้ายเก่า/ใหม่ต้องอ่านเป็นช่องเดียวกัน");
   assert.equal(L.parseSlot("A0101-X"), null, "หางที่ไม่ใช่ L/R ยังต้องไม่ผ่าน");
-  assert.equal(L.parseSlot("A0111-L"), null, "ป้ายเก่าที่ชี้ช่องไม่มีจริง ก็ยังต้องไม่ผ่าน");
+  assert.equal(L.parseSlot("A1101-L"), null, "ป้ายเก่าที่ชี้ช่องไม่มีจริง ก็ยังต้องไม่ผ่าน");
 });
 
 ok("🔴 ช่องที่ไม่มีในผังต้องไม่ผ่าน (กันคีย์ช่องผี)", () => {
-  assert.equal(L.parseLocation("C0107"), null, "แถว C มีแค่ 6 ล็อก");
-  assert.equal(L.parseLocation("A0111"), null, "แถว A มีแค่ 10 ล็อก");
-  assert.equal(L.parseLocation("A0501"), null, "มีแค่ 4 ชั้น");
-  assert.equal(L.parseLocation("A0105").bay, 5, "A0105 = ชั้น 1 ล็อก 5 (รูปใหม่ ชั้นก่อนล็อก)");
+  assert.equal(L.parseLocation("C0701"), null, "แถว C มีแค่ 6 ล็อก");
+  assert.equal(L.parseLocation("A1101"), null, "แถว A มีแค่ 10 ล็อก");
+  assert.equal(L.parseLocation("A0105"), null, "มีแค่ 4 ชั้น (A0105 = ล็อก 1 ชั้น 5)");
+  assert.equal(L.parseLocation("A0501").bay, 5, "A0501 = ล็อก 5 ชั้น 1 (รูปใหม่ ล็อกก่อนชั้น)");
   assert.equal(L.parseLocation("D0101"), null, "ไม่มีแถว D");
   assert.throws(() => L.locationCode("C", 7, 1), /ล็อกที่ 7 ไม่มีอยู่/);
   assert.throws(() => L.locationCode("A", 1, 5), /ชั้นที่ 5 ไม่มีอยู่/);
@@ -106,8 +106,8 @@ ok("🔴 รหัสช่อง = รหัสโลเคชั่น · ใ�
 });
 
 ok("ชื่อที่คนอ่านรู้เรื่อง — ไม่มีวงเล็บฝั่งแล้ว", () => {
-  assert.equal(L.slotLabel("A0101"), "โซนขวา ชั้น 1 ล็อก 1");
-  assert.equal(L.slotLabel("B0410"), "โซนกลาง ชั้น 4 ล็อก 10");
+  assert.equal(L.slotLabel("A0101"), "โซนขวา ล็อก 1 ชั้น 1");
+  assert.equal(L.slotLabel("B1004"), "โซนกลาง ล็อก 10 ชั้น 4");
   assert.ok(!/ฝั่ง/.test(L.slotLabel("A0101-L")), "ป้ายเก่าก็ต้องไม่ขึ้นคำว่าฝั่ง");
 });
 
@@ -154,10 +154,10 @@ ok("🔴 ทิศของผัง — ยืนยันกับภูมแ
 ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา 7) · ชั้นถัดไปสูงขึ้น 175 (165 + คาน 10)", () => {
   assert.equal(L.BAY_PITCH, 257);
   assert.equal(L.LEVEL_PITCH, 175);
-  const b1 = L.slotBox("B0101", "L"), b2 = L.slotBox("B0102", "L");
+  const b1 = L.slotBox("B0101"), b2 = L.slotBox("B0201");
   assert.equal(b2.z - b1.z, 257, "ล็อกถัดไป = ลึกเข้าไปจากประตู 257");
-  const l1 = L.slotBox("B0101", "L"), l2 = L.slotBox("B0201", "L");
-  assert.equal(l2.y - l1.y, 175);
+  const l1 = L.slotBox("B0101"), l2 = L.slotBox("B0102");
+  assert.equal(l2.y - l1.y, 175, "ชั้นถัดไป = สูงขึ้น 175");
 });
 
 ok("1 ช่อง = เต็มล็อก กว้าง 250 (ภูม 14/11: เลิกผ่าครึ่งซ้าย/ขวา)", () => {
@@ -289,12 +289,12 @@ const PL = (t, slot, extra) => Object.assign({ tracking: t, slot: slot, boxes: 1
 
 ok("ช่องที่มีของได้สีตามงาน · ช่องที่เหลือว่าง", () => {
   const v = W.mergeView(
-    [PL("TA", "A0101-L"), PL("TB", "B0305-R")],
+    [PL("TA", "A0101-L"), PL("TB", "B0503-R")],
     [job({ tracking: "TA" }), job({ tracking: "TB", status: 5, paid: false })],
   );
   /* 🏷 ป้อนรหัสรูปเก่าเข้าไป (ของในฐานตอนนี้ยังเป็นรูปนั้น) แล้วต้องไปโผล่ที่ช่องรูปใหม่ */
   const a = v.layout.slots.find((s) => s.slot === "A0101");
-  const b = v.layout.slots.find((s) => s.slot === "B0305");
+  const b = v.layout.slots.find((s) => s.slot === "B0503");
   assert.equal(a.status, "ready");
   assert.equal(b.status, "wait");
   assert.equal(v.counts.ready, 1);
@@ -313,9 +313,9 @@ ok("ช่องเดียววางได้หลายแทรค · น
 });
 
 ok("🔴 รายการเตือน — ช่องที่ขัดกับระบบต้องโผล่ในลิสต์ให้กดดูได้", () => {
-  const v = W.mergeView([PL("TX", "A0410-R")], [job({ tracking: "TX", status: 7 })]);
+  const v = W.mergeView([PL("TX", "A1004-R")], [job({ tracking: "TX", status: 7 })]);
   assert.equal(v.alerts.length, 1);
-  assert.equal(v.alerts[0].slot, "A0410");
+  assert.equal(v.alerts[0].slot, "A1004");
   assert.equal(v.alerts[0].tracking, "TX");
 });
 
@@ -750,19 +750,37 @@ ok("บอกเหตุเป็นภาษาคนเมื่อเปิ�
 /* ════ ⑫ 🔢 รหัส ชั้น-ล็อก + ทิศทางหน้าโกดัง (ภูม 2026-11-12 รอบ 3) ═══ */
 section("รหัสชั้น-ล็อก + ทิศทาง");
 
-ok("🔴 รหัสเรียง ชั้นก่อน แล้วค่อยล็อก", () => {
-  /* ภูม: *"รหัสให้ขึ้นเป็น ชั้นก่อนแล้วค่อยต่อด้วยล็อก"* */
-  assert.equal(L.locationCode("A", 5, 1), "A0105", "ล็อก 5 ชั้น 1 → A0105");
-  assert.equal(L.locationCode("B", 10, 4), "B0410", "ล็อก 10 ชั้น 4 → B0410");
-  const p = L.parseLocation("B0410");
-  assert.equal(p.level, 4); assert.equal(p.bay, 10);
+ok("🔴 รหัสเรียง ล็อกก่อน แล้วค่อยชั้น (ภูม 14/11)", () => {
+  /* ภูม 14/11: *"เปลี่ยนใหม่เป็น โซน + ล็อก + ชั้น ให้สลับเอาล็อกมาไว้ชั้นก่อนแทน"*
+     🪤 12/11 เคยสั่งกลับกัน (ชั้นก่อนล็อก) แล้วรอบนี้แจ้งว่าบอกผิด ⇒ ยามข้อนี้คือเส้นแบ่ง */
+  assert.equal(L.locationCode("A", 5, 1), "A0501", "ล็อก 5 ชั้น 1 → A0501");
+  assert.equal(L.locationCode("B", 10, 4), "B1004", "ล็อก 10 ชั้น 4 → B1004");
+  const p = L.parseLocation("B1004");
+  assert.equal(p.bay, 10); assert.equal(p.level, 4);
+  /* 🔑 2 หลักแรก = ล็อก ⇒ ล็อกเลข 2 หลักต้องอ่านออก (ชั้นมีแค่ 4 จะไม่มีวันถึง 10) */
+  assert.equal(L.parseLocation("A1001").bay, 10, "ล็อก 10 ชั้น 1");
 });
 
-ok("🔴 แปลงรหัสรุ่นก่อนได้ (ของที่คีย์ไว้แล้วต้องไม่หาย)", () => {
-  assert.equal(L.convertOldCode("A0501-R"), "A0105", "เดิม ล็อก5 ชั้น1 · หางฝั่งถูกตัด");
-  assert.equal(L.convertOldCode("A1004"), "A0410", "เดิม ล็อก10 ชั้น4");
-  assert.equal(L.convertOldCode("A0107"), null, "เดิมแถว A ไม่มีชั้น 7");
+ok("🔴 ตัวสลับ 2 หลัก (เครื่องมือแปลงข้อมูล — ไม่ใช่ตัวเดาตอนอ่านจอ)", () => {
+  assert.equal(L.convertOldCode("A0105-R"), "A0501", "รหัสรุ่น 12–14/11 ชั้น1 ล็อก5 → ล็อก5 ชั้น1");
+  assert.equal(L.convertOldCode("B0410"), "B1004", "ชั้น4 ล็อก10 → ล็อก10 ชั้น4");
+  assert.equal(L.convertOldCode("A0701"), null, "ไม่มีชั้น 7");
   assert.equal(L.convertOldCode("ไม่ใช่รหัส"), null);
+});
+
+ok("🔴 ห้ามเอาตัวสลับหลักไปเดาตอนอ่านจอ (พาไปผิดช่องเงียบๆ ครึ่งหนึ่งของเวลา)", () => {
+  /* 🪤 ต่างจากตอนเลิกใช้ -L/-R ที่เดาได้ปลอดภัย — รอบนี้รหัส 2 รูปทับกันเอง
+     A0203 อ่านได้ทั้ง "ชั้น 2 ล็อก 3" และ "ล็อก 2 ชั้น 3" ⇒ ไม่มีทางเดาถูกเสมอ */
+  const all = L.buildLayout().slots.map((s) => s.slot);
+  const ambiguous = all.filter((c) => L.parseLocation(L.convertOldCode(c) || ""));
+  assert.ok(ambiguous.length > 40,
+    "ต้องยังมีรหัสที่ทับกันเยอะ (วัดได้ " + ambiguous.length + ") — เหตุผลที่ห้ามเดา");
+  const src = readFile("warehouse.js");
+  assert.ok(!/convertOldCode/.test(src),
+    "ตัวรวมข้อมูลห้ามเรียกตัวสลับหลัก — ของที่รหัสผิดรูปต้องไปโผล่ในรายการเตือน");
+  const fix = readFile("warehouse-fix-codes.mjs");
+  assert.ok(/process\.exit\(1\)/.test(fix.slice(0, fix.indexOf("const APPLY"))),
+    "สคริปต์แปลงรหัสรุ่นก่อนต้องถูกปิด (ตอนนี้แปลงผิดทิศแล้ว)");
 });
 
 ok("ทุกช่องในผังยังครบ 104 และรหัสไม่ซ้ำกัน", () => {
@@ -796,18 +814,21 @@ ok("ผังบอกทิศทางหน้าโกดังมาด้�
   }
 });
 
-ok("🔴 ของที่คีย์ไว้ด้วยรหัสรูปเก่า ต้องไม่หายจากจอ", () => {
-  /* 🪤 ไม่แปลงให้ = แถวเก่ากลายเป็น orphan แล้วหายเงียบๆ ทั้งที่ของยังอยู่บนชั้นจริง */
-  const v = W.mergeView([PL("TOLD", "A0501-R")], [job({ tracking: "TOLD" })]);
-  const s = v.layout.slots.find((x) => x.slot === "A0105");
-  assert.equal(s.items.length, 1, "ต้องไปโผล่ที่ช่องเดียวกันในรูปใหม่");
-  assert.equal((v.orphans || []).length, 0, "ต้องไม่กลายเป็นของกำพร้า");
+ok("🔴 ของที่คีย์ด้วยรหัสรูปเก่า ต้องไปอยู่ในรายการเตือน ไม่ใช่ถูกเดาให้", () => {
+  /* 🪤 รอบ 12/11 เราเดาให้ได้เพราะรหัส 2 รูปไม่ทับกัน — รอบนี้ทับกัน 48/104
+        ⇒ เดา = พาไปผิดช่องเงียบๆ · ปล่อยให้ขึ้นเตือนดีกว่า คนจะได้ไปจัดการ
+        ของจริงล้างทีเดียวที่ warehouse-schema.sql ข้อ ⑦ */
+  const v = W.mergeView([PL("TOLD", "A0107")], [job({ tracking: "TOLD" })]);
+  assert.equal(v.orphans.length, 1, "รหัสที่อ่านไม่ออกต้องเป็นของกำพร้า");
+  assert.equal(v.orphans[0].tracking, "TOLD");
+  for (const s of v.layout.slots) assert.equal(s.items.length, 0, "ห้ามถูกยัดลงช่องไหนเลย");
 });
 
-ok("🔴 ป้าย/หน้าจอ ต้องเรียงคำ ชั้นก่อนล็อก ให้ตรงกับรหัส", () => {
+ok("🔴 ป้าย/หน้าจอ ต้องเรียงคำ ล็อกก่อนชั้น ให้ตรงกับรหัส", () => {
   /* อ่านรหัสได้ลำดับหนึ่ง อ่านคำได้อีกลำดับ = คนเดินหาของผิดช่อง */
-  const lb = L.slotLabel("B0410");
-  assert.ok(/ชั้น 4 ล็อก 10/.test(lb), "ชื่อช่องต้องเรียงชั้นก่อน → " + lb);
+  const lb = L.slotLabel("B1004");
+  assert.ok(/ล็อก 10 ชั้น 4/.test(lb), "ชื่อช่องต้องเรียงล็อกก่อน → " + lb);
+  assert.ok(!/ชั้น \d+ ล็อก/.test(lb), "ห้ามเหลือลำดับเดิม (ชั้นก่อนล็อก) → " + lb);
   const LBL = fs.readFileSync("warehouse-labels.html", "utf8");
   assert.ok(!/" · ล็อก " \+ s\.bay/.test(LBL), "หน้าป้ายห้ามเรียงคำเอง");
   assert.ok(LBL.includes("String(s.label"), "หน้าป้ายต้องใช้ชื่อที่ผังส่งมา");
@@ -1015,6 +1036,25 @@ ok("🔴 SQL เลิกแยกซ้าย/ขวา — ตัดหาง�
   assert.ok(!/update public\.wh_move_log/.test(sql), "ห้ามแก้ประวัติย้อนหลัง");
 });
 
+ok("🔴 SQL สลับรหัสเป็น [โซน][ล็อก][ชั้น] — รันซ้ำแล้วต้องไม่สลับกลับ", () => {
+  /* 🪤 สลับ 2 หลัก = คำสั่งที่รันซ้ำไม่ได้ · ถ้าภูมเผลอวางไฟล์อีกรอบ ของทั้งโกดังจะย้ายช่อง
+        ⇒ ฝั่งของที่วางอยู่สร้างรหัสจาก "ล็อก/ชั้นจริง" (รันซ้ำได้เอง)
+           ฝั่งกรงเหล็กไม่มีค่าจริงให้คำนวณ ⇒ กันด้วยตารางบันทึก wh_migration */
+  const sql = readFile("warehouse-schema.sql");
+  assert.ok(sql.includes("create table if not exists public.wh_migration"), "ต้องมีตารางบันทึกการแปลง");
+  assert.ok(sql.includes("lpad(bay::text, 2, '0') || lpad(lvl::text, 2, '0')"),
+    "ของที่วางอยู่ต้องสร้างรหัสจากล็อก/ชั้นจริง — ล็อกก่อนชั้น");
+  assert.ok(!sql.includes("lpad(lvl::text, 2, '0') || lpad(bay::text, 2, '0')"),
+    "ห้ามเหลือสูตรเรียงชั้นก่อนล็อก");
+  assert.ok(sql.includes("bay-before-level-2026-11-14"), "ต้องมีกุญแจกันรันซ้ำของรอบนี้");
+  assert.ok(/if already then[\s\S]{0,200}raise notice/.test(sql), "รันซ้ำต้องข้าม ไม่ใช่สลับกลับ");
+  /* รหัสใหม่ที่ SQL จะสร้าง ต้องตรงกับที่โค้ดสร้างเป๊ะ (ไม่งั้นฐานกับจอคนละรูป) */
+  const pad = (n) => String(n).padStart(2, "0");
+  for (const [row, bay, lvl] of [["A", 5, 1], ["B", 10, 4], ["C", 6, 2]])
+    assert.equal(row + pad(bay) + pad(lvl), L.locationCode(row, bay, lvl),
+      "สูตรใน SQL ต้องได้รหัสเดียวกับ locationCode()");
+});
+
 ok("🔴 ตัวเขียนฐานเลิกส่งช่อง side (ฐานรุ่นใหม่ปล่อยว่าง)", () => {
   const src = readFile("warehouse.js");
   assert.ok(!/side: s\.side/.test(src), "ยังเขียน side อยู่ = ฟ้องเพราะ parseSlot ไม่คืนค่านั้นแล้ว");
@@ -1130,13 +1170,13 @@ ok("🔴 กล้องตอนล็อก ต้องไปยืน 'ท�
 ok("🔴 1 ช่อง = เต็มล็อก · ช่องติดกันไม่ทับกัน (ภูม 14/11)", () => {
   /* เดิม 1 ช่อง = ครึ่งล็อก (กว้าง 125) ⇒ 1 ล็อกมี 2 ช่องซ้าย/ขวา
      ตอนนี้ 1 ช่อง = เต็มล็อก (กว้าง 250) ⇒ กล่องที่วาดต้องกินเต็มล็อกพอดี ไม่ล้นไปล็อกข้างๆ */
-  const a = L.slotBox("A0101"), b = L.slotBox("A0102");
+  const a = L.slotBox("A0101"), b = L.slotBox("A0201");
   assert.equal(a.w, L.CELL.w, "ช่องต้องกว้างเต็มล็อก");
   assert.equal(a.d, L.CELL.d);
   assert.equal(a.h, L.CELL.h);
   assert.equal(a.z, L.bayZ0("A", 1) + L.CELL.w / 2, "กึ่งกลางช่องต้องอยู่กลางล็อกพอดี");
   /* ล็อกติดกันห่างกันเท่าระยะล็อก (= กว้างช่อง + เสา) ⇒ ขอบไม่เหลื่อมกัน */
-  assert.equal(Math.abs(b.z - a.z), L.BAY_PITCH, "ล็อกติดกันต้องห่างเท่า BAY_PITCH");
+  assert.equal(Math.abs(b.z - a.z), L.BAY_PITCH, "ล็อกติดกัน (A0101 → A0201) ต้องห่างเท่า BAY_PITCH");
   assert.ok(Math.abs(b.z - a.z) >= a.w, "ช่องติดกันห้ามทับกัน");
   /* ป้ายเก่ายิงเข้ามา ต้องได้กล่องเดียวกับป้ายใหม่ */
   assert.deepEqual(L.slotBox("A0101-L"), a);

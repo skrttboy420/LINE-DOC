@@ -36,6 +36,13 @@ const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_KEY;
 if (!URL_ || !KEY) { console.error("❌ ไม่มี SUPABASE_URL / SUPABASE_KEY ใน .env"); process.exit(1); }
 
+/* 🛑 ปิดไว้ 2026-11-14 — ภูมสลับรหัสเป็น [แถว][ล็อก][ชั้น] ⇒ สคริปต์นี้แปลง **ผิดทิศ** แล้ว
+      รันต่อ = สลับรหัสกลับไปรูปเก่า ของทั้งโกดังย้ายช่องเงียบๆ
+   ⇒ ตัวแปลงรอบใหม่อยู่ใน warehouse-schema.sql ข้อ ⑦ (วางใน SQL Editor · กันรันซ้ำให้แล้ว) */
+console.error("🛑 สคริปต์นี้เลิกใช้แล้ว (2026-11-14) — รหัสสลับเป็น [แถว][ล็อก][ชั้น]");
+console.error("   ใช้ warehouse-schema.sql ข้อ ⑦ แทน: Supabase › SQL Editor → วางทั้งไฟล์ → Run");
+process.exit(1);
+
 const APPLY = process.argv.includes("--apply");
 const UNDO = process.argv.indexOf("--undo");
 

@@ -24,11 +24,11 @@
 --    แต่ 1 กล่องอยู่ได้ช่องเดียว ⇒ วางซ้ำ = อัปเดตแถวเดิม (ไม่เกิดผี 2 ที่)
 create table if not exists public.wh_placement (
   tracking    text primary key,                      -- เลขแทรค (ตัวเดียวกับที่เว็บ Pacred ใช้)
-  slot        text not null,                         -- ช่องวาง เช่น A0101 (= รหัสโลเคชั่น · ดูข้อ ⑥)
-  location    text not null,                         -- โลเคชั่น เช่น A0101 (ไว้ค้น/จัดกอง)
+  slot        text not null,                         -- ช่องวาง เช่น A0501 = ล็อก 5 ชั้น 1 (ข้อ ⑥ · ⑦)
+  location    text not null,                         -- โลเคชั่น (ตัวเดียวกับ slot — ไว้ค้น/จัดกอง)
   zone        text not null,                         -- A · B · C
-  bay         smallint not null,                     -- ล็อกที่
-  lvl         smallint not null,                     -- ชั้นที่
+  bay         smallint not null,                     -- ล็อกที่ 🔑 = ค่าจริง (ข้อ ⑦ สร้างรหัสจากช่องนี้)
+  lvl         smallint not null,                     -- ชั้นที่ 🔑 = ค่าจริง (ข้อ ⑦ สร้างรหัสจากช่องนี้)
   side        text,                                  -- ⛔ เลิกใช้ 14/11 (เหลือไว้ดูของเก่า)
   member_code text,                                  -- รหัสลูกค้า (ถ่ายจากเว็บตอนคีย์ · ไว้โชว์เร็ว)
   boxes       smallint not null default 1,           -- กี่กล่องของแทรคนี้ที่วางช่องนี้
@@ -203,7 +203,72 @@ alter table public.wh_cage
 comment on column public.wh_placement.side is
   '⛔ เลิกใช้ 2026-11-14 (ภูมเคาะ: 1 ล็อก 1 ชั้น = 1 ช่อง) — แถวเก่าคงค่า L/R ไว้ดูย้อนหลัง';
 
--- ── ⑦ เช็คว่าลงครบ ─────────────────────────────────────────────────
+-- ── ⑦ สลับรหัสเป็น [โซน][ล็อก][ชั้น] (ภูม 2026-11-14) ────────────────
+--
+-- ภูม: *"โลเคชั่นตอนนี้เราเป็น โซน + ชั้น + ล็อก ถูกไหม เปลี่ยนใหม่เป็น โซน + ล็อก + ชั้น
+--        ให้สลับเอาล็อกมาไว้ชั้นก่อนแทน"*
+--
+-- ⚠️ **ของไม่ได้ย้ายช่อง** — ล็อกเดิม ชั้นเดิม เปลี่ยนแค่ "วิธีสะกดรหัส"
+--    A0105 (ชั้น 1 ล็อก 5) → A0501 (ล็อก 5 ชั้น 1) = กล่องใบเดิม ชั้นเดิม
+--
+-- 🪤 **รหัส 2 รูปนี้ทับกันได้ 48 จาก 104 ช่อง** — A0203 อ่านได้ทั้ง "ชั้น 2 ล็อก 3"
+--    และ "ล็อก 2 ชั้น 3" ⇒ ตัวอ่านบนจอแยกไม่ออก **ห้ามให้มันเดา**
+--    ⇒ ต้องแปลงที่ฐานทีเดียวตรงนี้ + **พิมพ์ป้ายใหม่ทั้งชุด** (ป้ายเก่าใช้ต่อไม่ได้)
+
+create table if not exists public.wh_migration (
+  key     text primary key,
+  done_at timestamptz not null default now(),
+  note    text
+);
+comment on table public.wh_migration is
+  'โกดัง 3D: จดว่าแปลงข้อมูลรอบไหนไปแล้ว (กันสคริปต์ที่รันซ้ำไม่ได้ โดนรันซ้ำ)';
+alter table public.wh_migration enable row level security;
+
+do $$
+declare n_pl int := 0; n_cg int := 0; already boolean;
+begin
+  already := exists (select 1 from public.wh_migration where key = 'bay-before-level-2026-11-14');
+
+  /* ⑦.1 ของที่วางอยู่ — **สร้างรหัสใหม่จากช่อง "ล็อกที่/ชั้นที่" ของแถวนั้นตรงๆ**
+     🔑 ไม่ใช่สลับตัวอักษร ⇒ รันกี่รอบก็ได้ผลเดิม และซ่อมแถวที่รหัสไม่ตรงค่าจริงให้ด้วย
+        (ค่าจริงคือสิ่งที่พนักงานกดเลือกตอนคีย์ — เชื่อถือได้กว่าตัวอักษรในรหัส) */
+  update public.wh_placement
+     set slot     = zone || lpad(bay::text, 2, '0') || lpad(lvl::text, 2, '0'),
+         location = zone || lpad(bay::text, 2, '0') || lpad(lvl::text, 2, '0')
+   where slot     is distinct from zone || lpad(bay::text, 2, '0') || lpad(lvl::text, 2, '0')
+      or location is distinct from zone || lpad(bay::text, 2, '0') || lpad(lvl::text, 2, '0');
+  get diagnostics n_pl = row_count;
+  raise notice '📦 ของที่วางอยู่: แก้รหัส % แถว', n_pl;
+
+  /* ⑦.2 กรงเหล็ก — ตารางนี้ไม่มีช่องล็อก/ชั้นให้คำนวณ ⇒ ต้องสลับตัวอักษร = ทำได้ครั้งเดียว
+     🔒 กันรันซ้ำด้วย wh_migration · ถ้าเคยสลับแล้วจะข้ามไปเฉยๆ (ไม่สลับกลับ) */
+  if already then
+    raise notice '⏭ กรงเหล็ก: สลับรหัสไปแล้ว — ข้าม';
+  else
+    /* 🪤 กรง 2 ใบที่รหัสสลับกันพอดี (A0102 ↔ A0201) จะชน unique ระหว่างทาง
+       ⇒ พักไว้ด้วยเครื่องหมาย ~ ก่อน แล้วค่อยถอดออก (ด่านรูปแบบต้องปิดชั่วคราว) */
+    execute 'alter table public.wh_cage drop constraint if exists wh_cage_slot_fmt';
+
+    update public.wh_cage
+       set slot = '~' || regexp_replace(slot, '^([A-Z])([0-9]{2})([0-9]{2})$', '\1\3\2'),
+           id   = wh || '-~' || regexp_replace(slot, '^([A-Z])([0-9]{2})([0-9]{2})$', '\1\3\2')
+     where slot ~ '^[A-Z][0-9]{4}$';
+
+    update public.wh_cage
+       set slot = substring(slot from 2),
+           id   = wh || '-' || substring(slot from 2)
+     where slot like '~%';
+    get diagnostics n_cg = row_count;
+
+    execute 'alter table public.wh_cage add constraint wh_cage_slot_fmt check (slot ~ ''^[A-Z][0-9]{4}$'')';
+
+    insert into public.wh_migration (key, note)
+    values ('bay-before-level-2026-11-14', 'สลับรหัสเป็น [โซน][ล็อก][ชั้น] · กรงเหล็ก ' || n_cg || ' ใบ');
+    raise notice '🧺 กรงเหล็ก: สลับรหัส % ใบ', n_cg;
+  end if;
+end $$;
+
+-- ── ⑧ เช็คว่าลงครบ ─────────────────────────────────────────────────
 select
   (select count(*) from information_schema.tables
     where table_schema='public' and table_name in ('wh_placement','wh_move_log','wh_cage')) as "ตารางที่ลงแล้ว (ต้องได้ 3)",
@@ -215,4 +280,9 @@ select
   (select count(*) from public.wh_move_log)  as "ประวัติการย้าย",
   (select count(*) from public.wh_placement where slot ~ '-[LR]$') as "ช่องที่ยังมีหาง L/R (ต้องได้ 0)",
   (select count(*) from public.wh_cage       where slot ~ '-[LR]$') as "กรงที่ยังมีหาง L/R (ต้องได้ 0)",
-  (select count(*) from public.wh_cage where note like '%รวมกรง%')  as "กรงที่ถูกรวมเพราะเคยมีซ้าย+ขวา";
+  (select count(*) from public.wh_cage where note like '%รวมกรง%')  as "กรงที่ถูกรวมเพราะเคยมีซ้าย+ขวา",
+  (select count(*) from public.wh_placement
+    where slot is distinct from zone || lpad(bay::text,2,'0') || lpad(lvl::text,2,'0'))
+                                                                    as "รหัสไม่ตรงล็อก/ชั้นจริง (ต้องได้ 0)",
+  (select count(*) from public.wh_migration where key = 'bay-before-level-2026-11-14')
+                                                                    as "สลับรหัสเป็น ล็อก+ชั้น แล้ว (ต้องได้ 1)";

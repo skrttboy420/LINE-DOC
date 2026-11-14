@@ -146,9 +146,15 @@ const BAY_PITCH = CELL.w + STRUCT.post;   // 257
 /** ระยะห่างจากชั้นหนึ่งไปชั้นถัดไป = สูงช่อง + คาน */
 const LEVEL_PITCH = CELL.h + STRUCT.beam; // 175
 
-/* ── ② รหัสโลเคชั่น [แถว][ชั้น][ล็อก] เช่น A0105 = แถว A ชั้น 1 ล็อก 5 ──
-   ภูม 2026-11-12: *"รหัสให้ขึ้นเป็น ชั้นก่อนแล้วค่อยต่อด้วยล็อก"*
-   (ของเดิมเป็น [แถว][ล็อก][ชั้น] — สลับที่กันแล้ว ⇒ รหัสเก่าต้องแปลงก่อนใช้) */
+/* ── ② รหัสโลเคชั่น [แถว][ล็อก][ชั้น] เช่น A0501 = แถว A ล็อก 5 ชั้น 1 ──
+   🔴 ภูม 2026-11-14: *"โลเคชั่นตอนนี้เราเป็น โซน + ชั้น + ล็อก ถูกไหม
+      เปลี่ยนใหม่เป็น โซน + ล็อก + ชั้น ให้สลับเอาล็อกมาไว้ชั้นก่อนแทน"*
+      (ก่อนหน้านี้ 12/11 เคยสั่งสลับเป็น ชั้นก่อนล็อก — รอบนี้ภูมแจ้งว่าบอกผิด)
+
+   🪤 **รหัส 2 รูปนี้ทับกันได้ 48 จาก 104 ช่อง** — เช่น A0203
+      รูปเก่า = ชั้น 2 ล็อก 3 · รูปใหม่ = ล็อก 2 ชั้น 3 ⇒ **คนละช่อง แต่สะกดเหมือนกัน**
+      ⇒ ตัวอ่านแยกไม่ออก ไม่มีทางเดาถูก ⇒ **ต้องแปลงข้อมูลในฐาน + เปลี่ยนป้ายทั้งชุด**
+         (ไม่ใช่ปล่อยให้ตัวอ่าน "ใจดี" เหมือนตอนเลิกใช้ -L/-R) */
 
 const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -201,7 +207,7 @@ function faceOriginX(rowKey, faceKey) {
 }
 
 /**
- * สร้างรหัสโลเคชั่น — locationCode("A", 5, 1) → "A0105" (ชั้น 01 ล็อก 05)
+ * สร้างรหัสโลเคชั่น — locationCode("A", 5, 1) → "A0501" (ล็อก 05 ชั้น 01)
  * @throws ถ้าแถว/ล็อก/ชั้น อยู่นอกผังจริง (กันคีย์ช่องที่ไม่มีอยู่)
  */
 function locationCode(rowKey, bay, level) {
@@ -212,11 +218,11 @@ function locationCode(rowKey, bay, level) {
     throw new Error("แถว " + row + " มี " + bays + " ล็อก — ล็อกที่ " + bay + " ไม่มีอยู่");
   if (!Number.isInteger(level) || level < 1 || level > LEVELS)
     throw new Error("มี " + LEVELS + " ชั้น — ชั้นที่ " + level + " ไม่มีอยู่");
-  return row + pad2(level) + pad2(bay);          // 🔑 ชั้นก่อน แล้วค่อยล็อก
+  return row + pad2(bay) + pad2(level);          // 🔑 ล็อกก่อน แล้วค่อยชั้น (ภูม 14/11)
 }
 
 /**
- * แกะรหัสโลเคชั่น — parseLocation("a0105") → { row:"A", level:1, bay:5 }
+ * แกะรหัสโลเคชั่น — parseLocation("a0501") → { row:"A", bay:5, level:1 }
  * คืน null เมื่อรหัสผิดรูปหรือชี้ช่องที่ไม่มีในผัง
  * (ห้าม throw — ช่องค้นหาเรียกตัวนี้ทุกตัวอักษรที่พิมพ์)
  */
@@ -226,10 +232,10 @@ function parseLocation(code) {
   if (old) s = old[1];                         // 🏷 ป้ายเก่า "A0101-L" → ช่อง A0101
   const m = /^([A-Z])(\d{2})(\d{2})$/.exec(s);
   if (!m) return null;
-  const row = m[1], level = Number(m[2]), bay = Number(m[3]);
+  const row = m[1], bay = Number(m[2]), level = Number(m[3]);
   if (bay < 1 || bay > baysOf(row)) return null;
   if (level < 1 || level > LEVELS) return null;
-  return { row, bay, level, code: row + pad2(level) + pad2(bay) };
+  return { row, bay, level, code: row + pad2(bay) + pad2(level) };
 }
 
 /**
@@ -252,13 +258,13 @@ function parseSlot(code) {
   return { row: loc.row, bay: loc.bay, level: loc.level, code: loc.code, slot: loc.code };
 }
 
-/** ชื่อที่คนอ่านรู้เรื่อง — "A0105" → "โซนซ้าย ชั้น 1 ล็อก 5"
-    🔑 เรียงคำตามรหัส (ชั้นก่อน ล็อกทีหลัง) ไม่งั้นคนอ่านรหัสกับอ่านคำแล้วได้คนละลำดับ */
+/** ชื่อที่คนอ่านรู้เรื่อง — "A0501" → "โซนขวา ล็อก 5 ชั้น 1"
+    🔑 เรียงคำตามรหัส (ล็อกก่อน ชั้นทีหลัง) ไม่งั้นคนอ่านรหัสกับอ่านคำแล้วได้คนละลำดับ */
 function slotLabel(code) {
   const s = parseLocation(code);
   if (!s) return String(code || "");
   const row = ROWS.find((r) => r.key === s.row);
-  return (row ? row.name : s.row) + " ชั้น " + s.level + " ล็อก " + s.bay;
+  return (row ? row.name : s.row) + " ล็อก " + s.bay + " ชั้น " + s.level;
 }
 
 /* ── ③ พิกัด XYZ — โครงสร้างข้อมูลสำหรับวาด 3D ──────────────────────── */
@@ -451,26 +457,34 @@ function buildLayout() {
   };
 }
 
-/** รหัสโลเคชั่นทั้งหมดในผัง (เรียง A→C · ชั้นล่าง→บน · ล็อกน้อย→มาก) */
+/** รหัสโลเคชั่นทั้งหมดในผัง (เรียง A→C · ล็อกน้อย→มาก · ชั้นล่าง→บน = เรียงตามรหัส) */
 function allLocations() {
   const out = [];
   for (const r of ROWS)
-    for (let level = 1; level <= LEVELS; level++)
-      for (let bay = 1; bay <= r.bays; bay++)
+    for (let bay = 1; bay <= r.bays; bay++)
+      for (let level = 1; level <= LEVELS; level++)
         out.push(locationCode(r.key, bay, level));
   return out;
 }
 
-/* ── ⑤ แปลงรหัสรุ่นก่อน [แถว][ล็อก][ชั้น] → รุ่นใหม่ [แถว][ชั้น][ล็อก] ────
-   ของที่คีย์ไว้ก่อน 12/11 เย็น เก็บเป็นรูปเก่า ⇒ ถ้าไม่แปลง จะอ่านไม่ออกแล้วหายจากจอเงียบๆ */
+/* ── ⑤ สลับ 2 หลักของรหัส (เครื่องมือสำหรับแปลงข้อมูล — ไม่ได้ใช้ตอนอ่านจอ) ────
+ *
+ * รหัสรุ่น 12–14/11 เป็น [แถว][ชั้น][ล็อก] · รุ่นนี้ (14/11) เป็น [แถว][ล็อก][ชั้น]
+ *
+ * 🔴 **ห้ามเอาไปใช้เดาตอนอ่านจอ** — ต่างจากตอนเลิกใช้ -L/-R ที่เดาได้ปลอดภัย
+ *    เพราะ 48 จาก 104 รหัสอ่านได้ทั้ง 2 รูป (A0203 = ชั้น2ล็อก3 หรือ ล็อก2ชั้น3)
+ *    ⇒ "เดาให้" = พาพนักงานไปผิดช่องเงียบๆ ครึ่งหนึ่งของเวลา
+ *    ⇒ ทางเดียวที่ถูก = แปลงข้อมูลในฐานทีเดียว (warehouse-schema.sql ข้อ ⑦)
+ *       แล้วของที่ยังผิดรูปให้ไปโผล่ในรายการเตือน ไม่ใช่ถูกเดาให้
+ */
 
-/** "A0501-R" (รูปเก่า = ล็อก 5 ชั้น 1) → "A0105" · คืน null เมื่อแปลงไม่ได้
-    🏷 หางฝั่งของป้ายเก่าถูกตัดทิ้ง (เลิกใช้ 14/11) */
+/** สลับ 2 หลักของรหัส — "A0105" ⇄ "A0501" · คืน null เมื่อรหัสผิดรูป
+    (ใช้กับสคริปต์แปลงข้อมูล/ตรวจสอบเท่านั้น) */
 function convertOldCode(code) {
   const s = String(code || "").trim().toUpperCase().replace(/[\s-]/g, "");
   const m = /^([A-Z])(\d{2})(\d{2})[LR]?$/.exec(s);
   if (!m) return null;
-  const row = m[1], oldBay = Number(m[2]), oldLevel = Number(m[3]);
+  const row = m[1], oldLevel = Number(m[2]), oldBay = Number(m[3]);
   if (!baysOf(row) || oldBay < 1 || oldBay > baysOf(row)) return null;
   if (oldLevel < 1 || oldLevel > LEVELS) return null;
   return locationCode(row, oldBay, oldLevel);
@@ -483,7 +497,7 @@ function convertOldCode(code) {
 //    ของเก่าบอกแค่แถว+ล็อก ไม่บอกชั้น ⇒ ชั้นพนักงานต้องคีย์เอง
 
 /**
- * legacyGuess("A1") → { row:"A", bay:1, needs:["level"] }
+ * legacyGuess("A1") → { row:"A", bay:1, needs:["level"] }  (รหัสรุ่น A1/B1 ของระบบ Pacred)
  * คืน null เมื่ออ่านไม่ออก — ห้ามเดามั่ว (เดาผิด = พนักงานเดินไปผิดช่อง)
  */
 function legacyGuess(old) {

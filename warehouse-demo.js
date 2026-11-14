@@ -32,12 +32,12 @@ const now = () => new Date().toISOString();
 const PLACEMENTS = [
   { tracking: "SF5147871049131", slot: "A0101", boxes: 2,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
   { tracking: "SF5141868962437", slot: "A0101", boxes: 1,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
-  { tracking: "1792477204-2",    slot: "B0205", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "772085135477267", slot: "B0205", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "KY4001198485063", slot: "C0305", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "SHIPPED-ALREADY", slot: "A0410", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
-  { tracking: "NOT-IN-SYSTEM",   slot: "A0403", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "CREDIT-NOT-HERE", slot: "B0110", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
+  { tracking: "1792477204-2",    slot: "B0502", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "772085135477267", slot: "B0502", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "KY4001198485063", slot: "C0503", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SHIPPED-ALREADY", slot: "A1004", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
+  { tracking: "NOT-IN-SYSTEM",   slot: "A0304", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "CREDIT-NOT-HERE", slot: "B1001", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
 
   /* 🔴 ช่องเดียว 3 แทรค จาก 2 ลูกค้า (ภูม 2026-11-12 *"อยากเห็นภาพว่าพาเลทนึงมันมีหลายแทรคกิ้ง
      หลายรหัสลูกค้า จะทำยังไง"*) — 2 ใบของ PR930 ชำระแล้ว · 1 ใบของ PR455 ยังไม่ชำระ
@@ -107,14 +107,14 @@ const normWh = (x) => (WH_LIST.some((w) => w.id === String(x || "").toUpperCase(
 /* ของในโกดัง 2 — จงใจใช้ "ช่องเดียวกับโกดัง 1" เพื่อพิสูจน์ว่าของไม่ปนกัน */
 const PLACEMENTS_WH2 = [
   { tracking: "SF5160011122233", slot: "A0101", boxes: 4, member_code: "PR930", placed_by: "แบม", placed_at: now(), wh: "WH2" },
-  { tracking: "JT5577788899900", slot: "B0103", boxes: 1, member_code: "PR455", placed_by: "แบม", placed_at: now(), wh: "WH2" },
-  { tracking: "NOCODE-SMALL-01", slot: "C0102", boxes: 1, member_code: null,    placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "JT5577788899900", slot: "B0301", boxes: 1, member_code: "PR455", placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "NOCODE-SMALL-01", slot: "C0201", boxes: 1, member_code: null,    placed_by: "แบม", placed_at: now(), wh: "WH2" },
 ];
 
 /* 🧺 กรงเหล็กตัวอย่าง — กรงชิ้นเล็ก (ฟ้า) ที่โกดัง 1 · กรง No-Code (ม่วง) ที่โกดัง 2 */
 const CAGES = [
-  { id: "WH1-B0205", wh: "WH1", slot: "B0205", kind: "small",  name: "กรงชิ้นเล็ก A1",  made_by: "ภูม", made_at: now() },
-  { id: "WH2-C0102", wh: "WH2", slot: "C0102", kind: "nocode", name: "กรง No-Code 01", made_by: "ภูม", made_at: now() },
+  { id: "WH1-B0502", wh: "WH1", slot: "B0502", kind: "small",  name: "กรงชิ้นเล็ก A1",  made_by: "ภูม", made_at: now() },
+  { id: "WH2-C0201", wh: "WH2", slot: "C0201", kind: "nocode", name: "กรง No-Code 01", made_by: "ภูม", made_at: now() },
 ];
 
 /* 📦 ของบนชั้นในโหมดลองดู — เก็บในหน่วยความจำ (เริ่มจากชุดตัวอย่างข้างบน) */

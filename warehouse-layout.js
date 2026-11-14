@@ -24,9 +24,13 @@ const STRUCT = Object.freeze({ beam: 10, post: 7, aisle: 300 });
 /** จำนวนชั้นต่อ 1 ล็อก */
 const LEVELS = 4;
 
-/** 1 ช่องวางได้ 2 ฝั่ง (ซ้าย/ขวา) */
-const SIDES = Object.freeze(["L", "R"]);
-const SIDE_TH = Object.freeze({ L: "ซ้าย", R: "ขวา" });
+/* 🔴 ภูม 2026-11-14: *"คอนเฟิร์มแล้วว่าไม่ใช้ L กับ R ไม่ต้องแยกซ้ายขวาอะ รวมเป็นล็อกนึงไปเลย
+      A0101 = โซน A ชั้น 1 ล็อก 1"*
+   ⇒ **1 ล็อก 1 ชั้น = 1 ช่องวาง** · รหัสช่อง = รหัสโลเคชั่น ไม่มีหางต่อท้าย
+   🏷 ป้ายที่พิมพ์ไปก่อน 14/11 มีหาง "-L"/"-R" และ **ยังแปะอยู่บนชั้นจริง**
+      ⇒ ตัวแกะรหัสต้องอ่านป้ายเก่าออก แล้วคืนช่องเดียวกับป้ายใหม่ (LEGACY_SIDE ข้างล่าง)
+         ไม่งั้นพนักงานยิงป้ายที่ติดอยู่ ระบบตอบ "ไม่มีช่องนี้" = งานหยุดกลางโกดัง */
+const LEGACY_SIDE = /^([A-Z]\d{4})[LR]$/;
 
 /**
  * 3 แถว/โซนหลัก ตามผังจริง
@@ -43,9 +47,8 @@ const SIDE_TH = Object.freeze({ L: "ซ้าย", R: "ขวา" });
       ⇒ ชั้นวางย้ายข้ามโกดังทั้งแถว ทั้งที่ของจริงไม่ได้ย้ายไปไหน */
 /* 🧭 "หน้าชั้น" (face) = ด้านที่คนยืนในทางเดินแล้วมองเข้าหาชั้นวาง (ภูม 2026-11-13)
  *
- * 🔑 หัวใจ: **ซ้าย/ขวา (-L/-R) = ซ้ายขวาของคนที่ยืนในทางเดินของชั้นนั้น**
- *    ⇒ แถวที่ทางเดินอยู่คนละฝั่งกัน ป้าย -L/-R ก็กลับด้านกัน
- *    ภูม: *"แถว C … กล่องที่กดไปมันควรเป็น C0101-L ไม่ใช่ R แค่แถว C อะ เพราะมันชิดกำแพงซ้าย"*
+ * 🔑 หัวใจ: **ชั้นวางหันหน้าออกทางเดินฝั่งไหน** ⇒ กล้องต้องไปยืนทางเดินฝั่งนั้น
+ *    (เลิกใช้ซ้าย/ขวาในรหัสช่องแล้ว 14/11 แต่ "ยืนฝั่งไหน" ยังเป็นตัวตั้งกล้อง)
  *
  * from: "+X" = ทางเดินอยู่ฝั่ง X มาก (ยืนที่ X มาก มองย้อนเข้าหาชั้น)
  *       "-X" = ทางเดินอยู่ฝั่ง X น้อย
@@ -102,7 +105,7 @@ const DOOR = Object.freeze({
 
 /* ── 🏭 ทะเบียนโกดัง (ภูม 2026-11-13: *"ตอนนี้เรามีมากกว่า 1 โกดังแล้ว"*) ─────
  *
- * 🔑 ภูมเคาะ: **รหัสช่องเหมือนกันทั้ง 2 โกดัง** (A0101-L มีทั้งคู่) แล้วแยกด้วยรหัสโกดัง
+ * 🔑 ภูมเคาะ: **รหัสช่องเหมือนกันทั้ง 2 โกดัง** (A0101 มีทั้งคู่) แล้วแยกด้วยรหัสโกดัง
  *    ⇒ ป้ายสติกเกอร์ชุดเดิมเอาไปติดโกดัง 2 ได้เลย ไม่ต้องพิมพ์ชุดใหม่
  *    ⚠️ แลกกับ: หน้ายิง/หน้าคีย์ตำแหน่ง **ต้องรู้ว่าตอนนี้อยู่โกดังไหน**
  *       ไม่งั้นของลงผิดโกดังแล้วหาไม่เจอ ⇒ ทุกหน้าจำโกดังที่เลือกไว้ + โชว์ตัวใหญ่ๆ
@@ -218,7 +221,9 @@ function locationCode(rowKey, bay, level) {
  * (ห้าม throw — ช่องค้นหาเรียกตัวนี้ทุกตัวอักษรที่พิมพ์)
  */
 function parseLocation(code) {
-  const s = String(code || "").trim().toUpperCase().replace(/[\s-]/g, "");
+  let s = String(code || "").trim().toUpperCase().replace(/[\s-]/g, "");
+  const old = LEGACY_SIDE.exec(s);
+  if (old) s = old[1];                         // 🏷 ป้ายเก่า "A0101-L" → ช่อง A0101
   const m = /^([A-Z])(\d{2})(\d{2})$/.exec(s);
   if (!m) return null;
   const row = m[1], level = Number(m[2]), bay = Number(m[3]);
@@ -227,33 +232,33 @@ function parseLocation(code) {
   return { row, bay, level, code: row + pad2(level) + pad2(bay) };
 }
 
-/** รหัสช่องวาง (รวมฝั่ง) — slotCode("A0101","l") → "A0101-L" */
-function slotCode(location, side) {
+/**
+ * รหัสช่องวาง = รหัสโลเคชั่น (เลิกแยกซ้าย/ขวาแล้ว) — slotCode("a0101") → "A0101"
+ * 🏷 รับป้ายเก่า "A0101-L" ด้วย แล้วคืน "A0101"
+ * 🔒 ใครยังส่งฝั่งมาเป็นอาร์กิวเมนต์ที่ 2 = โค้ดเก่าที่ลืมแก้ ⇒ ฟ้องดังๆ ไม่กลืนเงียบ
+ */
+function slotCode(location, legacySide) {
+  if (legacySide != null && String(legacySide).trim() !== "")
+    throw new Error("เลิกใช้ซ้าย/ขวาแล้ว (ภูม 14/11) — slotCode() รับรหัสช่องตัวเดียว");
   const loc = parseLocation(location);
   if (!loc) throw new Error("รหัสโลเคชั่น \"" + location + "\" ไม่ถูกต้อง");
-  const sd = String(side || "").trim().toUpperCase();
-  if (!SIDES.includes(sd)) throw new Error("ฝั่งต้องเป็น " + SIDES.join(" หรือ ") + " (ได้ \"" + side + "\")");
-  return loc.code + "-" + sd;
+  return loc.code;
 }
 
-/** แกะรหัสช่องวาง — คืน null เมื่อผิดรูป */
+/** แกะรหัสช่องวาง — รับทั้ง "A0101" และป้ายเก่า "A0101-L" · คืน null เมื่อผิดรูป */
 function parseSlot(code) {
-  const s = String(code || "").trim().toUpperCase().replace(/\s/g, "");
-  const m = /^([A-Z]\d{4})-([LR])$/.exec(s);
-  if (!m) return null;
-  const loc = parseLocation(m[1]);
+  const loc = parseLocation(code);
   if (!loc) return null;
-  return { row: loc.row, bay: loc.bay, level: loc.level, code: loc.code, side: m[2], slot: loc.code + "-" + m[2] };
+  return { row: loc.row, bay: loc.bay, level: loc.level, code: loc.code, slot: loc.code };
 }
 
-/** ชื่อที่คนอ่านรู้เรื่อง — "A0105-L" → "โซนซ้าย ชั้น 1 ล็อก 5 (ฝั่งซ้าย)"
+/** ชื่อที่คนอ่านรู้เรื่อง — "A0105" → "โซนซ้าย ชั้น 1 ล็อก 5"
     🔑 เรียงคำตามรหัส (ชั้นก่อน ล็อกทีหลัง) ไม่งั้นคนอ่านรหัสกับอ่านคำแล้วได้คนละลำดับ */
 function slotLabel(code) {
-  const s = parseSlot(code) || parseLocation(code);
+  const s = parseLocation(code);
   if (!s) return String(code || "");
   const row = ROWS.find((r) => r.key === s.row);
-  const base = (row ? row.name : s.row) + " ชั้น " + s.level + " ล็อก " + s.bay;
-  return s.side ? base + " (ฝั่ง" + SIDE_TH[s.side] + ")" : base;
+  return (row ? row.name : s.row) + " ชั้น " + s.level + " ล็อก " + s.bay;
 }
 
 /* ── ③ พิกัด XYZ — โครงสร้างข้อมูลสำหรับวาด 3D ──────────────────────── */
@@ -343,27 +348,22 @@ function bayZ0(rowKey, bay) {
 }
 
 /**
- * พิกัดกึ่งกลางของ "ช่องวาง 1 ฝั่ง" + ขนาดกล่องที่จะวาด (หน่วย cm)
+ * พิกัดกึ่งกลางของ "ช่องวาง" + ขนาดกล่องที่จะวาด (หน่วย cm)
+ * 🔴 ภูม 14/11: 1 ช่อง = **เต็มล็อก** (เลิกผ่าครึ่งซ้าย/ขวา) ⇒ กว้างเต็ม CELL.w
  * @returns {{x:number,y:number,z:number,w:number,d:number,h:number}}
  */
-function slotBox(location, side) {
-  const s = parseSlot(slotCode(location, side));
-  const halfW = CELL.w / 2;                             // 1 ฝั่งกว้างครึ่งช่อง = 125
+function slotBox(location) {
+  const s = parseLocation(location);
+  if (!s) throw new Error("รหัสโลเคชั่น \"" + location + "\" ไม่ถูกต้อง");
   const hit = faceOfBay(s.row, s.bay);
   const x0 = faceOriginX(s.row, hit.face.key);
   const z0 = bayZ0(s.row, s.bay);
   const y0 = (s.level - 1) * LEVEL_PITCH + STRUCT.beam; // ของวางบนคาน
-  /* 🔑 ซ้าย/ขวา = ซ้ายขวาของ **คนที่ยืนในทางเดินของหน้าชั้นนั้น** (ภูม 2026-11-13)
-     ยืนฝั่ง +X มองย้อนเข้าหาชั้น ⇒ ครึ่งที่ Z มากอยู่ทางซ้ายมือ
-     ยืนฝั่ง -X (แถว C ชิดกำแพงซ้าย · หน้าซ้ายของแถว B) ⇒ กลับด้าน
-     🪤 ของเดิมใช้สูตรเดียวทุกแถว ⇒ แถว C กดกล่องซ้ายแล้วได้ -R (ภูมเจอจากจอ) */
-  const farIsLeft = hit.face.from === "+X";
-  const zSide = (s.side === "L") === farIsLeft ? z0 + halfW : z0;
   return {
     x: x0 + CELL.d / 2,
     y: y0 + CELL.h / 2,
-    z: zSide + halfW / 2,
-    w: halfW, d: CELL.d, h: CELL.h,
+    z: z0 + CELL.w / 2,
+    w: CELL.w, d: CELL.d, h: CELL.h,
   };
 }
 
@@ -425,17 +425,15 @@ function buildLayout() {
     for (let bay = 1; bay <= r.bays; bay++) {
       for (let level = 1; level <= LEVELS; level++) {
         const location = locationCode(r.key, bay, level);
-        for (const side of SIDES) {
-          slots.push({
-            slot: location + "-" + side,
-            location: location, row: r.key, bay: bay, level: level, side: side,
-            /** หน้าชั้นที่ช่องนี้อยู่ — แถวชั้นคู่ใช้แยกว่าอยู่ฝั่งไหน (B1 / B2) */
-            face: faceOfBay(r.key, bay).face.key,
-            label: slotLabel(location + "-" + side),
-            box: slotBox(location, side),
-            status: "empty",
-          });
-        }
+        slots.push({
+          slot: location,
+          location: location, row: r.key, bay: bay, level: level,
+          /** หน้าชั้นที่ช่องนี้อยู่ — แถวชั้นคู่ใช้แยกว่าอยู่ฝั่งไหน (B1 / B2) */
+          face: faceOfBay(r.key, bay).face.key,
+          label: slotLabel(location),
+          box: slotBox(location),
+          status: "empty",
+        });
       }
     }
   }
@@ -445,7 +443,7 @@ function buildLayout() {
     /** ทะเบียนโกดัง — หน้า 3D เอาไปทำปุ่มสลับโกดัง (ผังเหมือนกันทุกโกดังตอนนี้) */
     warehouses: WAREHOUSES.map((w) => Object.assign({}, w)),
     cell: Object.assign({}, CELL), struct: Object.assign({}, STRUCT),
-    levels: LEVELS, sides: SIDES.slice(),
+    levels: LEVELS,
     door: Object.assign({}, DOOR),
     rows: rows, extent: layoutExtent(),
     totals: { bays: bays, cells: bays * LEVELS, slots: slots.length },
@@ -466,26 +464,26 @@ function allLocations() {
 /* ── ⑤ แปลงรหัสรุ่นก่อน [แถว][ล็อก][ชั้น] → รุ่นใหม่ [แถว][ชั้น][ล็อก] ────
    ของที่คีย์ไว้ก่อน 12/11 เย็น เก็บเป็นรูปเก่า ⇒ ถ้าไม่แปลง จะอ่านไม่ออกแล้วหายจากจอเงียบๆ */
 
-/** "A0501-R" (รูปเก่า = ล็อก 5 ชั้น 1) → "A0105-R" · คืน null เมื่อแปลงไม่ได้ */
+/** "A0501-R" (รูปเก่า = ล็อก 5 ชั้น 1) → "A0105" · คืน null เมื่อแปลงไม่ได้
+    🏷 หางฝั่งของป้ายเก่าถูกตัดทิ้ง (เลิกใช้ 14/11) */
 function convertOldCode(code) {
-  const s = String(code || "").trim().toUpperCase().replace(/\s/g, "");
-  const m = /^([A-Z])(\d{2})(\d{2})(-([LR]))?$/.exec(s);
+  const s = String(code || "").trim().toUpperCase().replace(/[\s-]/g, "");
+  const m = /^([A-Z])(\d{2})(\d{2})[LR]?$/.exec(s);
   if (!m) return null;
   const row = m[1], oldBay = Number(m[2]), oldLevel = Number(m[3]);
   if (!baysOf(row) || oldBay < 1 || oldBay > baysOf(row)) return null;
   if (oldLevel < 1 || oldLevel > LEVELS) return null;
-  const loc = locationCode(row, oldBay, oldLevel);
-  return m[5] ? loc + "-" + m[5] : loc;
+  return locationCode(row, oldBay, oldLevel);
 }
 
 /* ── ④ แปลงรหัสเก่า A1 / B1 → รหัสใหม่ (ไม่แตะระบบ Pacred) ───────────── */
 //
 // ภูม: *"ตอนนี้ในระบบเรามันเป็นแค่ A1 , B1 ไรงี้"*
 // 🔒 **ไม่เขียนกลับเข้า Pacred** — ตัวนี้ใช้แค่ "อ่านของเก่าแล้วเดาล็อกให้พนักงานยืนยัน"
-//    ของเก่าบอกแค่แถว+ล็อก ไม่บอกชั้น/ฝั่ง ⇒ ที่เหลือพนักงานต้องคีย์เอง
+//    ของเก่าบอกแค่แถว+ล็อก ไม่บอกชั้น ⇒ ชั้นพนักงานต้องคีย์เอง
 
 /**
- * legacyGuess("A1") → { row:"A", bay:1, needs:["level","side"] }
+ * legacyGuess("A1") → { row:"A", bay:1, needs:["level"] }
  * คืน null เมื่ออ่านไม่ออก — ห้ามเดามั่ว (เดาผิด = พนักงานเดินไปผิดช่อง)
  */
 function legacyGuess(old) {
@@ -494,12 +492,12 @@ function legacyGuess(old) {
   if (!m) return null;
   const row = m[1], bay = Number(m[2]);
   if (!baysOf(row) || bay < 1 || bay > baysOf(row)) return null;
-  return { row: row, bay: bay, needs: ["level", "side"] };
+  return { row: row, bay: bay, needs: ["level"] };
 }
 
 module.exports = {
   WAREHOUSES, DEFAULT_WH, isWh, normWh, whName,
-  CELL, STRUCT, LEVELS, SIDES, SIDE_TH, ROWS, BAY_PITCH, LEVEL_PITCH, DOOR,
+  CELL, STRUCT, LEVELS, ROWS, BAY_PITCH, LEVEL_PITCH, DOOR,
   baysOf, locationCode, parseLocation, slotCode, parseSlot, slotLabel,
   rowOf, facesOf, faceOfBay, faceByKey, faceOriginX, faceZSpan,
   rowOriginX, bayZ0, rowZSpan, fullZ,

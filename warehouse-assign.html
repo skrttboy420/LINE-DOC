@@ -6,7 +6,7 @@
 <title>คีย์ตำแหน่งของ — โกดัง Pacred</title>
 <!--
   📥 หน้าคีย์ตำแหน่งของ — ภูม 2026-11-12
-  ใช้บนมือถือในโกดัง: พิมพ์เลขแทรค → กดเลือก โซน/ล็อก/ชั้น/ฝั่ง → บันทึก
+  ใช้บนมือถือในโกดัง: พิมพ์เลขแทรค → กดเลือก โซน/ล็อก/ชั้น → บันทึก
   🔑 โชว์สถานะจริงจากเว็บ **ตอนคีย์** ⇒ เห็นทันทีว่ากล่องนี้ "ห้ามหยิบ" (ต้นเหตุที่ส่งผิด)
   🔒 เขียนลงฐานของบอทเท่านั้น — ไม่แตะระบบ Pacred
 -->
@@ -91,7 +91,6 @@
     <label>โซน</label><div class="opts" id="zones"></div>
     <label>ล็อกที่</label><div class="opts" id="bays"></div>
     <label>ชั้นที่</label><div class="opts" id="levels"></div>
-    <label>ฝั่ง</label><div class="opts" id="sides"></div>
     <div class="code" id="code" style="margin-top:12px">— เลือกให้ครบ —</div>
     <div class="muted" id="codeLabel" style="text-align:center;margin-top:6px"></div>
     <div id="slotNow"></div>
@@ -156,7 +155,8 @@ $("by").addEventListener("change", () => {
 const byName = () => $("by").value.trim();
 
 let LAYOUT = null, JOBS = new Map(), PLACED = new Map(), COLOR = {}, LEGEND = {};
-const sel = { zone: null, bay: null, level: null, side: null };
+/* 🔴 ภูม 14/11: เลิกแยกซ้าย/ขวา ⇒ เลือกแค่ โซน/ล็อก/ชั้น ครบแล้วได้รหัสช่องเลย */
+const sel = { zone: null, bay: null, level: null };
 
 function msg(text, kind) {
   const m = $("msg");
@@ -184,12 +184,14 @@ async function boot() {
   }
   if (!v.live.ok) msg("⚠️ อ่านสถานะงานจากเว็บ Pacred ไม่ได้ — คีย์ตำแหน่งได้ปกติ แต่จะไม่เห็นว่าชำระแล้วหรือยัง", "err");
 
-  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104-L) ⇒ ติ๊กให้เสร็จ เหลือแค่ใส่เลขแทรค
-     ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย"* */
-  const want = String(new URLSearchParams(location.search).get("slot") || "").trim().toUpperCase();
+  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104) ⇒ ติ๊กให้เสร็จ เหลือแค่ใส่เลขแทรค
+     ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย"*
+     🏷 ลิงก์/ป้ายเก่าที่ยังมีหาง -L/-R ก็รับ แล้วตัดเหลือช่องเดียว (14/11) */
+  const want = String(new URLSearchParams(location.search).get("slot") || "")
+    .trim().toUpperCase().replace(/[\s-]/g, "").replace(/^([A-Z]\d{4})[LR]$/, "$1");
   const hit = want && LAYOUT.slots.find((s) => s.slot === want);
   if (hit) {
-    sel.zone = hit.row; sel.bay = hit.bay; sel.level = hit.level; sel.side = hit.side;
+    sel.zone = hit.row; sel.bay = hit.bay; sel.level = hit.level;
     msg("เลือกช่อง <b class='mono'>" + esc(hit.slot) + "</b> ให้แล้ว — ใส่เลขแทรคได้เลย", "ok");
   }
   renderOpts();
@@ -217,16 +219,15 @@ function renderOpts() {
   pills($("bays"), row ? Array.from({ length: row.bays }, (_, i) => ({ v: i + 1, t: String(i + 1) })) : [], "bay");
   if (!row) $("bays").innerHTML = '<span class="muted">เลือกโซนก่อน</span>';
   pills($("levels"), Array.from({ length: LAYOUT.levels }, (_, i) => ({ v: i + 1, t: String(i + 1) })), "level");
-  pills($("sides"), [{ v: "L", t: "ซ้าย" }, { v: "R", t: "ขวา" }], "side");
   refreshCode();
 }
 
 /* 🔑 หารหัสจากผังที่เซิร์ฟเวอร์ส่งมา ไม่ประกอบรหัสเอง
    🪤 เดิมประกอบเองเป็น โซน+ล็อก+ชั้น ⇒ ตอนสลับเป็น "ชั้นก่อนล็อก" หน้านี้ได้รหัสคนละตัวกับหน้าอื่น */
 function currentSlot() {
-  if (!sel.zone || !sel.bay || !sel.level || !sel.side) return null;
+  if (!sel.zone || !sel.bay || !sel.level) return null;
   const s = LAYOUT && LAYOUT.slots.find((x) =>
-    x.row === sel.zone && x.bay === sel.bay && x.level === sel.level && x.side === sel.side);
+    x.row === sel.zone && x.bay === sel.bay && x.level === sel.level);
   return s ? s.slot : null;
 }
 
@@ -234,7 +235,7 @@ function refreshCode() {
   const slot = currentSlot();
   const c = $("code");
   if (!slot) {
-    c.className = "code bad"; c.textContent = "— เลือก โซน/ล็อก/ชั้น/ฝั่ง ให้ครบ —";
+    c.className = "code bad"; c.textContent = "— เลือก โซน/ล็อก/ชั้น ให้ครบ —";
     $("codeLabel").textContent = ""; $("slotNow").innerHTML = "";
   } else {
     const s = LAYOUT.slots.find((x) => x.slot === slot);

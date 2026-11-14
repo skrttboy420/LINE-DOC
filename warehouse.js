@@ -253,6 +253,15 @@ function createWarehouse(supabase, pacredGet) {
       /does not exist|could not find/i.test((error && error.message) || "");
   }
 
+  /* 🪤 ฐานรุ่นก่อน 14/11 ตั้ง side เป็น "not null" + ด่าน slot ต้องมีหาง -L/-R
+     ⇒ ถ้าโค้ดขึ้น Render แล้วแต่ยังไม่ได้วาง SQL รอบใหม่ การคีย์จะล้มด้วยข้อความของ Postgres
+        ที่พนักงานอ่านไม่รู้เรื่อง ("null value in column side…") ⇒ แปลให้เป็นภาษาคน
+     🔒 ห้ามแก้ด้วยการเขียน side ปลอมลงไป — ข้อมูลผิดอยู่ในฐานนานกว่าข้อความ error */
+  function isOldSideSchema(error) {
+    const s = ((error && error.message) || "") + " " + ((error && error.details) || "");
+    return /column "?side"?/i.test(s) || /slot_fmt/i.test(s);
+  }
+
   async function listPlacements() {
     const out = [];
     /* 🔑 PostgREST คืนสูงสุด 1000 แถว — ไล่เป็นช่วงจนครบ (บทเรียน read-cap ของโปรเจกต์) */
@@ -420,13 +429,19 @@ function createWarehouse(supabase, pacredGet) {
     }
 
     const row = {
-      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level, side: s.side,
+      /* 🔴 ภูม 14/11: เลิกแยกซ้าย/ขวา ⇒ ไม่เขียนช่อง side แล้ว (ฐานรุ่นใหม่ยอมให้ว่าง)
+         แถวเก่าคงค่า L/R ไว้เป็นร่องรอยว่าเคยอยู่ครึ่งไหน */
+      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level,
       member_code: o.memberCode ? String(o.memberCode).trim() : null,
       boxes: Math.max(1, Number(o.boxes) || 1),
       note: o.note ? String(o.note).trim() : null,
       placed_by: by, placed_at: new Date().toISOString(),
     };
     let { error } = await supabase.from("wh_placement").upsert(row, { onConflict: "tracking" });
+    if (error && isOldSideSchema(error)) {
+      throw new Error("ฐานยังเป็นรุ่นที่ต้องมีซ้าย/ขวา — เปิด Supabase › SQL Editor " +
+        "วาง warehouse-schema.sql อีกรอบก่อน (รหัสช่องเลิกใช้ -L/-R แล้ว 14/11)");
+    }
     if (error && isMissingSchema(error)) {
       /* 🔁 ยังไม่ได้ลง SQL รอบใหม่ — โกดัง 1 ยังคีย์ได้ตามเดิม แต่โกดัง 2 ต้องบอกตรงๆ
          (ถ้าเขียนทับเงียบๆ ของโกดัง 2 จะไปโผล่โกดัง 1 แล้วพนักงานเดินหาผิดตึก) */
@@ -481,10 +496,11 @@ function createWarehouse(supabase, pacredGet) {
   async function find(term) {
     const q = String(term || "").trim();
     if (!q) return [];
-    const loc = LAYOUT.parseSlot(q) || LAYOUT.parseLocation(q);
+    /* 🏷 parseSlot รับทั้ง "A0101" และป้ายเก่า "A0101-L" แล้วคืนช่องเดียวกัน */
+    const loc = LAYOUT.parseSlot(q);
     if (loc) {
       const { data, error } = await supabase.from("wh_placement").select("*")
-        .eq(loc.side ? "slot" : "location", loc.side ? loc.slot : loc.code);
+        .eq("location", loc.code);
       if (error) throw new Error(error.message);
       return data || [];
     }

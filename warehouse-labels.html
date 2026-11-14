@@ -10,17 +10,25 @@
   *"บาโค้ดที่พิมพ์มันเล็กไป ช่วยขยายให้มันใหญ่ขึ้นอีกนิด"* (รอบ 2)
   *"เพิ่ม QR โค้ดมาด้วย เพื่อที่มือถือที่ไม่ใช่เครื่องสแกนสามารถสแกนผ่าน QR เพื่อเลือกล็อกได้"*
 
-  ป้ายหนึ่งใบมี 2 อย่าง เก็บ "ข้อความเดียวกัน" = รหัสช่อง (เช่น A0101-L)
+  ป้ายหนึ่งใบมี 2 อย่าง เก็บ "ข้อความเดียวกัน" = รหัสช่อง (เช่น A0101)
     ▌▌▌ บาร์โค้ด Code128 → เครื่องยิงบาร์โค้ด
     ▓▓▓ QR               → กล้องมือถือ (หน้า "ยิงรับเข้าชั้น" → ปุ่ม 📷 เปิดกล้อง)
   🔒 ป้ายไม่มีกุญแจเข้าระบบอยู่ในนั้น — กระดาษหลุดไปก็เปิดระบบไม่ได้
 
   📐 ขนาดคิดเป็นมิลลิเมตรจริง (A4 แนวตั้ง ขอบ 8 มม. = พื้นที่ 194 × 281 มม.)
      ⇒ ที่เห็นบนจอ = ที่ได้บนกระดาษ · จำนวนแผ่นที่บอกไว้ตรงจริง
+
+  🔴 ภูม 2026-11-14: *"ตอนนี้ A4 แผ่นนึงมันได้ 12 ป้ายโลเคชั่น ให้ปรับให้เป็น A4 ใบละ 8 โลเคชั่น"*
+     ⇒ ตั้งต้น = **8 ป้าย/แผ่น** (2 คอลัมน์ × 4 แถว · ป้าย 95 × 67 มม.)
+     🔑 คิดจาก "กี่แถวต่อแผ่น" แล้วหารความสูงลงมา — ไม่ใช่ตั้งความสูงแล้วเดาว่าได้กี่ป้าย
+        (ของเดิมตั้ง 42 มม. แล้วปัดเศษ ⇒ จำนวนที่บอกกับที่ออกจากเครื่องพิมพ์อาจคลาดกัน)
+     🔑 ขนาด QR/บาร์โค้ดคิดจากที่ว่างที่เหลือจริง ⇒ เปลี่ยนจำนวนป้ายแล้วไม่มีอะไรล้นออกนอกป้าย
+
+  🔴 ภูม 2026-11-14: เลิกแยกซ้าย/ขวา ⇒ **1 ล็อก 1 ชั้น = 1 ป้าย** (ไม่มีโหมดต่อช่องวาง/ต่อช่องชั้นแล้ว)
 -->
 <style>
   :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280;
-        --cols:2;--lh:42mm;--qr:26mm;--bc:17mm;--code:9mm}
+        --cols:2;--lh:67.25mm;--qr:39mm;--bc:25mm;--code:13mm}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
        background:#f1f5f9;color:#111}
@@ -74,13 +82,9 @@
     <select id="row"><option value="">ทุกโซน</option></select>
     <select id="bay"><option value="">ทุกล็อก</option></select>
     <select id="size">
-      <option value="2">ขนาดใหญ่ — 2 ป้าย/แถว</option>
-      <option value="3">ขนาดกลาง — 3 ป้าย/แถว</option>
-      <option value="4">ขนาดเล็ก — 4 ป้าย/แถว</option>
-    </select>
-    <select id="mode">
-      <option value="slot">ป้ายต่อช่องวาง (ซ้าย/ขวาแยกกัน)</option>
-      <option value="cell">ป้ายต่อช่องชั้น (ไม่แยกซ้าย/ขวา)</option>
+      <option value="8">ขนาดใหญ่ — 8 ป้าย/แผ่น</option>
+      <option value="12">ขนาดกลาง — 12 ป้าย/แผ่น</option>
+      <option value="24">ขนาดเล็ก — 24 ป้าย/แผ่น</option>
     </select>
     <button class="go" id="print">🖨 พิมพ์</button>
     <a id="back" href="#">← กลับ</a>
@@ -101,27 +105,41 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
 $("back").href = api("/warehouse/scan");
 
 /* 📐 ขนาดป้าย — คิดจากกระดาษจริง A4 แนวตั้ง ขอบ 8 มม. (พื้นที่ 194 × 281 มม.)
-      ป้าย/แผ่น = floor((281 + ช่องไฟ) / (สูงป้าย + ช่องไฟ)) × จำนวนคอลัมน์ */
+      🔑 ตั้ง "กี่คอลัมน์ × กี่แถว" เป็นตัวตั้ง แล้วหารขนาดป้ายลงมา
+         ⇒ จำนวนป้าย/แผ่นเป็นเลขเป๊ะ ไม่ใช่ผลของการปัดเศษ (ของเดิมตั้งความสูงแล้วปัด) */
 const GAP = 4;                                    // ช่องไฟระหว่างป้าย (มม.)
 const PAGE_W = 194;                               // กว้างพื้นที่พิมพ์ (มม.)
 const PAGE_H = 281;                               // สูงพื้นที่พิมพ์ (มม.)
-const SIZES = {
-  2: { cols: 2, lh: 42, qr: 26, bc: 17, code: 9 },
-  3: { cols: 3, lh: 34, qr: 20, bc: 13, code: 7 },
-  4: { cols: 4, lh: 28, qr: 15, bc: 10, code: 5.4 },
-};
+/* 🪤 กันแถวสุดท้ายตกหน้า: ถ้าวางให้สูงรวม "พอดี 281 เป๊ะ" เศษปัดของเบราว์เซอร์/ไดรเวอร์
+      เพียงเสี้ยวเดียวก็ดันแถวที่ 4 ไปหน้าถัดไป ⇒ ได้ 6 ป้าย/แผ่นแทน 8 (เปลืองกระดาษเงียบๆ)
+   ⇒ เผื่อไว้ 2 มม. — ตาไม่เห็นความต่าง แต่ไม่มีทางล้น */
+const SAFE_H = PAGE_H - 2;
+
+/** ส่วนที่กินความสูงป้ายแบบคงที่ (มม.) — ตรงกับ CSS ของ .lbl ข้างบน */
+const LBL = { pad: 2.5, zone: 3.2, codeGap: 1.6, foot: 3.7 };
+
+/** 🔴 ตั้งต้น 8 ป้าย/แผ่น (ภูม 14/11) · ที่เหลือเป็นทางเลือกถ้าอยากได้ป้ายเล็กลง */
+const SIZES = { 8: { cols: 2, rows: 4, code: 13 }, 12: { cols: 2, rows: 6, code: 9 }, 24: { cols: 3, rows: 8, code: 6 } };
+const DEFAULT_SIZE = "8";
+
+const perSheet = (s) => s.cols * s.rows;
 const labelW = (s) => (PAGE_W - GAP * (s.cols - 1)) / s.cols;
-const perSheet = (s) => Math.floor((PAGE_H + GAP) / (s.lh + GAP)) * s.cols;
+const labelH = (s) => (SAFE_H - GAP * (s.rows - 1)) / s.rows;
+/** ที่ว่างที่เหลือให้ QR + บาร์โค้ด = สูงป้าย − ส่วนคงที่ − บรรทัดรหัส
+    🔑 คิดจากที่เหลือจริง ⇒ เปลี่ยนจำนวนป้าย/แผ่น แล้ว QR ไม่ล้นออกนอกป้าย */
+function marksH(s) { return labelH(s) - LBL.pad * 2 - LBL.zone - (s.code * 1.1 + LBL.codeGap) - LBL.foot; }
+const qrMm = (s) => Math.max(8, Math.min(marksH(s), labelW(s) * 0.45));
+const bcMm = (s) => Math.max(6, qrMm(s) * 0.65);
 
 let LAYOUT = null;
 
-function sizeNow() { return SIZES[$("size").value] || SIZES[2]; }
+function sizeNow() { return SIZES[$("size").value] || SIZES[DEFAULT_SIZE]; }
 function applySize() {
   const s = sizeNow(), r = document.documentElement.style;
   r.setProperty("--cols", String(s.cols));
-  r.setProperty("--lh", s.lh + "mm");
-  r.setProperty("--qr", s.qr + "mm");
-  r.setProperty("--bc", s.bc + "mm");
+  r.setProperty("--lh", labelH(s).toFixed(2) + "mm");
+  r.setProperty("--qr", qrMm(s).toFixed(2) + "mm");
+  r.setProperty("--bc", bcMm(s).toFixed(2) + "mm");
   r.setProperty("--code", s.code + "mm");
 }
 
@@ -132,7 +150,6 @@ function fillPickers() {
     rowsOf().map((r) => '<option value="' + r.key + '">' + esc(r.key + " · " + r.name) + "</option>").join("");
   $("row").addEventListener("change", () => { fillBays(); render(); });
   $("bay").addEventListener("change", render);
-  $("mode").addEventListener("change", render);
   $("size").addEventListener("change", render);
   fillBays();
 }
@@ -145,32 +162,19 @@ function fillBays() {
   $("bay").innerHTML = html;
 }
 
-/** ป้ายที่จะพิมพ์ตามตัวกรอง */
+/** ป้ายที่จะพิมพ์ตามตัวกรอง — 1 ล็อก 1 ชั้น = 1 ป้าย (ภูม 14/11) */
 function labels() {
-  const rk = $("row").value, bay = Number($("bay").value) || 0, mode = $("mode").value;
-  let list = LAYOUT.slots.filter((s) => (!rk || s.row === rk) && (!bay || s.bay === bay));
-  if (mode === "cell") {
-    /* ป้ายต่อช่องชั้น = เอาด้านซ้ายเป็นตัวแทน แล้วพิมพ์รหัสโดยไม่มีฝั่ง */
-    list = list.filter((s) => s.side === LAYOUT.sides[0]);
-    return list.map((s) => ({ code: s.location, title: s.location, sub: labelName(s, true) }));
-  }
-  return list.map((s) => ({ code: s.slot, title: s.slot, sub: labelName(s, false) }));
-}
-
-/* 🔑 ใช้ชื่อที่ผังส่งมา ไม่เรียงคำเอง
-   🪤 เดิมหน้านี้เรียง "ล็อก…ชั้น…" เอง ⇒ พอรหัสสลับเป็น ชั้นก่อนล็อก
-      บนป้ายใบเดียวกันเลยอ่านรหัสกับอ่านคำได้คนละลำดับ สับสนตอนหาของ */
-function labelName(s, noSide) {
-  const base = String(s.label || "").replace(/\s*\(ฝั่ง[^)]*\)\s*$/, "");
-  if (noSide) return base;
-  return base + " · ฝั่ง" + (s.side === "L" ? "ซ้าย" : "ขวา");
+  const rk = $("row").value, bay = Number($("bay").value) || 0;
+  return LAYOUT.slots
+    .filter((s) => (!rk || s.row === rk) && (!bay || s.bay === bay))
+    .map((s) => ({ code: s.slot, title: s.slot, sub: String(s.label || "") }));
 }
 
 /** แท่งบาร์โค้ดบางสุดที่จะได้บนกระดาษจริง (มม.) — ต่ำกว่า 0.19 มม. เครื่องยิงอ่านยาก */
 function moduleMm(s, sample) {
   const chars = String(sample || "").length;
   const modules = 11 + chars * 11 + 11 + 13 + 20;         // start + ข้อมูล + check + stop + ขอบเงียบ
-  const inner = labelW(s) - 5 - s.qr - 2;                 // กว้างป้าย − ขอบ − QR − ช่องไฟ
+  const inner = labelW(s) - 5 - qrMm(s) - 2;              // กว้างป้าย − ขอบ − QR − ช่องไฟ
   return inner / modules;
 }
 
@@ -182,9 +186,9 @@ function render() {
      (ไม่ต้องพิมพ์ชุดใหม่ให้โกดัง 2 · โกดังไหนให้เลือกเอาที่หน้ายิง/หน้าคีย์) */
   $("note").innerHTML = "🏭 <b>ป้ายชุดนี้ใช้ได้ทั้งโกดัง 1 และโกดัง 2</b> " +
     '<span style="opacity:.75">(รหัสช่องเหมือนกัน — เลือกโกดังตอนยิงที่หน้ายิงรับเข้า)</span><br>' +
-    "จะพิมพ์ <b>" + list.length + " ป้าย</b> — A4 แนวตั้ง " + s.cols +
-    " ป้าย/แถว · " + per + " ป้าย/แผ่น ⇒ <b>" + Math.ceil(list.length / per) + " แผ่น</b>" +
-    "<br>ป้ายขนาด " + labelW(s).toFixed(0) + " × " + s.lh + " มม. · แท่งบาร์โค้ดบางสุด ≈ " +
+    "จะพิมพ์ <b>" + list.length + " ป้าย</b> — A4 แนวตั้ง " + s.cols + " คอลัมน์ × " + s.rows +
+    " แถว = <b>" + per + " ป้าย/แผ่น</b> ⇒ <b>" + Math.ceil(list.length / per) + " แผ่น</b>" +
+    "<br>ป้ายขนาด " + labelW(s).toFixed(0) + " × " + labelH(s).toFixed(0) + " มม. · แท่งบาร์โค้ดบางสุด ≈ " +
     mm.toFixed(2) + " มม." +
     (mm < 0.19
       ? ' <b style="color:#b91c1c">(เล็กเกินสำหรับเครื่องยิงบาร์โค้ด — ลองแล้วอ่านไม่ออกจริง ' +

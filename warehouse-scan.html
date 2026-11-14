@@ -52,11 +52,6 @@
   .slot .nm{font-size:13px;color:#334155}
   .slot button{margin-left:auto;background:#fff;border:1px solid var(--line);border-radius:9px;
                padding:7px 11px;font-size:12px;cursor:pointer;font-family:inherit}
-  .sides{display:flex;gap:7px;margin-top:9px}
-  .sides button{flex:1;padding:11px;border:1px solid var(--line);background:#fff;border-radius:10px;
-                font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
-  .sides button.on{background:var(--red);color:#fff;border-color:var(--red)}
-
   /* ── การ์ดผลการยิง ── */
   .res{border-radius:14px;border:2px solid;padding:14px;margin-bottom:14px;line-height:1.65}
   .res.ok{background:#ecfdf5;border-color:#6ee7b7}
@@ -133,10 +128,6 @@
     </div>
     <button id="clearSlot" style="display:none">เปลี่ยน</button>
   </div>
-  <div class="sides" id="sides" style="display:none">
-    <button data-s="L">ฝั่งซ้าย</button><button data-s="R">ฝั่งขวา</button>
-  </div>
-
   <div class="card">
     <button class="cambtn" id="camOpen">📷 เปิดกล้องมือถือ — สแกน QR / บาร์โค้ด</button>
     <div class="muted" style="margin-top:8px">
@@ -264,7 +255,7 @@ function beep(kind) {
 /* ── ช่องที่จำไว้ (sticky 100 นาที เท่าระบบ Pacred) ─────────────── */
 const SLOT_KEY = "pacred-wh-slot";
 const SLOT_TTL_MIN = 100;
-let LAYOUT = null, slot = null;                 // slot = { code, side }
+let LAYOUT = null, slot = null;                 // slot = { code }
 
 function loadSticky() {
   try {
@@ -280,23 +271,26 @@ function saveSticky() {
   } catch {}
 }
 
-/** แกะรหัสที่ยิงมา — รับทั้ง A0101-L (ตรงช่อง) และ A0101 (ยังไม่บอกฝั่ง) */
+/**
+ * แกะรหัสที่ยิงมา — 1 ล็อก 1 ชั้น = 1 ช่อง (ภูม 14/11 *"ไม่ต้องแยกซ้ายขวาอะ"*)
+ * 🏷 ป้ายที่พิมพ์ไปก่อน 14/11 มีหาง "-L"/"-R" และ **ยังแปะอยู่บนชั้นจริง**
+ *    ⇒ ยิงป้ายเก่าต้องได้ช่องเดียวกับป้ายใหม่ ไม่ใช่ "ไม่มีช่องนี้" แล้วงานหยุด
+ */
 function parseCode(text) {
-  const up = String(text || "").trim().toUpperCase().replace(/[\s-]/g, "");
-  let m = /^([A-Z])(\d{2})(\d{2})([LR])$/.exec(up);
-  if (m) return { code: m[1] + m[2] + m[3], side: m[4] };
-  m = /^([A-Z])(\d{2})(\d{2})$/.exec(up);
-  if (m) return { code: m[1] + m[2] + m[3], side: null };
-  return null;
+  const up = String(text || "").trim().toUpperCase().replace(/[\s-]/g, "")
+    .replace(/^([A-Z]\d{4})[LR]$/, "$1");       // 🏷 ป้ายเก่า A0101-L → A0101
+  const m = /^([A-Z])(\d{2})(\d{2})$/.exec(up);
+  return m ? { code: m[1] + m[2] + m[3] } : null;
 }
 /** รหัสนี้มีอยู่จริงในผังไหม */
-function slotExists(code, side) {
+function slotExists(code) {
   if (!LAYOUT) return false;
-  return LAYOUT.slots.some((s) => s.location === code && (!side || s.side === side));
+  return LAYOUT.slots.some((s) => s.slot === code);
 }
-const fullSlot = () => (slot && slot.side ? slot.code + "-" + slot.side : null);
+/** ช่องที่กำลังรับเข้าอยู่ (รหัสเต็มตัวเดียว ไม่มีหางฝั่งแล้ว) */
+const slotNow = () => (slot ? slot.code : null);
 function slotLabelNow() {
-  const s = LAYOUT && LAYOUT.slots.find((x) => x.location === (slot && slot.code) && (!slot.side || x.side === slot.side));
+  const s = LAYOUT && LAYOUT.slots.find((x) => x.slot === (slot && slot.code));
   return s ? s.label : "";
 }
 
@@ -307,37 +301,23 @@ function paintSlot() {
     $("slotCode").textContent = "— ยังไม่ได้เลือก —";
     $("slotName").textContent = "ยิงบาร์โค้ดป้ายโลเคชั่น หรือพิมพ์รหัสช่องลงช่องข้างล่าง";
     $("clearSlot").style.display = "none";
-    $("sides").style.display = "none";
     paintCamSlot();
     return;
   }
-  const full = fullSlot();
-  box.className = "slot " + (full ? "set" : "none");
-  $("slotCode").textContent = full || slot.code;
-  $("slotName").textContent = full ? slotLabelNow() : "ยังไม่ได้บอกฝั่ง — กดเลือกซ้าย/ขวาข้างล่าง";
+  box.className = "slot set";
+  $("slotCode").textContent = slot.code;
+  $("slotName").textContent = slotLabelNow();
   $("clearSlot").style.display = "block";
-  $("sides").style.display = "flex";
-  for (const b of $("sides").querySelectorAll("button"))
-    b.classList.toggle("on", slot.side === b.dataset.s);
   paintCamSlot();
 }
 
 /** หัวจอกล้อง — บอกช่องที่กำลังรับเข้าอยู่ (จอกล้องบังหน้าหลักไว้) */
 function paintCamSlot() {
-  const full = fullSlot();
-  $("camSlot").textContent = full || (slot ? slot.code : "— ยังไม่ได้เลือก —");
-  $("camSlotName").textContent = full
-    ? slotLabelNow()
-    : slot ? "ยังไม่ได้บอกฝั่ง — ปิดกล้องแล้วกดเลือกซ้าย/ขวา" : "ส่อง QR บนป้ายโลเคชั่นก่อน";
+  $("camSlot").textContent = slotNow() || "— ยังไม่ได้เลือก —";
+  $("camSlotName").textContent = slot ? slotLabelNow() : "ส่อง QR บนป้ายโลเคชั่นก่อน";
 }
 
 $("clearSlot").addEventListener("click", () => { slot = null; saveSticky(); paintSlot(); focusScan(); });
-for (const b of $("sides").querySelectorAll("button"))
-  b.addEventListener("click", () => {
-    if (!slot) return;
-    slot.side = b.dataset.s;
-    saveSticky(); paintSlot(); beep("slot"); focusScan();
-  });
 
 /* ── ยิง ───────────────────────────────────────────────────────── */
 function focusScan(force) {
@@ -371,16 +351,16 @@ async function submit(raw) {
 
   /* ① ยิงโดนรหัสช่อง = จำไว้ ไม่เขียนอะไร */
   const loc = parseCode(text);
-  if (loc && slotExists(loc.code, loc.side)) {
-    slot = { code: loc.code, side: loc.side };
+  if (loc && slotExists(loc.code)) {
+    slot = { code: loc.code };
     saveSticky(); paintSlot();
     $("scan").value = "";
     beep("slot");
     focusScan(true);
-    return { kind: "slot", slot: fullSlot() || loc.code, label: slotLabelNow(), side: loc.side };
+    return { kind: "slot", slot: loc.code, label: slotLabelNow() };
   }
   /* รหัสที่ดูเหมือนช่องแต่ไม่มีในผัง = เตือน ไม่เอาไปยิงเป็นเลขแทรค */
-  if (loc && !slotExists(loc.code, loc.side)) {
+  if (loc && !slotExists(loc.code)) {
     $("scan").value = "";
     beep("bad");
     const msg = 'ไม่มีช่อง "' + text.toUpperCase() + '" ในผังโกดัง — ยิงป้ายใหม่อีกที';
@@ -390,9 +370,9 @@ async function submit(raw) {
   }
 
   /* ② ต้องมีช่องก่อนถึงจะยิงของเข้าได้ */
-  if (!fullSlot()) {
+  if (!slotNow()) {
     beep("bad");
-    const msg = slot ? "เลือกฝั่งซ้าย/ขวาก่อน" : "ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค";
+    const msg = "ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค";
     showErr(msg);
     focusScan(true);
     return { kind: "needslot", msg };
@@ -404,7 +384,7 @@ async function submit(raw) {
   try {
     const r = await fetch(api("/warehouse/api/scan"), {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ tracking: text, slot: fullSlot(), wh: WH, by: byName() }),
+      body: JSON.stringify({ tracking: text, slot: slotNow(), wh: WH, by: byName() }),
     });
     const j = await r.json();
     if (!r.ok || j.error) throw new Error(j.error || "บันทึกไม่สำเร็จ");
@@ -471,7 +451,7 @@ let lastCode = "", lastAt = 0;
 /* 🪤 กล้องเห็นกล่องใบเดิมค้างอยู่ในกรอบ = ยิงซ้ำเรื่อยๆ (ลองแล้วบันทึก 3 ครั้งใน 7 วินาที)
    ⇒ จำว่ารอบนี้ยิงอะไรเข้าช่องไหนไปแล้ว แล้วบอกว่า "ยิงไปแล้ว" แทนการบันทึกซ้ำ */
 const doneThisRound = new Set();
-const doneKey = (code) => code + "@" + (fullSlot() || "");
+const doneKey = (code) => code + "@" + (slotNow() || "");
 let shownCode = "";               // การ์ดบนจอกล้องตอนนี้กำลังพูดถึงใบไหน
 
 function camSay(cls, html) {
@@ -584,7 +564,7 @@ async function onDecode(text) {
     shownCode = code;
     camSay("ok", '<div class="h">✔ ยิงไปแล้ว</div>' +
       '<div class="mono">' + esc(code) + "</div>" +
-      '<div class="sm">อยู่ช่อง ' + esc(fullSlot()) + " เรียบร้อย — หยิบใบถัดไปได้เลย</div>");
+      '<div class="sm">อยู่ช่อง ' + esc(slotNow()) + " เรียบร้อย — หยิบใบถัดไปได้เลย</div>");
     return;
   }
 
@@ -594,7 +574,7 @@ async function onDecode(text) {
   if (out.kind === "slot") {
     camSay("ok", '<div class="h">✅ เลือกช่อง <span class="mono">' + esc(out.slot) + "</span></div>" +
       '<div class="sm">' + esc(out.label || "") + "</div>" +
-      '<div class="sm">' + (out.side ? "ส่องบาร์โค้ดบนกล่องต่อได้เลย" : "ป้ายนี้ไม่บอกฝั่ง — ปิดกล้องแล้วกดเลือกซ้าย/ขวาก่อน") + "</div>");
+      '<div class="sm">ส่องบาร์โค้ดบนกล่องต่อได้เลย</div>');
     return;
   }
   if (out.kind === "nosuch" || out.kind === "needslot" || out.kind === "error") {
@@ -628,18 +608,19 @@ async function onDecode(text) {
     $("demoTag").style.display = "inline-block";
     document.querySelector("header .sub").textContent = "ข้อมูลตัวอย่าง — ไม่ได้บันทึกลงฐานจริง";
   }
-  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104-L)
+  /* 🎯 มาจากจอ 3D พร้อมช่องที่กดเลือกไว้แล้ว (?slot=A0104)
      ภูม 2026-11-13: *"ทำให้สามารถกดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย
      พอกดไปแล้ว ก็เท่ากับเลือกล็อกเรียบร้อย ก็ยิงแทรคได้เลย"*
      ⇒ มาถึงปุ๊บช่องถูกเลือกให้แล้ว ไม่ต้องยิงป้ายโลเคชั่นซ้ำ */
   const fromUrl = parseCode(new URLSearchParams(location.search).get("slot") || "");
-  if (fromUrl && slotExists(fromUrl.code, fromUrl.side)) {
-    slot = { code: fromUrl.code, side: fromUrl.side };
+  if (fromUrl && slotExists(fromUrl.code)) {
+    slot = { code: fromUrl.code };
     saveSticky();
     beep("slot");
   } else {
+    /* 🏷 ช่องที่จำไว้ก่อน 14/11 เก็บฝั่งมาด้วย — อ่านแค่รหัสช่อง ฝั่งทิ้งไป */
     const sticky = loadSticky();
-    if (sticky && slotExists(sticky.code, sticky.side)) slot = { code: sticky.code, side: sticky.side };
+    if (sticky && slotExists(sticky.code)) slot = { code: sticky.code };
   }
   paintSlot();
   focusScan();

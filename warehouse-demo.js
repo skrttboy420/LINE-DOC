@@ -30,21 +30,21 @@ const now = () => new Date().toISOString();
 
 /* ── ของตัวอย่างบนชั้น — จงใจให้ครบทุกสี ────────────────────────── */
 const PLACEMENTS = [
-  { tracking: "SF5147871049131", slot: "A0101-L", boxes: 2,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
-  { tracking: "SF5141868962437", slot: "A0101-R", boxes: 1,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
-  { tracking: "1792477204-2",    slot: "B0205-L", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "772085135477267", slot: "B0205-R", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "KY4001198485063", slot: "C0305-L", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "SHIPPED-ALREADY", slot: "A0410-R", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
-  { tracking: "NOT-IN-SYSTEM",   slot: "A0403-L", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
-  { tracking: "CREDIT-NOT-HERE", slot: "B0110-R", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
+  { tracking: "SF5147871049131", slot: "A0101", boxes: 2,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
+  { tracking: "SF5141868962437", slot: "A0101", boxes: 1,  member_code: "PR622", placed_by: "ออม",  placed_at: now() },
+  { tracking: "1792477204-2",    slot: "B0205", boxes: 18, member_code: "PR722", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "772085135477267", slot: "B0205", boxes: 1,  member_code: "PR857", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "KY4001198485063", slot: "C0305", boxes: 1,  member_code: "PW",    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SHIPPED-ALREADY", slot: "A0410", boxes: 1,  member_code: "PR179", placed_by: "ออม",  placed_at: now() },
+  { tracking: "NOT-IN-SYSTEM",   slot: "A0403", boxes: 1,  member_code: null,    placed_by: "เบียร์", placed_at: now() },
+  { tracking: "CREDIT-NOT-HERE", slot: "B0110", boxes: 3,  member_code: "PW",    placed_by: "ออม",  placed_at: now() },
 
   /* 🔴 ช่องเดียว 3 แทรค จาก 2 ลูกค้า (ภูม 2026-11-12 *"อยากเห็นภาพว่าพาเลทนึงมันมีหลายแทรคกิ้ง
      หลายรหัสลูกค้า จะทำยังไง"*) — 2 ใบของ PR930 ชำระแล้ว · 1 ใบของ PR455 ยังไม่ชำระ
      ⇒ ช่องต้องขึ้น **ส้ม** (เอาตัวแรงสุด) ไม่ใช่เขียวตามเสียงส่วนมาก */
-  { tracking: "SF5160011122233", slot: "A0202-L", boxes: 4, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "SF5160044455566", slot: "A0202-L", boxes: 2, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
-  { tracking: "JT5577788899900", slot: "A0202-L", boxes: 1, member_code: "PR455", placed_by: "ออม",   placed_at: now() },
+  { tracking: "SF5160011122233", slot: "A0202", boxes: 4, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "SF5160044455566", slot: "A0202", boxes: 2, member_code: "PR930", placed_by: "เบียร์", placed_at: now() },
+  { tracking: "JT5577788899900", slot: "A0202", boxes: 1, member_code: "PR455", placed_by: "ออม",   placed_at: now() },
 ];
 
 /* 📷 รูปตัวอย่างของโหมดลองดู — วาดเป็น SVG ฝังในตัว ไม่ต้องต่อเน็ต ไม่ใช่รูปลูกค้าจริง */
@@ -84,7 +84,7 @@ const JOBS = [
     selfPickup: true, carrier: "PCS", receiver: "รับที่โกดัง Pacred", tel: "0224213325",
     address: "48/2 หมู่ 12 อ้อมน้อย กระทุ่มแบน สมุทรสาคร 74130" },
   { tracking: "READY-NO-SLOT-2", memberCode: "PR10634", status: 6, paid: true, arrivedAt: "2026-11-12", boxes: 4, container: "GZE261110-1" },
-  /* 📦 3 แทรคที่อยู่ช่องเดียวกัน (A0202-L) — คนละลูกค้า คนละสถานะ */
+  /* 📦 3 แทรคที่อยู่ช่องเดียวกัน (A0202) — คนละลูกค้า คนละสถานะ */
   { tracking: "SF5160011122233", memberCode: "PR930", status: 6, paid: true,  arrivedAt: "2026-11-10", boxes: 4, container: "GZE261105-2",
     receiver: "อนันต์ พานทอง", tel: "0867778888", carrier: "2",
     address: "222/8 ถนนสุขุมวิท 71 พระโขนงเหนือ วัฒนา กรุงเทพมหานคร 10110" },
@@ -106,15 +106,15 @@ const normWh = (x) => (WH_LIST.some((w) => w.id === String(x || "").toUpperCase(
 
 /* ของในโกดัง 2 — จงใจใช้ "ช่องเดียวกับโกดัง 1" เพื่อพิสูจน์ว่าของไม่ปนกัน */
 const PLACEMENTS_WH2 = [
-  { tracking: "SF5160011122233", slot: "A0101-L", boxes: 4, member_code: "PR930", placed_by: "แบม", placed_at: now(), wh: "WH2" },
-  { tracking: "JT5577788899900", slot: "B0103-R", boxes: 1, member_code: "PR455", placed_by: "แบม", placed_at: now(), wh: "WH2" },
-  { tracking: "NOCODE-SMALL-01", slot: "C0102-L", boxes: 1, member_code: null,    placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "SF5160011122233", slot: "A0101", boxes: 4, member_code: "PR930", placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "JT5577788899900", slot: "B0103", boxes: 1, member_code: "PR455", placed_by: "แบม", placed_at: now(), wh: "WH2" },
+  { tracking: "NOCODE-SMALL-01", slot: "C0102", boxes: 1, member_code: null,    placed_by: "แบม", placed_at: now(), wh: "WH2" },
 ];
 
 /* 🧺 กรงเหล็กตัวอย่าง — กรงชิ้นเล็ก (ฟ้า) ที่โกดัง 1 · กรง No-Code (ม่วง) ที่โกดัง 2 */
 const CAGES = [
-  { id: "WH1-B0205-L", wh: "WH1", slot: "B0205-L", kind: "small",  name: "กรงชิ้นเล็ก A1",  made_by: "ภูม", made_at: now() },
-  { id: "WH2-C0102-L", wh: "WH2", slot: "C0102-L", kind: "nocode", name: "กรง No-Code 01", made_by: "ภูม", made_at: now() },
+  { id: "WH1-B0205", wh: "WH1", slot: "B0205", kind: "small",  name: "กรงชิ้นเล็ก A1",  made_by: "ภูม", made_at: now() },
+  { id: "WH2-C0102", wh: "WH2", slot: "C0102", kind: "nocode", name: "กรง No-Code 01", made_by: "ภูม", made_at: now() },
 ];
 
 /* 📦 ของบนชั้นในโหมดลองดู — เก็บในหน่วยความจำ (เริ่มจากชุดตัวอย่างข้างบน) */
@@ -202,7 +202,7 @@ const demo = {
 
     const job = JOBS.find((j) => j.tracking === t);
     const row = {
-      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level, side: s.side,
+      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level,
       member_code: (job && job.memberCode) || null,
       boxes: Math.max(1, Number(o.boxes) || 1),
       note: o.note || null,

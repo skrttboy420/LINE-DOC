@@ -40,9 +40,19 @@ ok("3 แถว — ซ้าย 6 · กลาง 10 · ขวา 10 ล็อ�
   assert.deepEqual(L.ROWS.map((r) => r.bays), [10, 10, 6], "แถวที่สั้น 6 ล็อก คือ C (ภูมยืนยัน 12/11)");
 });
 
-ok("รวม 26 ล็อก · 104 ช่องชั้น · 208 ช่องวาง (2 ฝั่งต่อช่อง)", () => {
+ok("รวม 26 ล็อก · 104 ช่องชั้น · 104 ช่องวาง (1 ล็อก 1 ชั้น = 1 ช่อง)", () => {
+  /* 🔴 ภูม 14/11: *"ไม่ใช้ L กับ R ไม่ต้องแยกซ้ายขวาอะ รวมเป็นล็อกนึงไปเลย"*
+     ⇒ ช่องวาง = ช่องชั้น เท่ากันเป๊ะ (เดิม 208 = ผ่าครึ่งซ้าย/ขวา) */
   const t = L.buildLayout().totals;
-  assert.deepEqual(t, { bays: 26, cells: 104, slots: 208 });
+  assert.deepEqual(t, { bays: 26, cells: 104, slots: 104 });
+});
+
+ok("🔴 ไม่มีช่องไหนในผังมีหาง -L/-R แล้ว", () => {
+  const b = L.buildLayout();
+  const bad = b.slots.filter((s) => /-/.test(s.slot) || "side" in s);
+  assert.equal(bad.length, 0, "ยังเหลือช่องที่แยกฝั่ง: " + bad.slice(0, 3).map((s) => s.slot).join(" · "));
+  assert.ok(!("sides" in b), "ผังไม่ต้องส่งทะเบียนฝั่งไปให้หน้าจออีก");
+  assert.equal(b.slots[0].slot, b.slots[0].location, "รหัสช่อง = รหัสโลเคชั่นตัวเดียวกัน");
 });
 
 /* ════ ② รหัสโลเคชั่น [Row][Bay][Level] ═══════════════════════════════ */
@@ -56,7 +66,22 @@ ok("A0101 = แถว A ล็อก 1 ชั้น 1 (ตามตัวอย�
 ok("อ่านได้แม้พิมพ์ตัวเล็ก/มีขีด/มีเว้นวรรค (พนักงานพิมพ์มือ)", () => {
   assert.equal(L.parseLocation("a0101").code, "A0101");
   assert.equal(L.parseLocation(" A-01-01 ").code, "A0101");
-  assert.equal(L.parseSlot("a0101-l").slot, "A0101-L");
+  assert.equal(L.parseSlot("a0101").slot, "A0101");
+});
+
+ok("🔴 ป้ายเก่าที่ยังแปะอยู่บนชั้น (A0101-L) ต้องยิงแล้วเข้าช่อง A0101", () => {
+  /* 🪤 ถ้าตัวแกะรหัสปฏิเสธป้ายเก่า: พนักงานยิงป้ายที่ติดอยู่จริง ระบบตอบ "ไม่มีช่องนี้"
+        ⇒ งานหยุดกลางโกดัง ทั้งที่ช่องนั้นมีอยู่ (ป้ายใหม่ยังไม่ได้พิมพ์/ยังไม่ได้ไปติด) */
+  for (const old of ["A0101-L", "A0101-R", "a0101l", " A0101 - R ", "C0106-L"]) {
+    const hit = L.parseSlot(old);
+    assert.ok(hit, "อ่านป้ายเก่าไม่ออก: " + old);
+    assert.ok(!/-/.test(hit.slot), "ต้องคืนรหัสที่ไม่มีหาง: " + old + " → " + hit.slot);
+  }
+  assert.equal(L.parseSlot("A0101-L").slot, "A0101");
+  assert.equal(L.parseLocation("A0101-R").code, "A0101");
+  assert.equal(L.slotLabel("A0105-L"), L.slotLabel("A0105"), "ป้ายเก่า/ใหม่ต้องอ่านเป็นช่องเดียวกัน");
+  assert.equal(L.parseSlot("A0101-X"), null, "หางที่ไม่ใช่ L/R ยังต้องไม่ผ่าน");
+  assert.equal(L.parseSlot("A0111-L"), null, "ป้ายเก่าที่ชี้ช่องไม่มีจริง ก็ยังต้องไม่ผ่าน");
 });
 
 ok("🔴 ช่องที่ไม่มีในผังต้องไม่ผ่าน (กันคีย์ช่องผี)", () => {
@@ -69,15 +94,21 @@ ok("🔴 ช่องที่ไม่มีในผังต้องไม�
   assert.throws(() => L.locationCode("A", 1, 5), /ชั้นที่ 5 ไม่มีอยู่/);
 });
 
-ok("ฝั่งรับแค่ L / R", () => {
-  assert.equal(L.slotCode("A0101", "r"), "A0101-R");
-  assert.throws(() => L.slotCode("A0101", "X"), /ฝั่งต้องเป็น/);
-  assert.equal(L.parseSlot("A0101-X"), null);
+ok("🔴 รหัสช่อง = รหัสโลเคชั่น · ใครยังส่งฝั่งมาต้องฟ้องดังๆ", () => {
+  assert.equal(L.slotCode("a0101"), "A0101");
+  assert.equal(L.slotCode("A0101-L"), "A0101", "ป้ายเก่าก็ยังรับ");
+  /* 🪤 ถ้ากลืนอาร์กิวเมนต์ที่ 2 เงียบๆ โค้ดเก่าที่ลืมแก้จะทำงานต่อได้แบบ "ดูเหมือนถูก"
+        แล้ววันหนึ่งค่อยมารู้ว่าฝั่งที่ส่งไปไม่เคยมีผลกับอะไรเลย */
+  assert.throws(() => L.slotCode("A0101", "L"), /เลิกใช้ซ้าย\/ขวา/);
+  assert.throws(() => L.slotCode("A0101", "R"), /เลิกใช้ซ้าย\/ขวา/);
+  assert.equal(L.SIDES, undefined, "ทะเบียนฝั่งต้องไม่มีให้ใครเรียกอีก");
+  assert.equal(L.SIDE_TH, undefined);
 });
 
-ok("ชื่อที่คนอ่านรู้เรื่อง", () => {
-  assert.equal(L.slotLabel("A0101-L"), "โซนขวา ชั้น 1 ล็อก 1 (ฝั่งซ้าย)");
+ok("ชื่อที่คนอ่านรู้เรื่อง — ไม่มีวงเล็บฝั่งแล้ว", () => {
+  assert.equal(L.slotLabel("A0101"), "โซนขวา ชั้น 1 ล็อก 1");
   assert.equal(L.slotLabel("B0410"), "โซนกลาง ชั้น 4 ล็อก 10");
+  assert.ok(!/ฝั่ง/.test(L.slotLabel("A0101-L")), "ป้ายเก่าก็ต้องไม่ขึ้นคำว่าฝั่ง");
 });
 
 /* ════ ③ พิกัด XYZ ════════════════════════════════════════════════════ */
@@ -129,16 +160,17 @@ ok("ล็อกถัดไปห่าง 257 (กว้าง 250 + เสา
   assert.equal(l2.y - l1.y, 175);
 });
 
-ok("2 ฝั่งในช่องเดียวกันไม่ทับกัน (กว้างครึ่งช่องคนละครึ่ง)", () => {
-  const l = L.slotBox("A0101", "L"), r = L.slotBox("A0101", "R");
-  assert.equal(l.w, 125);
-  assert.equal(l.z - r.z, 125, "ซ้ายอยู่ลึกกว่าขวา 125 ซม. (ซ้าย=ครึ่งลึก ตามที่เห็นจากทางเดิน · ภูม 2026-11-13)");
-  assert.equal(l.x, r.x);
-  assert.equal(l.y, r.y);
+ok("1 ช่อง = เต็มล็อก กว้าง 250 (ภูม 14/11: เลิกผ่าครึ่งซ้าย/ขวา)", () => {
+  const b = L.slotBox("A0101");
+  assert.equal(b.w, L.CELL.w, "กว้างเต็มล็อก ไม่ใช่ครึ่ง");
+  assert.equal(b.d, L.CELL.d);
+  assert.equal(b.h, L.CELL.h);
+  /* ช่องชั้นเดียวกันของล็อกเดียวกัน = ช่องเดียว ⇒ ไม่มี "คู่" ให้เทียบอีก */
+  assert.equal(L.buildLayout().slots.filter((s) => s.location === "A0101").length, 1);
 });
 
 ok("ของวางอยู่บนคาน ไม่จมพื้น", () => {
-  const b = L.slotBox("A0101", "L");
+  const b = L.slotBox("A0101");
   assert.equal(b.y - b.h / 2, L.STRUCT.beam, "ท้องของต้องอยู่สูงเท่าคาน");
 });
 
@@ -235,7 +267,7 @@ ok("ช่องที่อยู่ถูกส่งต่อให้หน�
     [{ tracking: "T1", slot: "A0101-L", boxes: 1, placed_by: "u" }],
     [job({ tracking: "T1", address: "1/2 บางรัก กรุงเทพ 10500", receiver: "สมชาย ใจดี", tel: "0812345678", carrier: "2" })],
   );
-  const it = v.layout.slots.find((s) => s.slot === "A0101-L").items[0];
+  const it = v.layout.slots.find((s) => s.slot === "A0101").items[0];
   assert.equal(it.address, "1/2 บางรัก กรุงเทพ 10500");
   assert.equal(it.receiver, "สมชาย ใจดี");
   assert.equal(it.tel, "0812345678");
@@ -260,13 +292,14 @@ ok("ช่องที่มีของได้สีตามงาน · ช
     [PL("TA", "A0101-L"), PL("TB", "B0305-R")],
     [job({ tracking: "TA" }), job({ tracking: "TB", status: 5, paid: false })],
   );
-  const a = v.layout.slots.find((s) => s.slot === "A0101-L");
-  const b = v.layout.slots.find((s) => s.slot === "B0305-R");
+  /* 🏷 ป้อนรหัสรูปเก่าเข้าไป (ของในฐานตอนนี้ยังเป็นรูปนั้น) แล้วต้องไปโผล่ที่ช่องรูปใหม่ */
+  const a = v.layout.slots.find((s) => s.slot === "A0101");
+  const b = v.layout.slots.find((s) => s.slot === "B0305");
   assert.equal(a.status, "ready");
   assert.equal(b.status, "wait");
   assert.equal(v.counts.ready, 1);
   assert.equal(v.counts.wait, 1);
-  assert.equal(v.counts.empty, 206, "ที่เหลือจาก 208 ต้องว่าง");
+  assert.equal(v.counts.empty, 102, "ที่เหลือจาก 104 ต้องว่าง");
 });
 
 ok("ช่องเดียววางได้หลายแทรค · นับกล่องรวม", () => {
@@ -274,7 +307,7 @@ ok("ช่องเดียววางได้หลายแทรค · น
     [PL("T1", "A0101-L", { boxes: 3 }), PL("T2", "A0101-L", { boxes: 2 })],
     [job({ tracking: "T1" }), job({ tracking: "T2" })],
   );
-  const s = v.layout.slots.find((x) => x.slot === "A0101-L");
+  const s = v.layout.slots.find((x) => x.slot === "A0101");
   assert.equal(s.items.length, 2);
   assert.equal(s.boxes, 5);
 });
@@ -282,7 +315,7 @@ ok("ช่องเดียววางได้หลายแทรค · น
 ok("🔴 รายการเตือน — ช่องที่ขัดกับระบบต้องโผล่ในลิสต์ให้กดดูได้", () => {
   const v = W.mergeView([PL("TX", "A0410-R")], [job({ tracking: "TX", status: 7 })]);
   assert.equal(v.alerts.length, 1);
-  assert.equal(v.alerts[0].slot, "A0410-R");
+  assert.equal(v.alerts[0].slot, "A0410");
   assert.equal(v.alerts[0].tracking, "TX");
 });
 
@@ -302,12 +335,12 @@ ok("ของที่คีย์ช่องผี (ช่องไม่ม�
   const v = W.mergeView([PL("TP", "Z9999-L"), PL("TQ", "A0101-L")], [job({ tracking: "TQ" })]);
   assert.equal(v.orphans.length, 1);
   assert.equal(v.orphans[0].tracking, "TP");
-  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").status, "ready");
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101").status, "ready");
 });
 
 ok("อ่านงานจากเว็บไม่ได้ = ช่องที่มีของขึ้น \"หาในระบบไม่เจอ\" ไม่ใช่เขียวหลอก", () => {
   const v = W.mergeView([PL("T1", "A0101-L")], []);
-  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").status, "unknown");
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101").status, "unknown");
 });
 
 /* ════ ⑥ 🔒 ขอบเขต — ห้ามแตะระบบ Pacred ═════════════════════════════ */
@@ -375,7 +408,7 @@ const readFile = (p) => fs.readFileSync(p, "utf8");
 ok("🔴 ต้องมีช่องก่อนถึงยิงแทรคได้ (ลำดับเดียวกับจอ Pacred)", () => {
   const src = readFile("warehouse-scan.html");
   assert.ok(src.includes("ยิงรหัสช่องก่อน แล้วค่อยยิงแทรค"), "ต้องเตือนให้ยิงช่องก่อน");
-  assert.ok(/if \(!fullSlot\(\)\)/.test(src), "ต้องมีด่านเช็คว่ามีช่องแล้วหรือยัง");
+  assert.ok(/if \(!slotNow\(\)\)/.test(src), "ต้องมีด่านเช็คว่ามีช่องแล้วหรือยัง");
 });
 
 ok("ยิงโดนรหัสช่อง = จำไว้เฉยๆ ไม่เขียนอะไร (ลอกจาก Pacred)", () => {
@@ -406,14 +439,52 @@ ok("ป้ายโลเคชั่นใช้บาร์โค้ด Code12
   assert.ok(src.includes("size:A4"), "ต้องตั้งขนาดกระดาษ");
 });
 
-ok("🔴 ป้ายต้องเก็บรหัสที่ \"ยิงแล้วเข้าช่องนั้นจริง\" — รูปแบบตรงกับตัวแกะของหน้ายิง", () => {
-  /* ป้ายพิมพ์ A0101-L (ต่อช่องวาง) หรือ A0101 (ต่อช่องชั้น) — ทั้ง 2 แบบหน้ายิงต้องอ่านออก */
+ok("🔴 ป้ายต้องเก็บรหัสที่ \"ยิงแล้วเข้าช่องนั้นจริง\" — ทั้งป้ายใหม่และป้ายเก่า", () => {
+  /* ป้ายใหม่พิมพ์ A0101 · ป้ายเก่าที่ยังติดอยู่บนชั้นเป็น A0101-L ⇒ หน้ายิงต้องอ่านออกทั้งคู่ */
   const scan = readFile("warehouse-scan.html");
-  assert.ok(/\^\(\[A-Z\]\)\(\\d\{2\}\)\(\\d\{2\}\)\(\[LR\]\)\$/.test(scan), "ต้องอ่าน A0101-L ได้");
+  assert.ok(scan.includes('.replace(/^([A-Z]\\d{4})[LR]$/, "$1")'),
+    "หน้ายิงต้องตัดหางของป้ายเก่าก่อนเทียบผัง");
   assert.ok(/\^\(\[A-Z\]\)\(\\d\{2\}\)\(\\d\{2\}\)\$/.test(scan), "ต้องอ่าน A0101 ได้");
   const lbl = readFile("warehouse-labels.html");
-  assert.ok(lbl.includes("s.slot"), "โหมดต่อช่องวางต้องพิมพ์รหัสเต็ม");
-  assert.ok(lbl.includes("s.location"), "โหมดต่อช่องชั้นต้องพิมพ์รหัสไม่มีฝั่ง");
+  assert.ok(lbl.includes("s.slot"), "ป้ายต้องพิมพ์รหัสช่องจากผัง");
+  assert.ok(!/s\.side/.test(lbl), "หน้าป้ายต้องไม่อ้างฝั่งอีก");
+  assert.ok(!lbl.includes('id="mode"'), "ไม่มีโหมดต่อช่องวาง/ต่อช่องชั้นแล้ว (1 ล็อก 1 ชั้น = 1 ป้าย)");
+});
+
+ok("🔴 ป้ายโลเคชั่น A4 แผ่นละ 8 ป้าย (ภูม 14/11) · ไม่ล้นกระดาษ · บาร์โค้ดยังอ่านได้", () => {
+  /* ภูม: *"ตอนนี้ A4 แผ่นนึงมันได้ 12 ป้าย ให้ปรับให้เป็น A4 ใบละ 8 โลเคชั่นก็พอนะ"*
+     🪤 ของเดิมตั้งความสูงป้ายแล้วปัดเศษว่าได้กี่ป้าย ⇒ เลขที่บอกกับที่ออกจากเครื่องพิมพ์คลาดกันได้
+        ⇒ ตอนนี้ตั้ง "กี่คอลัมน์ × กี่แถว" เป็นตัวตั้ง แล้วหารขนาดลงมา */
+  const lbl = readFile("warehouse-labels.html");
+  assert.ok(lbl.includes('const DEFAULT_SIZE = "8";'), "ตั้งต้นต้องเป็น 8 ป้าย/แผ่น");
+  assert.ok(lbl.includes('<option value="8">'), "ตัวเลือกแรกต้องเป็น 8 ป้าย/แผ่น");
+  assert.ok(/const SIZES = \{ 8: \{ cols: 2, rows: 4,/.test(lbl), "8 ป้าย = 2 คอลัมน์ × 4 แถว");
+  assert.ok(lbl.includes("const perSheet = (s) => s.cols * s.rows;"),
+    "จำนวนป้าย/แผ่นต้องเป็นเลขเป๊ะ ไม่ใช่ผลของการปัดเศษ");
+  assert.ok(lbl.includes("const SAFE_H = PAGE_H - 2;"),
+    "ต้องเผื่อความสูงไว้ ไม่งั้นเศษปัดของเครื่องพิมพ์ดันแถวสุดท้ายตกหน้า (ได้ 6 แทน 8)");
+
+  /* คิดเลขตามสูตรในหน้าเดียวกัน — ต้องพอดี A4 (194 × 281 มม.) ทุกขนาด */
+  const GAP = 4, PAGE_W = 194, PAGE_H = 281, SAFE_H = PAGE_H - 2;   // เผื่อ 2 มม. กันแถวสุดท้ายตกหน้า
+  const PAD = { pad: 2.5, zone: 3.2, codeGap: 1.6, foot: 3.7 };
+  const SIZES = { 8: { cols: 2, rows: 4, code: 13 }, 12: { cols: 2, rows: 6, code: 9 }, 24: { cols: 3, rows: 8, code: 6 } };
+  for (const k of Object.keys(SIZES)) {
+    const s = SIZES[k];
+    assert.equal(s.cols * s.rows, Number(k), "ชื่อตัวเลือกต้องตรงกับจำนวนจริง: " + k);
+    const w = (PAGE_W - GAP * (s.cols - 1)) / s.cols;
+    const h = (SAFE_H - GAP * (s.rows - 1)) / s.rows;
+    assert.ok(w * s.cols + GAP * (s.cols - 1) <= PAGE_W + 0.01, "ป้ายล้นความกว้าง A4 ที่ขนาด " + k);
+    assert.ok(h * s.rows + GAP * (s.rows - 1) <= PAGE_H - 1.99, "ป้ายล้นความสูง A4 ที่ขนาด " + k);
+    /* ที่ว่างที่เหลือให้ QR ต้องยังเป็นบวก ไม่งั้น QR ล้นออกนอกป้าย */
+    const marks = h - PAD.pad * 2 - PAD.zone - (s.code * 1.1 + PAD.codeGap) - PAD.foot;
+    assert.ok(marks >= 8, "ที่ว่างให้ QR/บาร์โค้ดเหลือ " + marks.toFixed(1) + " มม. ที่ขนาด " + k);
+    /* แท่งบาร์โค้ดบางสุดต้องไม่ต่ำกว่า 0.19 มม. (ต่ำกว่านี้เครื่องยิงอ่านไม่ออกจริง) */
+    const qr = Math.max(8, Math.min(marks, w * 0.45));
+    const mm = (w - 5 - qr - 2) / (11 + 5 * 11 + 11 + 13 + 20);
+    assert.ok(mm >= 0.19, "แท่งบาร์โค้ด " + mm.toFixed(3) + " มม. เล็กเกินที่ขนาด " + k);
+  }
+  /* 104 ช่อง ÷ 8 = 13 แผ่น (เดิม 208 ช่อง ÷ 12 = 18 แผ่น) */
+  assert.equal(Math.ceil(L.buildLayout().slots.length / 8), 13, "ทั้งโกดังต้องได้ 13 แผ่น");
 });
 
 ok("🚚 เอาของออกแยก 2 ชนิด — ขึ้นรถ กับ เอาออกเฉยๆ", () => {
@@ -608,15 +679,18 @@ ok("ขนาดป้ายคิดเป็นมิลลิเมตรจ�
   assert.ok(/height:var\(--lh\)/.test(LBL), "ป้ายต้องสูงคงที่ ไม่งั้นนับแผ่นไม่ได้");
 });
 
-ok("ค่าตั้งต้นคือขนาดใหญ่ 2 ป้าย/แถว (ภูมบอกของเดิมเล็กไป)", () => {
+ok("ค่าตั้งต้น = 8 ป้าย/แผ่น (ภูม 14/11 · ของเดิม 12 ป้าย)", () => {
   const i = LBL.indexOf('<select id="size">');
-  const block = LBL.slice(i, i + 260);
-  const first = /<option value="(\d)"/.exec(block);
-  assert.equal(first && first[1], "2", "ตัวเลือกแรก (= ค่าตั้งต้น) ต้องเป็น 2 ป้าย/แถว");
+  const block = LBL.slice(i, i + 300);
+  const first = /<option value="(\d+)"/.exec(block);
+  assert.equal(first && first[1], "8", "ตัวเลือกแรก (= ค่าตั้งต้น) ต้องเป็น 8 ป้าย/แผ่น");
+  assert.ok(!/ป้าย\/แถว/.test(block), "ชื่อตัวเลือกต้องบอกเป็น 'ป้าย/แผ่น' (ภูมคิดเป็นแผ่น)");
 });
 
 ok("🔴 เตือนเมื่อแท่งบาร์โค้ดเล็กกว่าที่เครื่องยิงอ่านได้", () => {
-  /* วัดจริงแล้ว: 4 ป้าย/แถว ได้ 0.18 มม. → ตัวอ่านอ่านไม่ออกจริง ⇒ ต้องมีคำเตือน */
+  /* วัดจริงแล้ว: 4 ป้าย/แถว (ของเดิม) ได้ 0.18 มม. → เครื่องยิงอ่านไม่ออกจริง
+     📌 ชุดขนาดตอนนี้ (8/12/24 ป้ายต่อแผ่น) ผ่าน 0.19 มม. ทุกตัวแล้ว
+        แต่ยามนี้ยังต้องอยู่ — เผื่อวันหน้ามีคนเพิ่มขนาดเล็กกว่านี้เข้ามา */
   assert.ok(/mm < 0\.19/.test(LBL), "ต้องมีเส้นแบ่ง 0.19 มม.");
   assert.ok(LBL.includes("เล็กเกินสำหรับเครื่องยิงบาร์โค้ด"), "ต้องบอกเป็นภาษาคน");
 });
@@ -685,16 +759,16 @@ ok("🔴 รหัสเรียง ชั้นก่อน แล้วค่
 });
 
 ok("🔴 แปลงรหัสรุ่นก่อนได้ (ของที่คีย์ไว้แล้วต้องไม่หาย)", () => {
-  assert.equal(L.convertOldCode("A0501-R"), "A0105-R", "เดิม ล็อก5 ชั้น1");
+  assert.equal(L.convertOldCode("A0501-R"), "A0105", "เดิม ล็อก5 ชั้น1 · หางฝั่งถูกตัด");
   assert.equal(L.convertOldCode("A1004"), "A0410", "เดิม ล็อก10 ชั้น4");
   assert.equal(L.convertOldCode("A0107"), null, "เดิมแถว A ไม่มีชั้น 7");
   assert.equal(L.convertOldCode("ไม่ใช่รหัส"), null);
 });
 
-ok("ทุกช่องในผังยังครบ 208 และรหัสไม่ซ้ำกัน", () => {
+ok("ทุกช่องในผังยังครบ 104 และรหัสไม่ซ้ำกัน", () => {
   const b = L.buildLayout();
-  assert.equal(b.slots.length, 208);
-  assert.equal(new Set(b.slots.map((s) => s.slot)).size, 208, "รหัสซ้ำ = ของทับกัน");
+  assert.equal(b.slots.length, 104);
+  assert.equal(new Set(b.slots.map((s) => s.slot)).size, 104, "รหัสซ้ำ = ของทับกัน");
   for (const s of b.slots) assert.ok(L.parseSlot(s.slot), "แกะรหัสไม่ออก: " + s.slot);
 });
 
@@ -725,14 +799,14 @@ ok("ผังบอกทิศทางหน้าโกดังมาด้�
 ok("🔴 ของที่คีย์ไว้ด้วยรหัสรูปเก่า ต้องไม่หายจากจอ", () => {
   /* 🪤 ไม่แปลงให้ = แถวเก่ากลายเป็น orphan แล้วหายเงียบๆ ทั้งที่ของยังอยู่บนชั้นจริง */
   const v = W.mergeView([PL("TOLD", "A0501-R")], [job({ tracking: "TOLD" })]);
-  const s = v.layout.slots.find((x) => x.slot === "A0105-R");
+  const s = v.layout.slots.find((x) => x.slot === "A0105");
   assert.equal(s.items.length, 1, "ต้องไปโผล่ที่ช่องเดียวกันในรูปใหม่");
   assert.equal((v.orphans || []).length, 0, "ต้องไม่กลายเป็นของกำพร้า");
 });
 
 ok("🔴 ป้าย/หน้าจอ ต้องเรียงคำ ชั้นก่อนล็อก ให้ตรงกับรหัส", () => {
   /* อ่านรหัสได้ลำดับหนึ่ง อ่านคำได้อีกลำดับ = คนเดินหาของผิดช่อง */
-  const lb = L.slotLabel("B0410-R");
+  const lb = L.slotLabel("B0410");
   assert.ok(/ชั้น 4 ล็อก 10/.test(lb), "ชื่อช่องต้องเรียงชั้นก่อน → " + lb);
   const LBL = fs.readFileSync("warehouse-labels.html", "utf8");
   assert.ok(!/" · ล็อก " \+ s\.bay/.test(LBL), "หน้าป้ายห้ามเรียงคำเอง");
@@ -764,10 +838,13 @@ ok("🔴 รหัสช่องที่ฝังไว้ในโค้ด �
   for (const file of ["warehouse-demo.js", "warehouse-3d.html", "warehouse-assign.html", "warehouse-scan.html", "SETUP-WAREHOUSE.md"]) {
     const src = fs.readFileSync(file, "utf8");
     for (const m of src.match(/\b[A-C]\d{4}(-[LR])?\b/g) || []) {
-      const okCode = m.includes("-") ? L.parseSlot(m) : L.parseLocation(m);
-      assert.ok(okCode, "รหัสผีใน " + file + " → " + m);
+      assert.ok(L.parseSlot(m), "รหัสผีใน " + file + " → " + m);
     }
   }
+  /* 🔴 ข้อมูลตัวอย่าง (ไม่ใช่คอมเมนต์) ห้ามมีหาง -L/-R อีก — ไม่งั้นโหมดลองดูสอนรูปแบบที่เลิกใช้ */
+  const demo = fs.readFileSync("warehouse-demo.js", "utf8");
+  const tails = demo.match(/[A-C]\d{4}-[LR]/g) || [];
+  assert.equal(tails.length, 0, "ข้อมูลลองดูยังมีหางฝั่ง: " + tails.join(" · "));
 });
 
 ok("🔴 ของที่คีย์ไว้ช่องที่ไม่มีในผังแล้ว ต้องค้างในรายการเตือน ไม่ใช่หายเงียบ", () => {
@@ -835,11 +912,16 @@ ok("🔴 กดช่องในจอ 3D แล้วต้องเพิ่�
 ok("🔴 หน้ายิง/หน้าคีย์ ต้องรับช่องที่ส่งมาแล้วเลือกให้เสร็จ", () => {
   const SC = fs.readFileSync("warehouse-scan.html", "utf8");
   assert.ok(SC.includes('new URLSearchParams(location.search).get("slot")'), "หน้ายิงต้องอ่าน ?slot=");
-  assert.ok(SC.includes("if (fromUrl && slotExists(fromUrl.code, fromUrl.side))"),
+  assert.ok(SC.includes("if (fromUrl && slotExists(fromUrl.code))"),
     "ต้องตรวจว่าช่องมีจริงก่อนเลือกให้ (กันลิงก์มั่ว)");
   const AS = fs.readFileSync("warehouse-assign.html", "utf8");
   assert.ok(AS.includes('get("slot")'), "หน้าคีย์เองต้องอ่าน ?slot=");
-  assert.ok(AS.includes("sel.zone = hit.row"), "ต้องติ๊ก โซน/ล็อก/ชั้น/ฝั่ง ให้ครบ");
+  assert.ok(AS.includes("sel.zone = hit.row"), "ต้องติ๊ก โซน/ล็อก/ชั้น ให้ครบ");
+  assert.ok(AS.includes('.replace(/^([A-Z]\\d{4})[LR]$/, "$1")'),
+    "ลิงก์เก่าที่ยังมีหางฝั่งต้องเปิดได้ (ไม่ใช่ขึ้นว่าไม่มีช่องนี้)");
+  assert.ok(!/id="sides"/.test(AS), "ฟอร์มต้องไม่มีปุ่มเลือกฝั่งแล้ว");
+  const SCAN2 = fs.readFileSync("warehouse-scan.html", "utf8");
+  assert.ok(!/id="sides"/.test(SCAN2), "หน้ายิงต้องไม่มีปุ่มซ้าย/ขวาแล้ว");
 });
 
 
@@ -847,7 +929,7 @@ ok("🔴 หน้ายิง/หน้าคีย์ ต้องรับช
  *
  * ภูม: *"ตอนนี้เรามีมากกว่า 1 โกดังแล้ว"* + *"แยก Location ID และข้อมูลสต็อกตาม warehouse_id"*
  * 🔑 ภูมเคาะ: **รหัสช่องเหมือนกันทั้ง 2 โกดัง** แยกด้วยรหัสโกดัง
- *    ⇒ A0101-L มี 2 ช่องในโลกจริง ⇒ ถ้าโค้ดไหนลืมดูโกดัง พนักงานจะเดินหาผิดตึก
+ *    ⇒ A0101 มี 2 ช่องในโลกจริง ⇒ ถ้าโค้ดไหนลืมดูโกดัง พนักงานจะเดินหาผิดตึก
  */
 section("แยกโกดัง (โกดัง 1 · โกดัง 2)");
 
@@ -877,7 +959,7 @@ ok("🔴 ตอนเขียนฐานห้ามเดาโกดัง �
 
 ok("🔴 ผังโกดัง 2 เหมือนโกดัง 1 เป๊ะ (ภูมยืนยัน 13/11)", () => {
   const plan = L.buildLayout();
-  assert.equal(plan.totals.slots, 208, "ช่องรวมต้องเท่าเดิม (26 ล็อก × 4 ชั้น × 2 ฝั่ง)");
+  assert.equal(plan.totals.slots, 104, "ช่องรวม = 26 ล็อก × 4 ชั้น (ไม่แยกฝั่งแล้ว)");
   assert.equal(plan.warehouses.length, 2, "ผังต้องแนบทะเบียนโกดังไปให้หน้า 3D");
   assert.equal(plan.warehouses[0].id, "WH1");
 });
@@ -914,6 +996,34 @@ ok("ไฟล์ SQL เพิ่มช่องโกดังแบบรั�
   assert.ok(sql.includes("wh in ('WH1','WH2')"), "ด่านต้องรับแค่โกดังที่มีจริง");
 });
 
+ok("🔴 SQL เลิกแยกซ้าย/ขวา — ตัดหางให้ของเดิม + ด่านใหม่ไม่รับหาง", () => {
+  /* 🪤 ไม่ตัดหางในฐาน = แถวเก่า slot ยังเป็น A0101-L ⇒ ตัวอ่านยังแกะออก (ใจดี)
+        แต่ "ช่องเดียวกัน" จะกลายเป็น 2 คีย์ในตาราง ⇒ ค้นตาม slot แล้วเจอไม่ครบ */
+  const sql = readFile("warehouse-schema.sql");
+  assert.ok(sql.includes("drop constraint if exists wh_placement_slot_fmt"),
+    "ต้องถอดด่านเก่าก่อนแก้ข้อมูล ไม่งั้น update ถูกปฏิเสธทั้งชุด");
+  assert.ok(sql.includes("alter column side drop not null"), "ช่อง side ต้องปล่อยว่างได้");
+  assert.ok(/update public\.wh_placement[\s\S]{0,160}regexp_replace\(slot, '-\[LR\]\$', ''\)/.test(sql),
+    "ต้องตัดหางของแถวที่วางอยู่");
+  assert.ok(/update public\.wh_cage[\s\S]{0,120}regexp_replace\(slot, '-\[LR\]\$', ''\)/.test(sql),
+    "ต้องตัดหางของกรงเหล็กด้วย");
+  assert.ok(sql.includes("set id = wh || '-' || slot"), "id ของกรงต้องต่อใหม่จากรหัสที่แก้แล้ว");
+  assert.ok(sql.includes("check (slot ~ '^[A-Z][0-9]{4}$')"), "ด่านใหม่ต้องไม่รับหาง -L/-R");
+  assert.ok(!/slot ~ '\^\[A-Z\]\[0-9\]\{4\}-\[LR\]\$'/.test(sql),
+    "ด่านเก่าที่บังคับให้มีหางต้องไม่เหลืออยู่");
+  /* 🗂 ประวัติต้องไม่ถูกเขียนทับ — ตอนนั้นของอยู่ครึ่งนั้นจริง */
+  assert.ok(!/update public\.wh_move_log/.test(sql), "ห้ามแก้ประวัติย้อนหลัง");
+});
+
+ok("🔴 ตัวเขียนฐานเลิกส่งช่อง side (ฐานรุ่นใหม่ปล่อยว่าง)", () => {
+  const src = readFile("warehouse.js");
+  assert.ok(!/side: s\.side/.test(src), "ยังเขียน side อยู่ = ฟ้องเพราะ parseSlot ไม่คืนค่านั้นแล้ว");
+  assert.ok(src.includes("function isOldSideSchema("),
+    "ถ้าโค้ดขึ้นก่อนวาง SQL ต้องบอกเป็นภาษาคน ไม่ใช่โยนข้อความของ Postgres ให้พนักงานอ่าน");
+  const demo = readFile("warehouse-demo.js");
+  assert.ok(!/side: s\.side/.test(demo), "โหมดลองดูก็ต้องไม่เขียน side");
+});
+
 /* ── 🧺 กรงเหล็ก ─────────────────────────────────────────────────────
    ภูม: *"กรงมันขนาดเท่า[ช่อง] มันไม่ได้กินทั้งล็อก ซ้ายขวานะ
           ของในกรงมันก็กล่องนะ แต่กล่องเล็กไง"*
@@ -922,12 +1032,12 @@ section("กรงเหล็ก");
 
 ok("ช่องที่มีกรง ติดข้อมูลกรงมากับช่อง + นับของในกรงให้", () => {
   const v = W.mergeView(
-    [PL("T1", "A0101-L"), PL("T2", "A0101-L"), PL("T3", "B0101-R")],
+    [PL("T1", "A0101"), PL("T2", "A0101"), PL("T3", "B0101")],
     [],
-    [{ slot: "A0101-L", kind: "nocode", name: "กรง No-Code 01" }],
+    [{ slot: "A0101", kind: "nocode", name: "กรง No-Code 01" }],
   );
-  const caged = v.layout.slots.find((s) => s.slot === "A0101-L");
-  const plain = v.layout.slots.find((s) => s.slot === "B0101-R");
+  const caged = v.layout.slots.find((s) => s.slot === "A0101");
+  const plain = v.layout.slots.find((s) => s.slot === "B0101");
   assert.ok(caged.cage, "ช่องนี้ต้องมีกรง");
   assert.equal(caged.cage.name, "กรง No-Code 01");
   assert.equal(caged.cage.kind, "nocode");
@@ -938,13 +1048,13 @@ ok("ช่องที่มีกรง ติดข้อมูลกรงม
 
 ok("ไม่มีกรงเลย = ทุกช่องไม่มีกรง (ของเดิมไม่เปลี่ยน)", () => {
   const v = W.mergeView([PL("T1", "A0101-L")], []);
-  assert.equal(v.layout.slots.find((s) => s.slot === "A0101-L").cage, null);
+  assert.equal(v.layout.slots.find((s) => s.slot === "A0101").cage, null);
   assert.equal(v.counts.cages, 0);
 });
 
 ok("กรงชนิดมั่ว = ตกเป็นกรงชิ้นเล็ก ไม่ใช่พังทั้งจอ", () => {
   const v = W.mergeView([], [], [{ slot: "C0101-L", kind: "มั่ว", name: "" }]);
-  const s = v.layout.slots.find((x) => x.slot === "C0101-L");
+  const s = v.layout.slots.find((x) => x.slot === "C0101");
   assert.equal(s.cage.kind, "small");
   assert.equal(s.cage.name, "กรงเหล็ก", "ไม่มีชื่อ = ชื่อสำรอง ไม่ใช่ช่องว่าง");
 });
@@ -990,12 +1100,13 @@ section("จอ 3D — สลับโกดัง · ป้ายจ่อเ�
 
 const D3H = readFile("warehouse-3d.html");
 
-ok("🔴 กล้องตอนล็อก ต้องไปยืน 'ทางเดินของหน้าชั้นนั้น' — ช่อง -L อยู่ซ้ายเสมอ", () => {
+ok("🔴 กล้องตอนล็อก ต้องไปยืน 'ทางเดินของหน้าชั้นนั้น' เสมอ", () => {
   /* ภูม 2026-11-13 (รูปแถว C): *"ล็อกซ้ายมันดันอยู่ขวาแทนอะ มันต้องคอยหมุนกล้องให้ถูกอะ"*
      + *"แค่แถว C อะ เพราะมันชิดกำแพงซ้าย"*
-     🔑 ตัวตัดสินเดียว = face.from ในผัง (ฝั่งที่คนยืนในทางเดิน) ซึ่งเป็นตัวเดียวกับที่ผังใช้
-        ตัดสิน -L/-R ⇒ กล้องกับป้ายเดินตามมันทั้งคู่ = ซ้ายบนจอ ตรงกับ -L เสมอ
-     🪤 ห้ามกลับไปเดาจากลำดับแถว/ตำแหน่งกล้อง (แถวกลางเคยสลับไปมาเอง) */
+     🔑 ตัวตัดสินเดียว = face.from ในผัง (ฝั่งที่คนยืนในทางเดิน)
+        ⇒ ล็อกแถวไหนก็เห็นชั้นวางจากฝั่งที่คนยืนจริง เลขล็อกเดินทางเดียวกันทุกแถว
+     🪤 ห้ามกลับไปเดาจากลำดับแถว/ตำแหน่งกล้อง (แถวกลางเคยสลับไปมาเอง)
+     📌 14/11 เลิกใช้ซ้าย/ขวาในรหัสช่องแล้ว — face.from เหลือหน้าที่คุมกล้อง/ป้ายอย่างเดียว */
   const i = D3H.indexOf("function focusRowSide(");
   assert.ok(i > 0, "ต้องมีตัวตั้งกล้องตอนล็อกแถว");
   const body = D3H.slice(i, i + 2400);
@@ -1016,18 +1127,26 @@ ok("🔴 กล้องตอนล็อก ต้องไปยืน 'ท�
   assert.equal(L.rowOf("B").faces[1].from, "+X", "หน้าขวาของ B หันออกทางเดินฝั่งแถว C");
 });
 
-ok("🔴 ซ้าย/ขวา กลับด้านตามฝั่งที่ยืน — แถว C กดกล่องซ้ายต้องได้ -L", () => {
-  /* นี่คือบั๊กที่ภูมเจอตรงๆ: แถว C กดกล่องที่เห็นอยู่ "ซ้าย" แล้วระบบบอกว่า -R */
-  const half = L.CELL.w / 2;
-  /* ยืนฝั่ง +X (แถว A) มองย้อนเข้าหาชั้น ⇒ ครึ่งที่ Z มากอยู่ซ้ายมือ */
-  assert.ok(L.slotBox("A0101", "L").z > L.slotBox("A0101", "R").z, "แถว A: -L อยู่ฝั่ง Z มาก");
-  /* ยืนฝั่ง -X (แถว C ชิดกำแพงซ้าย) ⇒ กลับด้าน */
-  assert.ok(L.slotBox("C0101", "L").z < L.slotBox("C0101", "R").z, "แถว C: -L ต้องกลับด้านกับ A");
-  /* แถว B ชั้นคู่: 2 ฝั่งหันคนละทาง ⇒ -L ก็คนละด้านกัน */
-  assert.ok(L.slotBox("B0101", "L").z < L.slotBox("B0101", "R").z, "หน้าซ้ายของ B หันเหมือน C");
-  assert.ok(L.slotBox("B0106", "L").z > L.slotBox("B0106", "R").z, "หน้าขวาของ B หันเหมือน A");
-  /* 2 ฝั่งในช่องเดียวกันต้องไม่ทับกันเหมือนเดิม */
-  assert.equal(Math.abs(L.slotBox("C0101", "L").z - L.slotBox("C0101", "R").z), half);
+ok("🔴 1 ช่อง = เต็มล็อก · ช่องติดกันไม่ทับกัน (ภูม 14/11)", () => {
+  /* เดิม 1 ช่อง = ครึ่งล็อก (กว้าง 125) ⇒ 1 ล็อกมี 2 ช่องซ้าย/ขวา
+     ตอนนี้ 1 ช่อง = เต็มล็อก (กว้าง 250) ⇒ กล่องที่วาดต้องกินเต็มล็อกพอดี ไม่ล้นไปล็อกข้างๆ */
+  const a = L.slotBox("A0101"), b = L.slotBox("A0102");
+  assert.equal(a.w, L.CELL.w, "ช่องต้องกว้างเต็มล็อก");
+  assert.equal(a.d, L.CELL.d);
+  assert.equal(a.h, L.CELL.h);
+  assert.equal(a.z, L.bayZ0("A", 1) + L.CELL.w / 2, "กึ่งกลางช่องต้องอยู่กลางล็อกพอดี");
+  /* ล็อกติดกันห่างกันเท่าระยะล็อก (= กว้างช่อง + เสา) ⇒ ขอบไม่เหลื่อมกัน */
+  assert.equal(Math.abs(b.z - a.z), L.BAY_PITCH, "ล็อกติดกันต้องห่างเท่า BAY_PITCH");
+  assert.ok(Math.abs(b.z - a.z) >= a.w, "ช่องติดกันห้ามทับกัน");
+  /* ป้ายเก่ายิงเข้ามา ต้องได้กล่องเดียวกับป้ายใหม่ */
+  assert.deepEqual(L.slotBox("A0101-L"), a);
+  assert.deepEqual(L.slotBox("A0101-R"), a);
+  /* จอ 3D ต้องวาดเต็มล็อกด้วย ไม่ใช่ครึ่ง (ไม่งั้นเห็นช่องโหว่กลางชั้น) */
+  const D3 = readFile("warehouse-3d.html");
+  assert.ok(D3.includes("(C.w - 16) * S"), "กล่องสินค้าต้องกว้างเต็มล็อก");
+  assert.ok(!/\(C\.w \/ 2 - 10\) \* S/.test(D3), "ยังวาดครึ่งล็อกอยู่");
+  assert.ok(/new THREE\.BoxGeometry\(C\.d \* S, \(C\.h \+ ST\.beam\) \* S, C\.w \* S\)/.test(D3),
+    "กรอบรับคลิกต้องเต็มล็อก");
 });
 
 ok("🧱 แถว B = ชั้นคู่หันหลังชนกัน · ล็อก 1-5 กับ 6-10 จับคู่กันพอดี", () => {
@@ -1038,8 +1157,8 @@ ok("🧱 แถว B = ชั้นคู่หันหลังชนกัน
   assert.deepEqual(b.faces.map((f) => [f.first, f.count]), [[1, 5], [6, 5]]);
   for (let n = 0; n < 5; n++) {
     assert.equal(L.bayZ0("B", 1 + n), L.bayZ0("B", 6 + n), "ล็อก " + (1 + n) + " ต้องอยู่ตรงกับล็อก " + (6 + n));
-    assert.notEqual(L.slotBox(L.locationCode("B", 1 + n, 1), "L").x,
-      L.slotBox(L.locationCode("B", 6 + n, 1), "L").x, "แต่ต้องคนละด้านของชั้น (X ต่างกัน)");
+    assert.notEqual(L.slotBox(L.locationCode("B", 1 + n, 1)).x,
+      L.slotBox(L.locationCode("B", 6 + n, 1)).x, "แต่ต้องคนละด้านของชั้น (X ต่างกัน)");
   }
   assert.equal(L.faceOfBay("B", 5).face.key, "B1");
   assert.equal(L.faceOfBay("B", 6).face.key, "B2");

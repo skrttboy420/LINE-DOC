@@ -365,7 +365,7 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 /* ══ 🏭 โกดังที่กำลังดู (ภูม 2026-11-13) ═══════════════════════════════
- * 🔑 รหัสช่องเหมือนกันทั้ง 2 โกดัง (A0101-L มีทั้งคู่) ⇒ ทุกหน้า **ต้องพกรหัสโกดังไปด้วย**
+ * 🔑 รหัสช่องเหมือนกันทั้ง 2 โกดัง (A0101 มีทั้งคู่) ⇒ ทุกหน้า **ต้องพกรหัสโกดังไปด้วย**
  *    ไม่งั้นยิงของลงผิดโกดังแล้วพนักงานเดินหาผิดตึก
  * จำไว้ในเครื่อง + ติดไปใน URL ⇒ รีเฟรช/แชร์ลิงก์แล้วยังอยู่โกดังเดิม
  */
@@ -641,17 +641,19 @@ function buildScene(view) {
   postAt = posts; beamAt = beams;
   paintStructure();
 
-  /* กล่องสินค้า — สีต่อชิ้น · ช่องว่าง/ช่องที่ถูกกรอง = ย่อเหลือ 0 (ไม่วาด) */
+  /* กล่องสินค้า — สีต่อชิ้น · ช่องว่าง/ช่องที่ถูกกรอง = ย่อเหลือ 0 (ไม่วาด)
+     🔴 ภูม 14/11: 1 ช่อง = **เต็มล็อก** (เลิกแยกซ้าย/ขวา) ⇒ กล่องกว้างเต็ม C.w
+        เว้นขอบ 16 ซม. ให้เห็นรอยต่อระหว่างล็อก (เดิมครึ่งล็อกเว้น 10) */
   const n = L.slots.length;
   boxIM = instanced(
-    new THREE.BoxGeometry((C.d - 10) * S, (C.h - 18) * S, (C.w / 2 - 10) * S),
+    new THREE.BoxGeometry((C.d - 10) * S, (C.h - 18) * S, (C.w - 16) * S),
     new THREE.MeshLambertMaterial({}), n);
 
   /* 🎯 กรอบรับคลิก — ภูม: *"เพิ่ม Invisible Hitbox รอบพาเลท · ป้องกันการเลือกวัตถุผิดชิ้น"*
      เต็มขนาดช่อง (ใหญ่กว่ากล่องที่เห็น) ⇒ กดโดนง่ายขึ้นมาก โดยเฉพาะบนมือถือ
      วาดแต่ไม่ลงสี (colorWrite:false) ⇒ มองไม่เห็น แต่ raycast โดน */
   hitIM = instanced(
-    new THREE.BoxGeometry(C.d * S, (C.h + ST.beam) * S, (C.w / 2) * S),
+    new THREE.BoxGeometry(C.d * S, (C.h + ST.beam) * S, C.w * S),
     new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false }), n);
   hitIM.renderOrder = -1;
 
@@ -798,7 +800,9 @@ function paintSlots() {
 /* ══ 🧺 กรงเหล็ก (Wire Mesh Cage) — ภูม 2026-11-13 ═══════════════════════
  * ภูม: *"เรามีกรงเหล็กที่ไว้ให้พวกสินค้าชิ้นเล็กๆและพวกสินค้าที่เป็น nocode"*
  *      *"กรงมันขนาดเท่า[ช่อง] มันไม่ได้กินทั้งล็อก ซ้ายขวานะ"*
- * ⇒ กรง 1 ใบ = 1 ช่อง (ฝั่ง -L หรือ -R) · ฟ้า = กรงชิ้นเล็ก · ม่วง = กรง No-Code
+ * ⇒ กรง 1 ใบ = **ครึ่งล็อก** ตามของจริง · แต่ช่องวางเป็นเต็มล็อกแล้ว (ภูม 14/11)
+ *   ⇒ วาดกรงกว้างครึ่งล็อก วางกลางช่อง · 1 ช่องมีกรงได้ 1 ใบเหมือนเดิม
+ * ⇒ ฟ้า = กรงชิ้นเล็ก · ม่วง = กรง No-Code
  * ⇒ ของในกรง = กล่องที่วางในช่องนั้น (ยิงเข้าตามปกติ) ⇒ วาดกล่องเล็กหลายใบในกรงตามจำนวนจริง
  */
 const CAGE_COLOR = { small: 0x22d3ee, nocode: 0xa855f7 };
@@ -874,6 +878,7 @@ function paintCages() {
   if (!caged.length) return;
 
   const C = DATA.layout.cell;
+  /* 🧺 กรงกว้างครึ่งล็อกตามของจริง (ภูม: *"ไม่ได้กินทั้งล็อก"*) วางกลางช่องที่เป็นเต็มล็อก */
   const w = (C.d - 8) * S, h = (C.h - 24) * S, d = (C.w / 2 - 8) * S;
   cageGroup = new THREE.Group();
 
@@ -1130,14 +1135,14 @@ function openSlot(code, zoom) {
         '<button class="del" data-del="', esc(i.tracking), '">🗑 ลบรายการ (ยิงผิด)</button>',
         "</div>",
         '<div class="mvbox" data-box="', esc(i.tracking), '">',
-        '<input placeholder="ช่องใหม่ เช่น B0305-R" data-in="', esc(i.tracking), '">',
+        '<input placeholder="ช่องใหม่ เช่น B0305" data-in="', esc(i.tracking), '">',
         '<button data-go="', esc(i.tracking), '">ย้าย</button>',
         "</div>",
         "</div>",
       ].join("")).join("")
     : '<div class="none">ช่องนี้ยังว่าง</div>';
 
-  /* ➕ เพิ่มของเข้าช่องนี้ได้เลยจากตรงนี้ — ไม่ต้องไปเลือก โซน/ล็อก/ชั้น/ฝั่ง ใหม่อีกรอบ
+  /* ➕ เพิ่มของเข้าช่องนี้ได้เลยจากตรงนี้ — ไม่ต้องไปเลือก โซน/ล็อก/ชั้น ใหม่อีกรอบ
      ภูม 2026-11-13: *"กดเพิ่มรายการจากล็อกที่เรากดเลือกไปด้วยเลย …
      พอกดไปแล้ว ก็เท่ากับเลือกล็อกเรียบร้อย ก็ยิงแทรคได้เลย"* */
   const slotQ = "&wh=" + encodeURIComponent(WH) + "&slot=" + encodeURIComponent(s.slot);
@@ -1543,18 +1548,16 @@ function renderBayDetail() {
 
   let html = '<div class="detail"><div class="dh"><b>' + esc(rowName) + " ล็อก " + bay + "</b>" +
     '<span class="sm">' + tracks + " แทรค · " + boxes + ' กล่อง</span><button id="see3d">ดูใน 3D</button></div>';
+  /* 🔴 ภูม 14/11: เลิกแยกซ้าย/ขวา ⇒ 1 ชั้น = 1 ปุ่ม (ปุ่มกว้างเต็มแถว อ่านง่ายขึ้นบนมือถือ) */
   for (let lv = DATA.layout.levels; lv >= 1; lv--) {
-    html += '<div class="lv"><div class="lk">ชั้น ' + lv + "</div>";
-    for (const side of DATA.layout.sides) {
-      const s = list.find((x) => x.level === lv && x.side === side);
-      if (!s) continue;
-      const col = DATA.pickColor[s.status] || "#334155";
-      const txt = s.items.length ? s.items.length + " แทรค · " + s.boxes + " กล่อง" : "ว่าง";
-      html += '<button class="cell' + (s.items.length ? " full" : "") + (openCode === s.slot ? " on" : "") +
-        '" data-slot="' + s.slot + '"><span class="sw" style="background:' + col + '"></span>' +
-        '<span class="tx">' + (side === "L" ? "ซ้าย" : "ขวา") + " · " + esc(txt) + "</span></button>";
-    }
-    html += "</div>";
+    const s = list.find((x) => x.level === lv);
+    if (!s) continue;
+    const col = DATA.pickColor[s.status] || "#334155";
+    const txt = s.items.length ? s.items.length + " แทรค · " + s.boxes + " กล่อง" : "ว่าง";
+    html += '<div class="lv"><div class="lk">ชั้น ' + lv + "</div>" +
+      '<button class="cell' + (s.items.length ? " full" : "") + (openCode === s.slot ? " on" : "") +
+      '" data-slot="' + s.slot + '"><span class="sw" style="background:' + col + '"></span>' +
+      '<span class="tx">' + esc(s.slot) + " · " + esc(txt) + "</span></button></div>";
   }
   host.innerHTML = html + "</div>";
 
@@ -1649,10 +1652,10 @@ function focusRowSide(faceKey) {
        มันต้องคอยหมุนกล้องให้ถูกอะ"*
      🪤 ของเดิม: แถวแรกมองจาก +X · แถวสุดท้ายมองจาก -X · แถวกลางแล้วแต่ว่ากล้องอยู่ไหนตอนกด
         ⇒ ซ้าย/ขวาบนจอ **สลับกันระหว่างแถว** · แถว B ยังสลับไปมาเองด้วย
-        (ตรวจของจริง 13/11: แถว A กล่องซ้ายของคู่ = A0101-L ถูก · แถว C ได้ -R = สลับ)
      ⇒ ตอนนี้กล้องเดินตาม "ทางเดินของหน้าชั้นนั้น" ที่ผังบอกมา (face.from)
-        ซึ่งเป็นตัวเดียวกับที่ผังใช้ตัดสิน -L/-R ⇒ **ช่อง -L อยู่ซ้ายเสมอ** ทุกแถวทุกฝั่ง
-        (แถว C ชิดกำแพงซ้าย ⇒ ทางเดินฝั่ง -X ⇒ กล้องไปยืนฝั่งนั้น ตามที่ภูมชี้ในรูป) */
+        ⇒ ล็อกแถวไหนก็เห็นชั้นวางจากฝั่งที่คนยืนจริง เลขล็อกเดินทางเดียวกันทุกแถว
+        (แถว C ชิดกำแพงซ้าย ⇒ ทางเดินฝั่ง -X ⇒ กล้องไปยืนฝั่งนั้น ตามที่ภูมชี้ในรูป 13/11)
+     🔴 14/11 เลิกใช้ซ้าย/ขวาในรหัสช่องแล้ว — เหลือแค่ "ยืนฝั่งไหน" ที่ยังคุมกล้องตัวนี้ */
   const fromRight = row.from === "+X";
   /* 🎯 มองหน้าตรง 90° เป๊ะ — เดิม 1.4 เรเดียน (≈80°) มองเฉียงลงนิดนึง ชั้นเลยซ้อนกันจนอ่านยาก
      ภูม 2026-11-13: *"มันลายจนมองยากเลย … อยากได้แบบมันขึ้นมาประมาณนี้ จะได้มองง่ายๆ"*
@@ -1679,14 +1682,12 @@ $("go").addEventListener("click", () => { doSearch($("q").value).catch(() => {})
 async function doSearch(term, noHop) {
   const q = String(term || "").trim();
   if (!q) return;
-  const up = q.toUpperCase().replace(/[\s-]/g, "");
-  const asSlot = /^[A-Z]\d{4}[LR]$/.test(up) ? up.slice(0, 5) + "-" + up.slice(5) : null;
+  /* 🏷 ป้ายเก่ามีหาง -L/-R และยังแปะอยู่บนชั้น ⇒ พิมพ์/ยิง "A0101-L" ต้องเจอช่อง A0101 */
+  const up = q.toUpperCase().replace(/[\s-]/g, "").replace(/^([A-Z]\d{4})[LR]$/, "$1");
   const go = (s) => { pushHistory(); openBayDetail(s.row, s.bay, true); openSlot(s.slot); };
 
-  if (asSlot && slotIndex.has(asSlot)) return go(slotOf(asSlot));
   if (/^[A-Z]\d{4}$/.test(up)) {
-    const hit = slotList.find((s) => s.location === up && s.items.length) ||
-                slotList.find((s) => s.location === up);
+    const hit = slotIndex.has(up) ? slotOf(up) : null;
     return hit ? go(hit) : toast("ไม่มีช่อง " + up + " ในผังโกดัง");
   }
   const needle = q.toUpperCase();

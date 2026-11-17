@@ -368,6 +368,47 @@ function createWarehouse(supabase, pacredGet) {
    *        🔒 ข้อมูลส่วนตัวลูกค้าไม่ควรไหลออกมาทั้งโกดังทุกครั้งที่เปิดจอ
    *        (owner/เดฟ 2026-11-12) · ไม่ส่ง = ของเดิม คือได้รายละเอียดทุกใบที่ถาม
    */
+  /**
+   * 📍 แปลงงานจาก Pacred → รายการ "ของวางอยู่ช่องไหน" (รูปเดียวกับที่ mergeView ใช้มาตลอด)
+   *
+   * 🔴 ภูม 2026-11-17 (*"เอาข้อ ก. เลย"*) — เลิกใช้สมุดตำแหน่งของบอท (`wh_placement`)
+   *    เดิมตำแหน่งจดไว้ 2 เล่มคนละฐาน (Pacred `tb_forwarder.fpallet` กับ `wh_placement` ของเรา)
+   *    ⇒ ยิงฝั่งไหนอีกฝั่งไม่รู้ · จอ 3D กับคิว "ยังไม่เก็บเข้าชั้น" ของ Pacred บอกคนละเรื่องได้
+   *    ⇒ **ตำแหน่งมีที่เดียวคือ Pacred** · บอทอ่านอย่างเดียว ไม่จดเอง
+   *
+   * 🔑 ช่อง `location` มาจากท่อ /api/bot?q=warehouse (Pacred เติมให้ 2026-11-17)
+   *    · "TEMP" = ที่พักของ ⇒ **ไม่ใช่ของบนชั้น** ไม่ต้องวาดในผัง (ไปโผล่ที่ตัวนับ "รอเก็บเข้าชั้น")
+   *    · รหัสรุ่นเก่า (A1 · Z1) = ผังใหม่ไม่มีช่องนี้ ⇒ `parseSlot` อ่านไม่ออก ⇒ ตกไปอยู่ orphans
+   *      ให้คนเห็นว่ายังมีของค้างรหัสเก่า (เหมือนเดิมทุกประการ — ไม่เดาให้)
+   *
+   * 🏭 โกดัง: Pacred ยังไม่มีช่องโกดัง (`fpallet` เป็น varchar(5) ใส่รหัสโกดังนำหน้าไม่ได้)
+   *    ⇒ ของจาก Pacred ถือว่าอยู่โกดังตั้งต้นทั้งหมด · วันที่ Pacred เพิ่มช่องโกดัง ค่อยอ่านมาที่นี่
+   */
+  function placementsFromJobs(jobs) {
+    const out = [];
+    for (const j of jobs || []) {
+      const code = String((j && j.location) || "").trim();
+      const tracking = String((j && j.tracking) || "").trim();
+      if (!code || !tracking) continue;
+      if (LAYOUT.isHolding && LAYOUT.isHolding(code)) continue; // ที่พักของ = ยังไม่ขึ้นชั้น
+      if (code.toUpperCase() === "TEMP") continue;
+      out.push({
+        tracking: tracking,
+        /* mergeView อ่านช่อง slot — ส่งรหัสดิบไป ให้ parseSlot เป็นคนตัดสินว่าอ่านออกไหม */
+        slot: code,
+        location: code,
+        wh: LAYOUT.DEFAULT_WH,
+        boxes: Number(j.boxes) || 1,
+        member_code: j.memberCode || null,
+        /* ของพวกนี้ Pacred เก็บไว้ในประวัติของตัวเอง (admin_audit_log) ไม่ได้ส่งมาในท่อ */
+        placed_at: null,
+        placed_by: null,
+        note: null,
+      });
+    }
+    return out;
+  }
+
   async function jobsFromPacred(onShelf, detail) {
     try {
       const t = (onShelf || []).filter(Boolean).slice(0, 400).join(",");
@@ -383,108 +424,61 @@ function createWarehouse(supabase, pacredGet) {
 
   /** ภาพรวมทั้งโกดังสำหรับหน้า 3D — ทีละโกดัง (ภูม 13/11: มีมากกว่า 1 โกดังแล้ว) */
   async function view(whIn) {
-    /* 🔑 ส่งเลขแทรคทุกใบบนชั้นไปให้เว็บ "ตามหาสถานะ" เหมือนเดิม (ห้ามตัด —
-       ไม่งั้นเคส "ส่งแล้วแต่ของยังอยู่บนชั้น" หาไม่เจอ แล้วขึ้นเทาแทนที่จะเตือนแดง)
-       🔒 แต่ขอ "รายละเอียดติดต่อ" = ไม่เอาเลย (d ว่าง) — ภาพรวมใช้แค่ธงก็ระบายสีได้ครบ
+    /* 🔴 ภูม 2026-11-17 — ตำแหน่งของมาจาก **Pacred ที่เดียว** (เลิกอ่าน wh_placement)
+       ⇒ เรียกท่อโดยไม่ส่งรายการแทรค: Pacred คืน "ของที่อยู่บนชั้นที่ไทยทั้งหมด" มาให้เอง
+         (สถานะ 4/5/6 + มีวันถึงไทย) พร้อมช่องที่วางอยู่ ⇒ ไม่ต้องรู้ล่วงหน้าว่ามีแทรคอะไร
+       🔒 ขอ "รายละเอียดติดต่อ" = ไม่เอาเลย (d ว่าง) — ภาพรวมใช้แค่ธงก็ระบายสีได้ครบ
           ที่อยู่/ชื่อ/เบอร์ ค่อยถามรายกล่องตอนกดเปิด (/warehouse/api/job)
           owner/เดฟ 2026-11-12: *"ควรส่งแค่ธง แล้วถามรายกล่อง"* */
     const wh = LAYOUT.normWh(whIn);
-    const all = await listPlacements();
+    const live = await jobsFromPacred([], []);
+    const all = placementsFromJobs(live.jobs);
     const placements = all.filter((p) => p.wh === wh);
 
-    /* 🔢 นับของทุกโกดังไว้ให้ปุ่มสลับโกดังโชว์เลข — อ่านรอบเดียวอยู่แล้ว ไม่เปลืองเพิ่ม */
+    /* 🔢 นับของทุกโกดังไว้ให้ปุ่มสลับโกดังโชว์เลข */
     const byWh = {};
     for (const w of LAYOUT.WAREHOUSES) byWh[w.id] = 0;
     for (const p of all) byWh[p.wh] = (byWh[p.wh] || 0) + 1;
 
-    const live = await jobsFromPacred(placements.map((p) => p.tracking), []);
     const cages = await listCages(wh).catch(() => []);
     const merged = mergeView(placements, live.jobs, cages);
+    /* 🟡 ของที่ยิงรับแล้วแต่ยังอยู่ที่พักของ — ไม่ได้วาดในผัง แต่ต้องรู้ว่ามีกี่กล่อง
+       (ตัวเลขเดียวกับคิว "ยังไม่เก็บเข้าชั้น" ของ Pacred) */
+    const holding = (live.jobs || []).filter(
+      (j) => String((j && j.location) || "").trim().toUpperCase() === "TEMP",
+    ).length;
     return Object.assign(merged, {
       wh: wh,
       whName: LAYOUT.whName(wh),
       warehouses: LAYOUT.WAREHOUSES.map((w) => Object.assign({ placed: byWh[w.id] || 0 }, w)),
       live: { ok: live.ok, at: live.at, error: live.error || null },
       placedCount: placements.length,
+      holdingCount: holding,
     });
   }
 
   /**
-   * 📥 คีย์ว่ากล่องนี้วางช่องไหน — วางใหม่ หรือ ย้าย
-   * @throws เมื่อรหัสช่องไม่มีในผัง (กันคีย์ช่องที่ไม่มีอยู่จริง)
+   * 🚪 **ปิดทางยิง/คีย์ของฝั่งบอทแล้ว** — ภูม 2026-11-17 (*"ยิงที่ Pacred อย่างเดียว"*)
+   *
+   * ตั้งแต่จอ 3D อ่านตำแหน่งจาก Pacred ที่เดียว การเขียนลงสมุดของบอท (`wh_placement`)
+   * = เขียนลงเล่มที่ไม่มีใครอ่านแล้ว ⇒ ยิงแล้วจอไม่ขยับ ⇒ พนักงานงงว่ายิงไม่ติด
+   * ⇒ ตอบให้ชัดว่าต้องไปยิงที่ไหน แทนที่จะเงียบหรือเขียนทิ้ง
+   *
+   * 🔒 ไม่ลบโค้ดเดิมของสมุด (`listPlacements` · `history` · `find`) — ยังใช้ดูของเก่าที่เคยคีย์ไว้ได้
+   *    วันไหนล้างข้อมูลเก่าเสร็จแล้วค่อยถอดทั้งชุด
    */
-  async function place(tracking, slot, who, opts) {
-    const t = String(tracking || "").trim();
-    if (!t) throw new Error("ยังไม่ได้ใส่เลขแทรค");
-    const s = LAYOUT.parseSlot(slot);
-    if (!s) throw new Error("ช่อง \"" + slot + "\" ไม่มีในผังโกดัง");
-    const by = String(who || "").trim() || "unknown";
-    const o = opts || {};
-    const wh = strictWh(o.wh);
+  const MOVED_TO_PACRED =
+    'ย้ายไปยิงที่ระบบ Pacred แล้ว — เปิดหน้า "ยิงเก็บเข้าชั้น" (Warehouse › ยิงเก็บเข้าชั้น) ' +
+    "ยิงป้ายล็อกก่อน แล้วยิงกล่อง · ยิงที่นั่นแล้วจอ 3D อัปเดตให้เอง";
 
-    const { data: before } = await supabase.from("wh_placement").select("*").eq("tracking", t).maybeSingle();
-    const fromSlot = before ? before.slot : null;
-    const fromWh = before ? LAYOUT.normWh(before.wh) : null;
-    /* ⚠️ ช่องเดียวกันแต่คนละโกดัง = ย้ายจริง (รหัสช่องซ้ำกันได้ระหว่างโกดัง) */
-    if (fromSlot === s.slot && fromWh === wh && !o.force) {
-      return { ok: true, unchanged: true, wh: wh, slot: s.slot, label: LAYOUT.slotLabel(s.slot) };
-    }
-
-    const row = {
-      /* 🔴 ภูม 14/11: เลิกแยกซ้าย/ขวา ⇒ ไม่เขียนช่อง side แล้ว (ฐานรุ่นใหม่ยอมให้ว่าง)
-         แถวเก่าคงค่า L/R ไว้เป็นร่องรอยว่าเคยอยู่ครึ่งไหน */
-      tracking: t, wh: wh, slot: s.slot, location: s.code, zone: s.row, bay: s.bay, lvl: s.level,
-      member_code: o.memberCode ? String(o.memberCode).trim() : null,
-      boxes: Math.max(1, Number(o.boxes) || 1),
-      note: o.note ? String(o.note).trim() : null,
-      placed_by: by, placed_at: new Date().toISOString(),
-    };
-    let { error } = await supabase.from("wh_placement").upsert(row, { onConflict: "tracking" });
-    if (error && isOldSideSchema(error)) {
-      throw new Error("ฐานยังเป็นรุ่นที่ต้องมีซ้าย/ขวา — เปิด Supabase › SQL Editor " +
-        "วาง warehouse-schema.sql อีกรอบก่อน (รหัสช่องเลิกใช้ -L/-R แล้ว 14/11)");
-    }
-    if (error && isMissingSchema(error)) {
-      /* 🔁 ยังไม่ได้ลง SQL รอบใหม่ — โกดัง 1 ยังคีย์ได้ตามเดิม แต่โกดัง 2 ต้องบอกตรงๆ
-         (ถ้าเขียนทับเงียบๆ ของโกดัง 2 จะไปโผล่โกดัง 1 แล้วพนักงานเดินหาผิดตึก) */
-      if (wh !== LAYOUT.DEFAULT_WH) {
-        throw new Error("ยังใช้ " + LAYOUT.whName(wh) + " ไม่ได้ — ต้องเปิด Supabase › SQL Editor วาง warehouse-schema.sql อีกรอบก่อน");
-      }
-      const plain = Object.assign({}, row); delete plain.wh;
-      ({ error } = await supabase.from("wh_placement").upsert(plain, { onConflict: "tracking" }));
-    }
-    if (error) throw new Error(error.message);
-
-    const movedWh = !!(fromSlot && fromWh !== wh);
-    await log(t, fromSlot ? "move" : "place", fromSlot, s.slot, by,
-      movedWh ? ["ย้ายจาก " + LAYOUT.whName(fromWh), o.note].filter(Boolean).join(" · ") : o.note, wh);
-    return {
-      ok: true, moved: !!fromSlot, from: fromSlot, fromWh: fromWh, movedWarehouse: movedWh,
-      wh: wh, slot: s.slot, label: LAYOUT.slotLabel(s.slot),
-    };
+  async function place() {
+    throw new Error(MOVED_TO_PACRED);
   }
 
-  /**
-   * 📤 เอาของออกจากชั้น
-   * @param {"load"|"remove"} [kind] "load" = เอาขึ้นรถ (จ่ายออกให้ลูกค้า) · "remove" = เอาออกเฉยๆ
-   *   🔑 ภูม 2026-11-12: *"ทำให้มีปุ่ม ย้ายของไปพาเรทอื่น กับ ปุ่ม เอาของขึ้นรถ"*
-   *      แยกชนิดไว้เพื่อให้ประวัติบอกได้ว่ากล่องนี้ "ขึ้นรถไปแล้ว" หรือ "แค่ยกลงมา"
-   *      — คือหัวใจของการไล่ว่าใครเอาของผิดไปส่ง
-   */
-  async function remove(tracking, who, note, kind) {
-    const t = String(tracking || "").trim();
-    if (!t) throw new Error("ยังไม่ได้ใส่เลขแทรค");
-    const { data: before } = await supabase.from("wh_placement").select("*").eq("tracking", t).maybeSingle();
-    if (!before) return { ok: true, missing: true };
-    const { error } = await supabase.from("wh_placement").delete().eq("tracking", t);
-    if (error) throw new Error(error.message);
-    const action = kind === "load" ? "load" : "remove";
-    const wh = LAYOUT.normWh(before.wh);
-    await log(t, action, before.slot, null, String(who || "").trim() || "unknown", note, wh);
-    return { ok: true, from: before.slot, wh: wh, action };
+  async function remove() {
+    throw new Error(MOVED_TO_PACRED);
   }
 
-  /** ประวัติการย้ายของแทรคนี้ */
   async function history(tracking, limit) {
     const { data, error } = await supabase
       .from("wh_move_log").select("*")

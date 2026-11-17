@@ -570,6 +570,7 @@ addEventListener("resize", resize);
 /* ══ ③ วาดชั้นวาง — InstancedMesh ให้เบาเครื่อง ══════════════════════
    ภูม: *"ใช้ Instancing หรือ Optimization ตามความเหมาะสม · รองรับ Desktop และ มือถือ"*
    เดิม เสา 66 + คาน 24 + ช่อง 208 = ~300 ชิ้นที่ต้องวาดทีละชิ้น ⇒ เหลือ 4 ชิ้น */
+let PACRED_PUTAWAY = null;
 let DATA = null, EXTENT = null, built = false;
 let boxIM = null, hitIM = null;
 /* 🔒 เสา/คานเป็นของแถวไหน — ไว้ซ่อนโครงเหล็กแถวอื่นตอนล็อกแถว
@@ -1125,19 +1126,11 @@ function openSlot(code, zoom) {
         i.placedBy ? '<div class="k">คีย์โดย</div><div class="v">' + esc(i.placedBy) +
           (i.placedAt ? " · " + esc(new Date(i.placedAt).toLocaleString("th-TH")) : "") + "</div>" : "",
         i.note ? '<div class="k">หมายเหตุ</div><div class="v">' + esc(i.note) + "</div>" : "",
-        '<div class="acts">',
-        '<button data-mv="', esc(i.tracking), '">🔄 ย้ายไปช่องอื่น</button>',
-        '<button class="out" data-out="', esc(i.tracking), '">🚚 เอาขึ้นรถ</button>',
-        /* 🗑 ภูม 2026-11-13: *"บางทีพนักงานยิงผิด แล้วมันเข้าระบบโกดังเราไป
-           ตอนนี้มันทำได้แค่ เอาขึ้นรถ ไม่ก็ ย้ายไปโลเคชั่นอื่น แต่ยังไม่มีปุ่มให้ลบ"*
-           ⚠️ คนละเรื่องกับ "เอาขึ้นรถ" — ของไม่ได้ออกไปไหน แค่คีย์ผิดช่อง/ผิดใบ
-              ⇒ ลงประวัติเป็นชนิด remove + เหตุผล ไม่ปนกับของที่จ่ายออกจริง */
-        '<button class="del" data-del="', esc(i.tracking), '">🗑 ลบรายการ (ยิงผิด)</button>',
-        "</div>",
-        '<div class="mvbox" data-box="', esc(i.tracking), '">',
-        '<input placeholder="ช่องใหม่ เช่น B0503" data-in="', esc(i.tracking), '">',
-        '<button data-go="', esc(i.tracking), '">ย้าย</button>',
-        "</div>",
+        /* 🚪 ภูม 2026-11-17 — ย้ายช่อง/เอาขึ้นรถ/ลบรายการ ทำที่ระบบ Pacred แล้ว
+           (ตำแหน่งของอยู่ที่นั่นที่เดียว) ⇒ จอนี้เหลือ "ดูอย่างเดียว"
+           🔑 บอกทางที่ถูกไว้ตรงนี้เลย ดีกว่าเหลือปุ่มที่กดแล้วขึ้น error */
+        '<div class="acts"><a class="goPacred" href="', esc(PACRED_PUTAWAY || "#"), '" target="_blank" rel="noopener">',
+        "📦 จัดการที่ระบบ Pacred (ยิงเก็บเข้าชั้น)</a></div>",
         "</div>",
       ].join("")).join("")
     : '<div class="none">ช่องนี้ยังว่าง</div>';
@@ -1746,6 +1739,8 @@ const STATS = [
 
 function applyData(v) {
   DATA = v;
+  /* 🔗 หน้า 'ยิงเก็บเข้าชั้น' ของ Pacred — ที่เดียวที่แก้ตำแหน่งของได้ (ภูม 2026-11-17) */
+  PACRED_PUTAWAY = v.putawayUrl || null;
   slotList = v.layout.slots;
   /* 🏭 ทะเบียนโกดังมาจากเซิร์ฟเวอร์ (พร้อมจำนวนของแต่ละโกดัง) — ปุ่มสลับเดินตาม */
   if (v.warehouses && v.warehouses.length) {

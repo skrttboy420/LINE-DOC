@@ -102,6 +102,18 @@ function mountWarehouse(app, warehouse, whoOf) {
   };
 
   app.get("/warehouse", servePage("warehouse-3d.html"));
+  /* 🔗 หน้า "ยิงเก็บเข้าชั้น" ของ Pacred — ที่เดียวที่แก้ตำแหน่งของได้ (ภูม 2026-11-17)
+     ใช้ 3 ที่: พาหน้ายิง/หน้าคีย์ไปที่นั่น · ตอบท่อที่ปิดแล้ว · ส่งให้จอ 3D ทำปุ่ม */
+  const pacredBase = String(process.env.PACRED_API_URL || "").replace(/[/]+$/, "");
+  const PUTAWAY_URL = pacredBase ? pacredBase + "/admin/barcode/putaway" : null;
+
+  /* 🚪 ภูม 2026-11-17 (*"ยิงที่ Pacred อย่างเดียว"*) — หน้ายิง/หน้าคีย์ของบอทพาไปที่ Pacred
+     ตำแหน่งของอยู่ที่นั่นที่เดียวแล้ว · ยิงที่นี่ = ลงเล่มที่ไม่มีใครอ่าน
+     🔑 ยังไม่ได้ตั้ง PACRED_API_URL = เปิดหน้าเดิมไว้ก่อน (ดีกว่าพาไปลิงก์เสีย) */
+  for (const p of ["/warehouse/assign", "/warehouse/scan"]) {
+    app.get(p, (req, res, next) =>
+      PUTAWAY_URL ? res.redirect(302, PUTAWAY_URL) : next());
+  }
   app.get("/warehouse/assign", servePage("warehouse-assign.html"));
   app.get("/warehouse/scan", servePage("warehouse-scan.html"));
   app.get("/warehouse/labels", servePage("warehouse-labels.html"));
@@ -113,7 +125,10 @@ function mountWarehouse(app, warehouse, whoOf) {
     if (!guard(req, res)) return;
     try {
       if (!(await requireTables(res))) return;
-      res.json(await warehouse.view(req.query.wh));
+      /* 🔗 ลิงก์หน้า 'ยิงเก็บเข้าชั้น' ของ Pacred — จอ 3D เอาไปทำปุ่ม (ภูม 2026-11-17)
+         env ไม่ได้ตั้ง = null ⇒ จอซ่อนปุ่มเอง ไม่ใช่พาไปลิงก์เสีย */
+      const v = await warehouse.view(req.query.wh);
+      res.json(Object.assign(v, { putawayUrl: PUTAWAY_URL }));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
@@ -153,39 +168,26 @@ function mountWarehouse(app, warehouse, whoOf) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  /** 📥 คีย์ว่าของอยู่ช่องไหน (วางใหม่ / ย้าย) */
-  app.post("/warehouse/api/place", json, async (req, res) => {
-    if (!guard(req, res)) return;
-    try {
-      if (!(await requireTables(res))) return;
-      const b = req.body || {};
-      /* รหัสลูกค้าถ่ายจากเว็บ ไม่เชื่อค่าที่หน้าเว็บส่งมา (กันคีย์ผิดคน) */
-      let memberCode = null;
-      try {
-        /* ถามรายกล่อง — ของที่เพิ่งคีย์อาจยังไม่อยู่ในชุด "บนชั้น" ที่เว็บส่งมา */
-        const live = await warehouse.jobsFromPacred([String(b.tracking || "").trim()], []);
-        const job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === String(b.tracking || "").trim());
-        if (job) memberCode = job.memberCode || null;
-      } catch { /* อ่านเว็บไม่ได้ก็คีย์ตำแหน่งได้ — แค่ไม่มีรหัสลูกค้าติดไป */ }
+  /* 🚪 ภูม 2026-11-17 (*"ยิงที่ Pacred อย่างเดียว"*) — ทางเขียนตำแหน่งของบอทปิดแล้ว
+     ตำแหน่งของอยู่ที่ Pacred ที่เดียว ⇒ ยิงที่นี่ = เขียนลงเล่มที่ไม่มีใครอ่าน (ยิงแล้วจอไม่ขยับ)
+     ⇒ ตอบ 410 (ย้ายไปที่อื่นถาวร) พร้อม **ลิงก์หน้าที่ถูก** ไม่ใช่ปล่อยให้ยิงแล้วเงียบ
+     🔒 ท่อกรงเหล็ก (/api/cage) ไม่เกี่ยว — กรงยังเป็นของบอทเหมือนเดิม */
+  function movedToPacred(req, res) {
+    return res.status(410).json({
+      error:
+        'ยิงเก็บเข้าชั้นย้ายไปที่ระบบ Pacred แล้ว — เปิด Warehouse › "ยิงเก็บเข้าชั้น" ' +
+        "ยิงป้ายล็อกก่อน แล้วยิงกล่อง · ยิงที่นั่นแล้วจอ 3D อัปเดตให้เอง",
+      movedTo: PUTAWAY_URL,
+    });
+  }
 
-      res.json(await warehouse.place(b.tracking, b.slot, who(req), {
-        boxes: b.boxes, note: b.note, memberCode: memberCode, wh: b.wh,
-      }));
-    } catch (e) { res.status(400).json({ error: e.message }); }
-  });
+  app.post("/warehouse/api/place", json, movedToPacred);
 
   /**
    * 📤 เอาของออกจากชั้น
    * body.kind = "load" (เอาขึ้นรถ · จ่ายออกให้ลูกค้า) หรือเว้นว่าง (เอาออกเฉยๆ)
    */
-  app.post("/warehouse/api/remove", json, async (req, res) => {
-    if (!guard(req, res)) return;
-    try {
-      if (!(await requireTables(res))) return;
-      const b = req.body || {};
-      res.json(await warehouse.remove(b.tracking, who(req), b.note, b.kind));
-    } catch (e) { res.status(400).json({ error: e.message }); }
-  });
+  app.post("/warehouse/api/remove", json, movedToPacred);
 
   /**
    * 📷 ยิงรับเข้าชั้น — ลงตำแหน่ง + ตอบกลับทุกอย่างที่คนยิงต้องเห็นในครั้งเดียว
@@ -196,45 +198,7 @@ function mountWarehouse(app, warehouse, whoOf) {
    * 🔑 ตอบ tone กลับไปให้หน้าเว็บเลือกสี+เสียง: ok (เขียว) · warn (ส้ม) · bad (แดง)
    *    กล่องที่ "ห้ามหยิบ/ต้องเช็ค" ต้องดังไม่เหมือนกล่องปกติ ⇒ คนยิงรู้ตั้งแต่ตอนวางของ
    */
-  app.post("/warehouse/api/scan", json, async (req, res) => {
-    if (!guard(req, res)) return;
-    try {
-      if (!(await requireTables(res))) return;
-      const b = req.body || {};
-      const tracking = String(b.tracking || "").trim();
-      if (!tracking) return res.status(400).json({ error: "ไม่ได้ส่งเลขแทรคมา" });
-      const parsed = LAYOUT.parseSlot(b.slot);
-      if (!parsed) return res.status(400).json({ error: 'ช่อง "' + b.slot + '" ไม่มีในผังโกดัง' });
-
-      /* หางานจากเว็บก่อน — เอารหัสลูกค้าติดไปด้วย + เอาไว้บอกสถานะคนยิง */
-      let job = null, liveOk = true;
-      try {
-        const live = await warehouse.jobsFromPacred([tracking], [tracking]);
-        liveOk = live.ok;
-        job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === tracking) || null;
-      } catch { liveOk = false; }
-
-      const saved = await warehouse.place(tracking, parsed.slot, who(req), {
-        boxes: b.boxes, note: b.note, memberCode: job ? job.memberCode : null, wh: b.wh,
-      });
-
-      const st = pickStateOf(job, true);
-      /* ⬛ หาในระบบไม่เจอ = ส้ม (ไม่ใช่แดง) — ของวางได้ แค่ต้องไปเช็คว่าเลขถูกไหม */
-      const tone = !job ? "warn"
-        : st.pick === "ready" ? "ok"
-        : st.pick === "wait" ? "warn"
-        : "bad";
-      const headline = !liveOk ? "บันทึกตำแหน่งแล้ว (เช็คสถานะกับเว็บไม่ได้)"
-        : !job ? "บันทึกตำแหน่งแล้ว — แต่หาแทรคนี้ในระบบไม่เจอ"
-        : saved.moved ? "ย้ายช่องแล้ว" : "รับเข้าชั้นแล้ว";
-
-      res.json({
-        ok: true, tracking: tracking, slot: parsed.slot, label: LAYOUT.slotLabel(parsed.slot),
-        movedFrom: saved.moved ? saved.from : null, unchanged: !!saved.unchanged,
-        job: job, pickLabel: st.label, why: st.why, tone: tone, headline: headline, liveOk: liveOk,
-      });
-    } catch (e) { res.status(400).json({ error: e.message }); }
-  });
+  app.post("/warehouse/api/scan", json, movedToPacred);
 
   /**
    * 🧺 กรงเหล็ก — ใส่กรงลงช่อง / แก้ชื่อ / เอากรงออก

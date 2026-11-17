@@ -348,11 +348,17 @@ section("ขอบเขต (ภูม: อย่าไปยุ่งกับ�
 
 ok("🔒 โค้ดโกดังเขียนได้แค่ตารางของบอท (wh_*) ห้ามแตะตารางของ Pacred", () => {
   const src = fs.readFileSync("warehouse.js", "utf8");
+  /* 🔄 2026-11-17 — ยามนี้คุม "การเรียกฐาน" ไม่ใช่ "คำในคอมเมนต์"
+     (คอมเมนต์ต้องอธิบายได้ว่าตำแหน่งมาจาก tb_forwarder.fpallet ของ Pacred ผ่านท่อ)
+     ⇒ ตัดคอมเมนต์ออกก่อนตรวจ แล้วดูเฉพาะโค้ดจริง */
+  const code = src
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|[^:])\/\/.*$/gm, "$1 ");
   for (const t of ["tb_forwarder", "tb_users", "momo_import_tracks", "tb_address", "tb_order"])
-    assert.ok(!src.includes(t), "ห้ามอ้างตารางของ Pacred: " + t);
-  const writes = src.match(/\.from\("([^"]+)"\)/g) || [];
-  for (const w of writes)
-    assert.ok(/wh_(placement|move_log|cage)/.test(w), "ตารางที่แตะต้องเป็น wh_* เท่านั้น — เจอ " + w);
+    assert.ok(!code.includes(t), "ห้ามอ้างตารางของ Pacred ในโค้ด: " + t);
+  /* ตัวเรียกฐานทุกตัวต้องเป็นตารางของบอทเท่านั้น */
+  for (const m of code.matchAll(/\.from\("([^"]+)"\)/g))
+    assert.ok(/^wh_/.test(m[1]), 'เรียกตารางที่ไม่ใช่ของบอท: ' + m[1]);
 });
 
 ok("🔒 อ่านเว็บ Pacred ผ่านท่อ pacredGet เท่านั้น (ไม่ยิงฐานตรง)", () => {
@@ -361,24 +367,28 @@ ok("🔒 อ่านเว็บ Pacred ผ่านท่อ pacredGet เท�
   assert.ok(!/SUPABASE_URL|createClient/.test(src), "ห้ามสร้างตัวต่อฐานเอง — รับเข้ามาจาก index.js");
 });
 
-ok("🔴 ต้องส่งเลขแทรคที่อยู่บนชั้นไปถามเว็บ (ไม่งั้นเคส \"ส่งแล้วแต่ยังอยู่บนชั้น\" ขึ้นเทา)", () => {
+ok("🔴 ตำแหน่งของบนชั้นต้องมาจาก Pacred ที่เดียว (ภูม 17/11 — เลิกจดสมุดเล่มที่ 2)", () => {
   const src = fs.readFileSync("warehouse.js", "utf8");
-  assert.ok(src.includes("jobsFromPacred(placements.map"), "view() ต้องส่งเลขแทรคไปด้วย");
-  assert.ok(src.includes("slice(0, 400)"), "ต้องมีเพดานจำนวนที่ถาม");
+  assert.ok(src.includes("placementsFromJobs"), "ต้องมีตัวแปลงงานจาก Pacred → ของบนชั้น");
+  assert.ok(/const all = placementsFromJobs\(live\.jobs\)/.test(src),
+    "view() ต้องสร้างรายการของบนชั้นจากงานที่ Pacred ส่งมา");
+  assert.ok(!/const all = await listPlacements\(\)/.test(src),
+    "view() ต้องไม่อ่านสมุดตำแหน่งของบอทอีก (wh_placement)");
 });
 
 ok("🔒 จอภาพรวมต้องขอ \"แค่ธง\" — ไม่ลากที่อยู่ลูกค้าทั้งโกดังมาทุกครั้งที่เปิดจอ", () => {
-  /* owner/เดฟ 2026-11-12: *"จอ 3D ได้ชื่อ/เบอร์/ที่อยู่ของทุกกล่องบนชั้น ~585
-     — ควรส่งแค่ธง แล้วถามรายกล่อง"*
-     🪤 ห้ามแก้ด้วยการ "ไม่ส่ง t" — เคสเตือน "ส่งแล้วแต่ของยังอยู่" จะหาย
-        ทางที่ถูก = ส่ง t ครบ แต่ขอ d (รายละเอียด) เป็นชุดว่าง */
+  /* owner/เดฟ 2026-11-12: *"ควรส่งแค่ธง แล้วถามรายกล่อง"*
+     🔄 2026-11-17 — เดิมต้องส่ง t (เลขแทรคบนชั้น) เพราะบอทเป็นคนรู้ว่ามีอะไรบนชั้น
+        ตอนนี้ Pacred เป็นคนรู้ ⇒ เรียกด้วยชุดว่างแล้วเว็บคืนของบนชั้นทั้งหมดมาเอง
+        ⚠️ ชุด d (รายละเอียดติดต่อ) ยังต้องว่างเหมือนเดิม — ห้ามลากที่อยู่มาทั้งโกดัง */
   const src = fs.readFileSync("warehouse.js", "utf8");
-  assert.ok(/jobsFromPacred\(placements\.map\(\(p\) => p\.tracking\), \[\]\)/.test(src),
-    "view() ต้องส่ง t ครบ แต่ขอรายละเอียดเป็นชุดว่าง");
-  assert.ok(src.includes("if (detail !== undefined) q.d ="), "ต้องมีช่อง d แยกจาก t");
-  const page = fs.readFileSync("warehouse-page.js", "utf8");
-  assert.ok(page.includes("jobsFromPacred([t], [t])"), "กดเปิดกล่องรายตัว = ขอรายละเอียดได้");
-  assert.ok(page.includes("jobsFromPacred([tracking], [tracking])"), "ยิงรับเข้า = ขอรายละเอียดได้");
+  assert.ok(/jobsFromPacred\(\[\], \[\]\)/.test(src), "view() ต้องขอรายละเอียดเป็นชุดว่าง");
+});
+
+ok("🟡 ของที่ยังอยู่ที่พักของ ต้องไม่ถูกวาดเป็นของบนชั้น แต่ต้องนับให้เห็น", () => {
+  const src = fs.readFileSync("warehouse.js", "utf8");
+  assert.ok(/TEMP/.test(src), "ต้องรู้จักที่พักของ");
+  assert.ok(src.includes("holdingCount"), "ต้องส่งจำนวนของที่ยังไม่เก็บเข้าชั้นให้จอ");
 });
 
 ok("🔴 ป๊อปอัพต้องไปขอที่อยู่รายกล่องเอง (ไม่งั้นเปิดดูแล้วที่อยู่หายทั้งจอ)", () => {
@@ -394,11 +404,30 @@ ok("ตัวอ่านไล่เกิน 1000 แถว (PostgREST ตั�
   assert.ok(/length < 1000/.test(src), "ต้องวนจนครบ");
 });
 
-ok("ทุกการวาง/ย้าย/เอาออก ลงประวัติ", () => {
+/* 🔄 2026-11-17 — ภูม: *"ยิงที่ Pacred อย่างเดียว"* ⇒ ทางเขียนของบอทปิดแล้ว
+   (เขียนลงสมุดที่ไม่มีใครอ่าน = ยิงแล้วจอไม่ขยับ) · ยามเดิมที่ล็อกพฤติกรรมการเขียน
+   เขียนใหม่เป็น "ต้องปิด และต้องบอกทางที่ถูก" */
+ok("🚪 ทางวาง/ย้าย/เอาของออกของบอท ต้องปิด และบอกให้ไปยิงที่ Pacred", () => {
   const src = fs.readFileSync("warehouse.js", "utf8");
-  for (const a of ['"place"', '"move"', '"remove"'])
-    assert.ok(src.includes(a), "ต้องลงประวัติชนิด " + a);
+  assert.ok(src.includes("MOVED_TO_PACRED"), "ต้องมีข้อความบอกทางที่ถูก");
+  assert.ok(
+    src.includes("async function place() {") && src.includes("throw new Error(MOVED_TO_PACRED)"),
+    "place() ต้องไม่เขียนฐานอีก",
+  );
+  assert.ok(
+    src.includes("async function remove() {") && src.includes("throw new Error(MOVED_TO_PACRED)"),
+    "remove() ต้องไม่เขียนฐานอีก",
+  );
+  /* 🔒 สมุดตำแหน่งของบอทเหลือ "อ่านอย่างเดียว" — ไล่ดูทุกจุดที่แตะตารางนี้
+     (กรงเหล็ก `wh_cage` ยังเขียนได้ตามเดิม — เป็นของบอทจริงๆ ไม่ใช่ตำแหน่งของ) */
+  for (let k = src.indexOf('from("wh_placement")'); k >= 0; k = src.indexOf('from("wh_placement")', k + 1)) {
+    const near = src.slice(k, k + 200);
+    for (const w of ["upsert(", "insert(", "update(", "delete("])
+      assert.ok(!near.includes(w), "ห้ามเขียนสมุดตำแหน่งของบอทอีก: " + w);
+  }
 });
+
+
 
 /* ════ ⑦ ยิงบาร์โค้ด · ป้ายโลเคชั่น · เอาของออก (ภูม 2026-11-12) ════ */
 section("ยิงบาร์โค้ด · ป้ายโลเคชั่น · เอาของออก");
@@ -487,14 +516,12 @@ ok("🔴 ป้ายโลเคชั่น A4 แผ่นละ 8 ป้า�
   assert.equal(Math.ceil(L.buildLayout().slots.length / 8), 13, "ทั้งโกดังต้องได้ 13 แผ่น");
 });
 
-ok("🚚 เอาของออกแยก 2 ชนิด — ขึ้นรถ กับ เอาออกเฉยๆ", () => {
+ok("🚪 เอาของขึ้นรถ/เอาออก ทำที่ Pacred แล้ว — จอ 3D เหลือดูอย่างเดียว", () => {
   const src = readFile("warehouse.js");
-  assert.ok(src.includes('kind === "load" ? "load" : "remove"'), "ต้องแยกชนิดตามที่ส่งมา");
-  const d3 = readFile("warehouse-3d.html");
-  assert.ok(d3.includes("data-out="), "จอ 3D ต้องมีปุ่มเอาขึ้นรถ");
-  assert.ok(d3.includes("data-mv="), "จอ 3D ต้องมีปุ่มย้ายช่อง");
-  assert.ok(d3.includes('kind: "load"'), "ปุ่มเอาขึ้นรถต้องส่ง kind=load");
+  assert.ok(src.includes("MOVED_TO_PACRED"), "ต้องบอกว่าย้ายไปที่ไหน");
+  assert.ok(!src.includes('kind === "load" ? "load" : "remove"'), "ตัวแยกชนิดตอนเขียนต้องหายไปพร้อมกัน");
 });
+
 
 ok("🔴 ฐานรุ่นเก่าที่ยังไม่รู้จักชนิด 'load' ต้องไม่ทำให้ประวัติหาย", () => {
   const src = readFile("warehouse.js");
@@ -515,8 +542,15 @@ ok("🔒 หน้าใหม่ทั้ง 2 หน้าอยู่หล�
   const page = readFile("warehouse-page.js");
   assert.ok(page.includes('app.get("/warehouse/scan", servePage('), "หน้ายิงต้องผ่าน servePage (มีด่านคีย์)");
   assert.ok(page.includes('app.get("/warehouse/labels", servePage('), "หน้าป้ายต้องผ่าน servePage");
-  assert.ok(/app\.post\("\/warehouse\/api\/scan", json, async \(req, res\) => \{\s*if \(!guard\(req, res\)\) return;/.test(page),
-    "ท่อยิงต้องมี guard บรรทัดแรก");
+  /* 🔄 2026-11-17 — ท่อยิงของบอทปิดแล้ว (ภูม: "ยิงที่ Pacred อย่างเดียว")
+     ⇒ ไม่ต้องมี guard เพราะไม่ทำอะไรกับฐานอีก · แต่ต้องตอบให้ชัดว่าไปยิงที่ไหน
+     🔒 หน้าเว็บ (servePage) ยังอยู่หลังด่านคีย์เหมือนเดิม */
+  assert.ok(page.includes('app.post("/warehouse/api/scan", json, movedToPacred)'),
+    "ท่อยิงต้องถูกปิดและชี้ไป Pacred");
+  assert.ok(page.includes("/admin/barcode/putaway"), "ต้องบอกลิงก์หน้าที่ถูก");
+  for (const p of ["place", "remove"])
+    assert.ok(page.includes('app.post("/warehouse/api/' + p + '", json, movedToPacred)'),
+      "ท่อ " + p + " ต้องปิดด้วย");
 });
 
 /* ════ ⑧ 🛡 ยามไวยากรณ์ของสคริปต์ในหน้าเว็บ ════════════════════════
@@ -992,18 +1026,20 @@ ok("🔴 ของคนละโกดังต้องไม่ปนกั�
   assert.ok(src.includes("byWh"), "ต้องนับของแต่ละโกดังไว้ให้ปุ่มสลับโชว์เลข");
 });
 
-ok("🔴 ช่องเดียวกันแต่คนละโกดัง = ย้ายจริง ไม่ใช่ 'ไม่มีอะไรเปลี่ยน'", () => {
+ok("🏭 ตัวอ่านยังแยกโกดังได้ (ของจาก Pacred ลงโกดังตั้งต้น)", () => {
   const src = readFile("warehouse.js");
-  assert.ok(/fromSlot === s\.slot && fromWh === wh/.test(src),
-    "ตัวเช็ค 'เหมือนเดิม' ต้องเทียบโกดังด้วย ไม่งั้นย้ายข้ามโกดังแล้วระบบเงียบ");
+  assert.ok(src.includes("wh: LAYOUT.DEFAULT_WH"), "ของจาก Pacred ต้องระบุโกดังตั้งต้นชัดๆ");
+  assert.ok(src.includes("const placements = all.filter((p) => p.wh === wh)"),
+    "จอต้องกรองเฉพาะโกดังที่กำลังดู");
 });
 
-ok("🔴 ฐานที่ยังไม่มีช่องโกดัง: โกดัง 1 คีย์ได้ · โกดัง 2 ต้องฟ้อง ไม่ใช่ลงผิดที่", () => {
+
+ok("🏭 ยังรู้จักอาการ 'ยังไม่ได้ลง SQL' (ตารางกรงยังใช้ฐานของบอท)", () => {
   const src = readFile("warehouse.js");
   assert.ok(src.includes("function isMissingSchema("), "ต้องรู้จักอาการ 'ยังไม่ได้ลง SQL'");
-  assert.ok(/wh !== LAYOUT\.DEFAULT_WH[\s\S]{0,200}throw new Error/.test(src),
-    "โกดังที่ไม่ใช่ตั้งต้น ห้ามถอยไปเขียนแบบไม่มีโกดัง (ของจะไปโผล่ผิดโกดัง)");
+  assert.ok(src.includes('from("wh_cage")'), "กรงเหล็กยังเป็นของบอทเหมือนเดิม");
 });
+
 
 ok("แถวเก่าที่ยังไม่มีช่องโกดัง ถือว่าอยู่โกดัง 1", () => {
   const src = readFile("warehouse.js");

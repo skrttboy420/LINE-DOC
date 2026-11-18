@@ -1451,6 +1451,19 @@ ok("🔙 จอ 3D บอกเหตุให้ถูก — ของกล�
   assert.ok(D3.includes("v.cameBackCount"), "ต้องมีคำเตือนตอนเปิดจอ");
 });
 
+ok("🔢 ตัวเลข รอเก็บเข้าชั้น / ถอยกลับ ต้องมีที่โชว์บนจอ + กดไปคิวของ Pacred ได้", () => {
+  /* 🪤 11-18 แก้ท่อให้นับตรงแล้ว แต่ 2 ตัวเลขนี้เดิมอยู่แต่ในท่อ ไม่มีที่โชว์
+     ⇒ คนโกดังไม่มีทางรู้ว่ามีของรอเก็บกี่กล่อง ทั้งที่คิวของ Pacred บอกอยู่ */
+  const D3 = readFile("warehouse-3d.html");
+  assert.ok(D3.includes("function offMapChip("), "ต้องมีตัววาดชิปของที่ไม่ได้อยู่บนผัง");
+  assert.ok(D3.includes("v.holdingCount"), "ต้องโชว์จำนวนที่รอเก็บเข้าชั้น");
+  assert.ok(D3.includes("v.pendingShelfUrl"), "ชิปต้องลิงก์ไปคิวของ Pacred");
+  assert.ok(D3.includes("if (!n) return"), "ไม่มีของ = ไม่วาดชิป (ไม่รกจอ)");
+  const page = readFile("warehouse-page.js");
+  assert.ok(page.includes("/admin/warehouse/pending-shelf"), "เซิร์ฟเวอร์ต้องส่งลิงก์คิวไปให้จอ");
+  assert.ok(page.includes("pendingShelfUrl: PENDING_SHELF_URL"), "ต้องส่งมากับ view");
+});
+
 (async () => {
   await okAsync("🟡 ตัวนับ 'รอเก็บเข้าชั้น' ใช้ธงของ Pacred — ช่องว่างต้องถูกนับด้วย", async () => {
     const v = await mkWh([

@@ -106,6 +106,9 @@ function mountWarehouse(app, warehouse, whoOf) {
      ใช้ 3 ที่: พาหน้ายิง/หน้าคีย์ไปที่นั่น · ตอบท่อที่ปิดแล้ว · ส่งให้จอ 3D ทำปุ่ม */
   const pacredBase = String(process.env.PACRED_API_URL || "").replace(/[/]+$/, "");
   const PUTAWAY_URL = pacredBase ? pacredBase + "/admin/barcode/putaway" : null;
+  /* 🟡 คิว "ยังไม่เก็บเข้าชั้น" ของ Pacred — ชิปบนจอ 3D กดแล้วไปดูว่ามีใบอะไรรออยู่
+     (ตัวเลขบนชิปมาจากธง awaitingShelf ชุดเดียวกับหน้านั้น ⇒ กดแล้วต้องเจอจำนวนเท่ากัน) */
+  const PENDING_SHELF_URL = pacredBase ? pacredBase + "/admin/warehouse/pending-shelf" : null;
 
   /* 🚪 ภูม 2026-11-17 (*"ยิงที่ Pacred อย่างเดียว"*) — หน้ายิง/หน้าคีย์ของบอทพาไปที่ Pacred
      ตำแหน่งของอยู่ที่นั่นที่เดียวแล้ว · ยิงที่นี่ = ลงเล่มที่ไม่มีใครอ่าน
@@ -128,7 +131,7 @@ function mountWarehouse(app, warehouse, whoOf) {
       /* 🔗 ลิงก์หน้า 'ยิงเก็บเข้าชั้น' ของ Pacred — จอ 3D เอาไปทำปุ่ม (ภูม 2026-11-17)
          env ไม่ได้ตั้ง = null ⇒ จอซ่อนปุ่มเอง ไม่ใช่พาไปลิงก์เสีย */
       const v = await warehouse.view(req.query.wh);
-      res.json(Object.assign(v, { putawayUrl: PUTAWAY_URL }));
+      res.json(Object.assign(v, { putawayUrl: PUTAWAY_URL, pendingShelfUrl: PENDING_SHELF_URL }));
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

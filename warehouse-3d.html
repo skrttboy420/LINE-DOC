@@ -87,6 +87,12 @@
   .stat:active{transform:scale(.98)}
   .stat.off{opacity:.4}
   .stat.on{border-color:currentColor;box-shadow:0 0 0 1px currentColor inset}
+  .offmap{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:8px 12px;text-decoration:none;font-size:12px;white-space:nowrap;
+    border-style:dashed;transition:border-color .15s}
+  .offmap:hover{border-color:currentColor}
+  .offmap b{font-size:16px;font-weight:700}
+  .offmap i{font-style:normal;color:#94a3b8;font-size:10.5px}
   .stat .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
     font-size:15px;flex:none;background:currentColor}
   .stat .ic span{filter:grayscale(1) brightness(3)}
@@ -1734,6 +1740,15 @@ const STATS = [
   { k: "problem", lb: "ต้องเช็ค",          ic: "⚠️", color: "#dc2626", unit: "ช่อง" },
 ];
 
+/** ชิปของที่ไม่ได้อยู่บนผัง — ไม่มีของ = ไม่วาด (ไม่รกจอ) · ไม่มีลิงก์ = วาดแบบกดไม่ได้ */
+function offMapChip(ic, label, n, unit, color, href) {
+  if (!n) return "";
+  const body = '<span>' + ic + '</span><b>' + n + '</b><i>' + esc(unit) + ' · ' + esc(label) + '</i>';
+  return href
+    ? '<a class="offmap" style="color:' + color + '" href="' + esc(href) + '" target="_blank" rel="noopener" title="เปิดคิวยังไม่เก็บเข้าชั้นของ Pacred">' + body + '</a>'
+    : '<span class="offmap" style="color:' + color + '">' + body + '</span>';
+}
+
 function applyData(v) {
   DATA = v;
   /* 🔗 หน้า 'ยิงเก็บเข้าชั้น' ของ Pacred — ที่เดียวที่แก้ตำแหน่งของได้ (ภูม 2026-11-17) */
@@ -1759,6 +1774,12 @@ function applyData(v) {
       '<div class="ic"><span>' + st.ic + "</span></div>" +
       '<div class="tx"><div class="lb">' + esc(st.lb) + "</div>" +
       '<div class="nm">' + num[st.k] + "<i>" + st.unit + "</i></div></div></div>").join("") +
+    /* 🟡🔙 ของที่ "ไม่ได้อยู่บนผัง" — วาดเป็นกล่องในชั้นไม่ได้ แต่ต้องเห็นว่ามีอยู่
+       เดฟ/ผู้ตรวจ 2026-11-18: ตัวเลข 2 ตัวนี้เดิมอยู่แต่ในท่อ ไม่มีที่โชว์บนจอ
+       ⇒ คนโกดังไม่มีทางรู้ว่ามีของรอเก็บอยู่กี่กล่อง ทั้งที่คิวของ Pacred บอกอยู่
+       🔑 กดแล้วไปคิว "ยังไม่เก็บเข้าชั้น" ของ Pacred (ที่เดียวที่แก้ล็อกได้) */
+    offMapChip('🟡', 'รอเก็บเข้าชั้น', v.holdingCount, 'กล่อง', '#f59e0b', v.pendingShelfUrl) +
+    offMapChip('🔙', 'เคยส่งแล้ว · ถอยกลับ', v.cameBackCount, 'กล่อง', '#a855f7', v.pendingShelfUrl) +
     '<div id="clock"><div class="d" id="cd"></div><div class="t" id="ct"></div>' +
     '<div class="live" id="cl"><span class="dot"></span><span id="clt">Live</span></div></div>';
   for (const c of $("summary").querySelectorAll(".stat"))

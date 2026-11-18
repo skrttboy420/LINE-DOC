@@ -56,35 +56,66 @@ const LEGACY_SIDE = /^([A-Z]\d{4})[LR]$/;
  */
 const ROWS = Object.freeze([
   Object.freeze({
-    key: "A", name: "โซนขวา", bays: 10, note: "ตั้งยาวเต็มพื้นที่ · ชิดกำแพงขวา",
+    key: "A", name: "โซนขวา", bays: 10, band: 0, depth: 0,
+    note: "ตั้งยาวเต็มพื้นที่ · ชิดกำแพง",
     faces: Object.freeze([
       Object.freeze({ key: "A", name: "แถว A", from: "+X", first: 1, count: 10 }),
     ]),
   }),
-  /* 🔴 ภูม 2026-11-13: *"วางชั้นวาง 2 แถวหันหลังชนกันตรงกลางโกดัง"*
-     ฝั่งซ้าย (หันหน้าออกทางเดินฝั่งแถว A) = ล็อก 1-5 · ฝั่งขวา (หันออกทางเดินฝั่งแถว C) = ล็อก 6-10
-     จับคู่กันพอดี 1↔6 · 2↔7 · 3↔8 · 4↔9 · 5↔10 (อยู่ตรงกัน แค่คนละด้านของชั้นที่ชนหลังกัน) */
-  /* 🔴 ภูม 2026-11-13: *"ถอยแถว B ไปชิดหลังโกดังเหมือนแถว C"*
-     ⇒ ชั้นคู่ของ B สั้น 5 ล็อก และตั้งชิดผนังด้านหลังเหมือน C · ช่วงติดประตูเว้นไว้ */
+  /* 🔄 แถบกลาง (2026-11-18) — ชั้นคู่หันหลังชนกันเดิมชื่อ "B" **แยกเป็น C กับ D** แล้ว
+     ภูม: *"ที่เป็นแถว B เก่าที่เป็นแถวคู่ ให้เปลี่ยนเป็น C / D"* + ยืนยัน 18/11:
+       C หันออกทางเดินฝั่งแถว A · D หันออกทางเดินฝั่งแถว E
+     ⇒ 2 โซนนี้คือชั้นวางตัวเดียวกันที่หลังชนกัน ⇒ **อยู่แถบเดียวกัน** (band 1) ต่างกันที่ depth
+       ถ้าแยกเป็นคนละ band จอจะวาดทางเดินเกินที่ของจริงไม่มี */
   Object.freeze({
-    key: "B", name: "โซนกลาง", bays: 10, alignBack: true,
-    note: "ชั้นวางคู่หันหลังชนกันกลางโกดัง · ตั้งชิดด้านหลัง",
+    key: "C", name: "โซนกลาง ฝั่ง A", bays: 5, band: 1, depth: 0, alignBack: true,
+    note: "ชั้นคู่หันหลังชนกัน · หันออกทางเดินฝั่งแถว A · ชิดผนังหลัง",
     faces: Object.freeze([
-      Object.freeze({ key: "B1", name: "ฝั่งซ้าย", short: "ซ้าย", from: "-X", first: 1, count: 5 }),
-      Object.freeze({ key: "B2", name: "ฝั่งขวา", short: "ขวา", from: "+X", first: 6, count: 5 }),
+      Object.freeze({ key: "C", name: "แถว C", short: "ฝั่ง A", from: "+X", first: 1, count: 5 }),
     ]),
   }),
-  /* 🔴 ภูม 12/11: *"แกย้ายแถว C มาติดฝั่งหน้าโกดังทำไม มันอยู่ติดฝั่งหลังโกดังก็ถูกแล้ว"*
-     ⇒ ชั้นวาง C สั้น 6 ล็อก และ **ตั้งชิดผนังด้านหลัง** · ช่วงที่ว่างอยู่ทางฝั่งประตู
-     🔴 ภูม 13/11: C ชิดกำแพงซ้าย ⇒ ทางเดินอยู่ฝั่ง -X ⇒ ซ้าย/ขวากลับด้านกับแถว A */
   Object.freeze({
-    key: "C", name: "โซนซ้าย", bays: 6, alignBack: true,
-    note: "ชั้นวางตั้งชิดด้านหลังโกดัง · ชิดกำแพงซ้าย · ช่วงติดประตูเว้นไว้ (ออฟฟิศ)",
+    key: "D", name: "โซนกลาง ฝั่ง E", bays: 5, band: 1, depth: 1, alignBack: true,
+    note: "ชั้นคู่หันหลังชนกัน · หันออกทางเดินฝั่งแถว E · ชิดผนังหลัง",
     faces: Object.freeze([
-      Object.freeze({ key: "C", name: "แถว C", from: "-X", first: 1, count: 6 }),
+      Object.freeze({ key: "D", name: "แถว D", short: "ฝั่ง E", from: "-X", first: 1, count: 5 }),
+    ]),
+  }),
+  /* 🆕 ชั้นวางเหล็กตัวใหม่ 2026-11-18 — ภูม: *"เพิ่มชั้นวางเหล็กตัวใหม่มา 3 ล็อก ล็อกละ 4 ชั้น"*
+     อยู่ **ฝั่งประตู** ของแถบกลาง ตรงกับล็อก A 1-2-3 พอดี · ห่างกำแพงออฟฟิศ ~20 ซม.
+     🔧 depth 1 = วางชิดฝั่งออฟฟิศ · ถ้าของจริงอยู่อีกฝั่งของแถบ เปลี่ยนเป็น depth: 0 บรรทัดเดียวจบ */
+  Object.freeze({
+    key: "B", name: "โซนหน้าออฟฟิศ", bays: 3, band: 1, depth: 1,
+    note: "ชั้นวางใหม่ 3 ล็อก · ฝั่งประตู ตรงกับล็อก A 1-2-3 · ห่างกำแพงออฟฟิศ ~20 ซม.",
+    faces: Object.freeze([
+      Object.freeze({ key: "B", name: "แถว B", from: "-X", first: 1, count: 3 }),
+    ]),
+  }),
+  /* 🔄 แถวติดออฟฟิศเดิมชื่อ "C" → **E** (ตัวชั้นวางไม่ได้ย้ายไปไหน แค่เปลี่ยนชื่อ) */
+  Object.freeze({
+    key: "E", name: "โซนซ้าย", bays: 6, band: 2, depth: 0, alignBack: true,
+    note: "ชั้นวางตั้งชิดด้านหลังโกดัง · ชิดกำแพง · ช่วงติดประตูเว้นไว้ (ออฟฟิศ)",
+    faces: Object.freeze([
+      Object.freeze({ key: "E", name: "แถว E", from: "-X", first: 1, count: 6 }),
     ]),
   }),
 ]);
+
+/** แถบทางเดิน — แถวที่อยู่แถบเดียวกันใช้ทางเดินคู่เดียวกัน (ไม่มีทางเดินคั่นระหว่างกัน) */
+function bandsOfRows() {
+  const byBand = new Map();
+  for (const r of ROWS) {
+    const b = r.band == null ? -1 : r.band;
+    if (!byBand.has(b)) byBand.set(b, []);
+    byBand.get(b).push(r);
+  }
+  return [...byBand.keys()].sort((a, b) => a - b).map((b) => byBand.get(b));
+}
+
+/** แถบนี้ลึกกี่ช่วง (ชั้นคู่หลังชนกัน = 2) */
+function bandDepth(band) {
+  return Math.max.apply(null, band.map((r) => (r.depth || 0) + 1));
+}
 
 /* 🧭 ทิศทาง — ยืนที่ "หน้าโกดัง" แล้วมองเข้าไปข้างใน
    ภูม 2026-11-12: *"ล็อกที่ 10 ควรเป็นล็อกที่ 1 นะ เพราะหน้าโกดังอยู่ฝั่งนี้
@@ -288,14 +319,18 @@ function fullZ() {
 /** ชั้นวางของแถวนี้เริ่มที่ X เท่าไหร่ (นับจากฝั่งซ้ายเมื่อยืนหันหน้าเข้าโกดัง) */
 function rowOriginX(rowKey) {
   const key = String(rowKey || "").toUpperCase();
-  if (!ROWS.some((r) => r.key === key)) throw new Error("ไม่มีแถว \"" + key + "\"");
-  /* 🔑 แต่ละแถวลึกไม่เท่ากันแล้ว (B เป็นชั้นคู่ = ลึก 2 เท่า) ⇒ บวกสะสมไปทีละแถว
-     ไม่ใช่คูณลำดับเหมือนเดิม ไม่งั้นทางเดินจะกินกันเอง */
-  const order = DOOR.rowAatFarX ? ROWS.slice().reverse() : ROWS.slice();
+  if (!ROWS.some((r) => r.key === key)) throw new Error('ไม่มีแถว "' + key + '"');
+  /* 🔑 2026-11-18 — คิดเป็น "แถบทางเดิน" ไม่ใช่ "ทีละแถว"
+     ของจริงมีทางเดิน **2 เส้น** (3 แถบ) แต่มี 5 โซน ⇒ ถ้าบวกทางเดินทุกโซน
+     จอจะวาดทางเดินเกินที่ไม่มีอยู่จริง และชั้นวางจะกระจายออกจากกัน
+     ⇒ โซนที่อยู่แถบเดียวกัน (C/D หลังชนกัน · B ฝั่งประตู) เริ่มที่ต้นแถบเดียวกัน
+       แล้วเลื่อนตาม depth ของตัวเอง */
+  const bands = DOOR.rowAatFarX ? bandsOfRows().reverse() : bandsOfRows();
   let x = 0;
-  for (const r of order) {
-    if (r.key === key) return x;
-    x += r.faces.length * CELL.d + STRUCT.aisle;
+  for (const band of bands) {
+    const hit = band.find((r) => r.key === key);
+    if (hit) return x + (hit.depth || 0) * CELL.d;
+    x += bandDepth(band) * CELL.d + STRUCT.aisle;
   }
   return x;
 }
@@ -375,11 +410,14 @@ function slotBox(location) {
 
 /** ขนาดรวมของโกดังที่ผังนี้กิน (ไว้ตั้งกล้อง/วาดพื้น) */
 function layoutExtent() {
-  /* กว้าง = ความลึกของทุกหน้าชั้นรวมกัน + ทางเดินระหว่างแถว (B ชั้นคู่กิน 2 ความลึก) */
-  let faces = 0;
-  for (const r of ROWS) faces += r.faces.length;
+  /* กว้าง = ความลึกของแต่ละ "แถบ" รวมกัน + ทางเดินระหว่างแถบ
+     (แถบกลางมีชั้นคู่หลังชนกัน ⇒ ลึก 2 ช่วง · นับตามแถบ ไม่ใช่ตามจำนวนโซน
+      ไม่งั้นโกดังกว้างเกินจริง 2 ทางเดิน แล้วกล้องถอยจนของเล็กจนมองไม่เห็น) */
+  const bands = bandsOfRows();
+  let depth = 0;
+  for (const band of bands) depth += bandDepth(band);
   return {
-    x: faces * CELL.d + (ROWS.length - 1) * STRUCT.aisle,
+    x: depth * CELL.d + (bands.length - 1) * STRUCT.aisle,
     y: LEVELS * LEVEL_PITCH,
     z: fullZ(),
   };

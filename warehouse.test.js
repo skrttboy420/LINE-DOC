@@ -1401,6 +1401,105 @@ ok("🔴 หน้ายิง/หน้าคีย์ เลือกโกด
   }
 });
 
-/* ════ สรุป ═══════════════════════════════════════════════════════════ */
-console.log("\n" + (fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
-process.exit(fail ? 1 : 0);
+/* ══ 🤝 ตรงกับระบบ Pacred (เดฟ/ผู้ตรวจ 2026-11-18) ════════════════════
+ * ภูม: *"อะไรที่ยังไม่ตรงกับระบบ pacred ก็ปรับตามที่เราแก้ไข ให้ระบบโกดังถูกต้องตรงไปด้วย"*
+ *
+ * 11-17 ย้าย "ผัง" มาอ่านตำแหน่งจาก Pacred แล้ว แต่ 3 เรื่องนี้ยังค้างที่สมุดเก่า/เกณฑ์เก่า:
+ *   ① ตัวนับ "รอเก็บเข้าชั้น" นับเองว่า TEMP ⇒ ช่องว่างไม่ถูกนับ (คิวของ Pacred นับ ว่าง-หรือ-TEMP)
+ *      📏 วัดฐาน dev 11-18: TEMP เท่านั้น = 2 · ธงของ Pacred = 4 ⇒ 2 จอขึ้นเลขคนละตัว
+ *   ② ช่องค้นหา + ช่องที่กล่องวางอยู่ ยังอ่านสมุดเก่า `wh_placement` ที่ไม่มีใครเขียนแล้ว
+ *   ③ ของที่ "เคยส่งแล้วแต่สถานะถอยกลับ" ไม่ขึ้นที่ไหนเลยถ้ายังไม่ชำระ
+ *      (11-17 ส่งของออก = ล้างช่อง ⇒ ของที่กลับมาไม่มีช่อง ⇒ วาดในผังไม่ได้)
+ *
+ * 🪤 `ok()` เป็นแบบ sync — ยามที่ต้อง await ต้องใช้ `okAsync` ไม่งั้น assert ที่ตกถูกกลืนเงียบๆ
+ *    (เกตเขียวหลอก) ⇒ ชุดนี้จบด้วยการสรุปผลเองท้าย IIFE
+ */
+async function okAsync(name, fn) {
+  try { await fn(); pass++; console.log("  ✓ " + name); }
+  catch (e) { fail++; console.error("  ✗ " + name); console.error("    " + (e.message || e)); }
+}
+
+const mkWh = (jobs) =>
+  W.createWarehouse(
+    { from: () => ({ select: () => ({ limit: async () => ({ data: [], error: null }) }) }) },
+    async () => ({ jobs: jobs, at: "2026-11-18T00:00:00Z" }),
+  );
+const jb = (o) =>
+  Object.assign(
+    { tracking: "T", memberCode: "PR1", status: 6, paid: true, release: "paid",
+      arrivedAt: "2026-11-10", hold: false, boxes: 1, container: null, location: null,
+      awaitingShelf: true, cameBack: false, address: null, receiver: null, tel: null,
+      carrier: null, selfPickup: false, needsAddress: false, images: [] },
+    o,
+  );
+
+ok("🚪 เลิกอ่านสมุดเก่า wh_placement ในช่องค้นหา + ช่องที่กล่องวางอยู่", () => {
+  const src = readFile("warehouse.js");
+  const findBody = src.slice(src.indexOf("async function find(term)"), src.indexOf("async function findCages"));
+  assert.ok(!findBody.includes("wh_placement"), "find() ต้องไม่อ่านสมุดเก่าแล้ว");
+  assert.ok(findBody.includes("jobsFromPacred"), "find() ต้องถาม Pacred");
+
+  const page = readFile("warehouse-page.js");
+  assert.ok(!page.includes("warehouse.find(t)"), "ช่องที่กล่องวางอยู่ต้องไม่ถาม find() แล้ว");
+  assert.ok(page.includes("job && job.location"), "ต้องเอาช่องมาจากงานของ Pacred ตรงๆ");
+});
+
+ok("🔙 จอ 3D บอกเหตุให้ถูก — ของกลับมา ไม่ใช่ 'ลืมคีย์ช่อง'", () => {
+  const D3 = readFile("warehouse-3d.html");
+  assert.ok(D3.includes("u.cameBack"), "แถวเตือนต้องแยกเคสของที่กลับมา");
+  assert.ok(D3.includes("เคยส่งถึงลูกค้าแล้วแต่สถานะถอยกลับ"), "ต้องมีคำอธิบายของเคสนี้");
+  assert.ok(D3.includes("v.cameBackCount"), "ต้องมีคำเตือนตอนเปิดจอ");
+});
+
+(async () => {
+  await okAsync("🟡 ตัวนับ 'รอเก็บเข้าชั้น' ใช้ธงของ Pacred — ช่องว่างต้องถูกนับด้วย", async () => {
+    const v = await mkWh([
+      jb({ tracking: "A", location: "TEMP", awaitingShelf: true }),
+      jb({ tracking: "B", location: null, awaitingShelf: true }),
+      jb({ tracking: "C", location: "A0501", awaitingShelf: false }),
+    ]).view("WH1");
+    assert.equal(v.holdingCount, 2, "ต้องนับทั้ง TEMP และช่องว่าง");
+  });
+
+  await okAsync("♻️ เว็บรุ่นเก่าที่ยังไม่ส่งธง = ถอยไปนับ TEMP แบบเดิม (จอต้องไม่พัง)", async () => {
+    const noFlag = (t, loc) => {
+      const j = jb({ tracking: t, location: loc });
+      delete j.awaitingShelf;
+      delete j.cameBack;
+      return j;
+    };
+    const v = await mkWh([noFlag("A", "TEMP"), noFlag("B", null)]).view("WH1");
+    assert.equal(v.holdingCount, 1, "ไม่มีธง = ใช้เกณฑ์ TEMP เดิม");
+  });
+
+  await okAsync("🔙 ของที่เคยส่งแล้วแต่ถอยสถานะกลับ ต้องขึ้นเตือน แม้ยังไม่ชำระ", async () => {
+    const v = await mkWh([
+      jb({ tracking: "BACK", status: 5, paid: false, release: "unpaid", location: null, cameBack: true }),
+    ]).view("WH1");
+    assert.equal(v.cameBackCount, 1, "ต้องนับของที่กลับมา");
+    assert.equal(v.unplaced.length, 1, "ต้องขึ้นในรายการเตือน");
+    assert.equal(v.unplaced[0].cameBack, true, "ต้องติดธงไว้ให้จอบอกเหตุให้ถูก");
+  });
+
+  await okAsync("🔎 ช่องค้นหาอ่านของจาก Pacred ไม่ใช่สมุดเก่าของบอท", async () => {
+    const WH = mkWh([
+      jb({ tracking: "FIND-1", location: "A0302", awaitingShelf: false }),
+      jb({ tracking: "OTHER", location: "A0401", awaitingShelf: false }),
+    ]);
+    const byTrack = await WH.find("find-1");
+    assert.equal(byTrack.length, 1, "ค้นเลขแทรคต้องเจอ (ไม่สนตัวพิมพ์)");
+    assert.equal(byTrack[0].location, "A0302", "ต้องได้ช่องจาก Pacred");
+    const bySlot = await WH.find("A0401");
+    assert.equal(bySlot.length, 1, "ค้นรหัสช่องต้องเจอ");
+    assert.equal(bySlot[0].tracking, "OTHER");
+    const byMember = await WH.find("PR1");
+    assert.equal(byMember.length, 2, "ค้นรหัสลูกค้าต้องเจอทั้ง 2 ใบ");
+    const temp = await mkWh([jb({ tracking: "TMP-1", location: "TEMP" })]).find("TMP-1");
+    assert.equal(temp.length, 0, "ของที่ยังอยู่ที่พักของต้องไม่ขึ้นว่าอยู่ชั้นไหน");
+  });
+
+  /* ════ สรุป ═══════════════════════════════════════════════════════════ */
+  console.log("");
+  console.log((fail ? "❌" : "✅") + " warehouse: " + pass + " pass, " + fail + " fail");
+  process.exit(fail ? 1 : 0);
+})();

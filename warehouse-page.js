@@ -142,8 +142,14 @@ function mountWarehouse(app, warehouse, whoOf) {
       const live = await warehouse.jobsFromPacred([t], [t]);
       const job = (live.jobs || []).find((j) => String(j.tracking || "").trim() === t) || null;
       const st = pickStateOf(job, true);
-      const found = await warehouse.find(t).catch(() => []);
-      const placement = (found || []).find((p) => String(p.tracking || "").trim() === t) || null;
+      /* 📍 ช่องที่ของวางอยู่ = เอาจากงานของ Pacred ตรงๆ (เดฟ/ผู้ตรวจ 2026-11-18)
+         เดิมถาม `find()` ที่อ่านสมุดเก่าของบอท (`wh_placement`) ⇒ กล่องที่ยิงเข้าชั้นที่ Pacred
+         หลัง 11-17 ขึ้น "ยังไม่ถูกคีย์ตำแหน่ง" ทุกใบ ทั้งที่ผังวาดอยู่ถูกต้อง
+         🔑 ที่พักของ (TEMP) ไม่ใช่ช่องชั้นวาง ⇒ ถือว่ายังไม่ได้วาง (กติกาเดียวกับผัง) */
+      const code = String((job && job.location) || "").trim().toUpperCase();
+      const onShelf =
+        Boolean(code) && code !== "TEMP" && !(LAYOUT.isHolding && LAYOUT.isHolding(code));
+      const placement = onShelf ? { tracking: t, slot: code, wh: LAYOUT.DEFAULT_WH } : null;
       res.json({
         tracking: t, job: job, state: st, liveOk: live.ok,
         placement: placement

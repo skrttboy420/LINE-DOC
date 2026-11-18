@@ -207,14 +207,27 @@ function mergeView(placements, jobs, cages) {
   }
 
   /* 🔴 งานที่ "ชำระแล้ว ถึงไทยแล้ว" แต่ไม่มีใครคีย์ว่าอยู่ช่องไหน
-        = พนักงานหาไม่เจอในจอ ⇒ เสี่ยงหยิบกล่องอื่นแทน (ปัญหาเดิมของภูมเลย) */
+        = พนักงานหาไม่เจอในจอ ⇒ เสี่ยงหยิบกล่องอื่นแทน (ปัญหาเดิมของภูมเลย)
+
+     🔙 เดฟ/ผู้ตรวจ 2026-11-18 — เพิ่ม **ของที่เคยส่งถึงลูกค้าแล้วแต่สถานะถอยกลับ**
+        ตั้งแต่ 11-17 การส่งของออกจะ**ล้างช่องชั้นวาง** ⇒ ของที่ถอยกลับมาจะไม่มีช่อง
+        ⇒ วาดในผังไม่ได้ · และถ้าถอยมาอยู่ขั้น "รอชำระ" (ยังหยิบไม่ได้) จะ**ไม่ขึ้นที่ไหนเลย**
+           เพราะเกณฑ์เดิมเอาแค่กล่องที่ชำระแล้ว ⇒ ของกลับเข้าโกดังแบบเงียบๆ
+        ⇒ ติดธงไว้ ไม่ว่าจ่ายแล้วหรือยัง · ธง `cameBack` มาจาก Pacred (ตัวตัดสินเดียวกับป้ายในคิว) */
   const placed = new Set((placements || []).map((p) => String(p.tracking || "").trim()));
   const unplaced = [];
   for (const j of jobs || []) {
     const t = String((j && j.tracking) || "").trim();
     if (!t || placed.has(t)) continue;
     const st = pickStateOf(j, true);
-    if (st.pick === PICK.READY) unplaced.push({ tracking: t, memberCode: j.memberCode || null, customer: j.customer || null });
+    const back = Boolean(j && j.cameBack);
+    if (st.pick === PICK.READY || back)
+      unplaced.push({
+        tracking: t,
+        memberCode: j.memberCode || null,
+        customer: j.customer || null,
+        cameBack: back,
+      });
   }
 
   return {
@@ -442,11 +455,22 @@ function createWarehouse(supabase, pacredGet) {
 
     const cages = await listCages(wh).catch(() => []);
     const merged = mergeView(placements, live.jobs, cages);
-    /* 🟡 ของที่ยิงรับแล้วแต่ยังอยู่ที่พักของ — ไม่ได้วาดในผัง แต่ต้องรู้ว่ามีกี่กล่อง
-       (ตัวเลขเดียวกับคิว "ยังไม่เก็บเข้าชั้น" ของ Pacred) */
-    const holding = (live.jobs || []).filter(
-      (j) => String((j && j.location) || "").trim().toUpperCase() === "TEMP",
-    ).length;
+    /* 🟡 ของที่ยังไม่เก็บเข้าชั้น — ไม่ได้วาดในผัง แต่ต้องรู้ว่ามีกี่กล่อง
+       🔑 ใช้ **ธง `awaitingShelf` ที่ Pacred ส่งมา** = ตัวตัดสินตัวเดียวกับคิว
+          /admin/warehouse/pending-shelf (ช่องว่าง **หรือ** ที่พักของ TEMP)
+       🪤 เดฟ/ผู้ตรวจ 2026-11-18: เดิมที่นี่นับเองว่า `location === "TEMP"` ⇒ กล่องที่ช่องว่าง
+          ไม่ถูกนับ ⇒ จอ 3D กับคิวของ Pacred ขึ้นเลขคนละตัว (วัดฐาน dev: TEMP 2 · ว่าง-หรือ-TEMP 4)
+          ⚠️ ตั้งแต่ 11-17 "ส่งของออก" จะล้างช่องชั้นวาง ⇒ ของที่ถอยสถานะกลับมาจะช่องว่าง
+             = ต้องถูกนับว่ารอเก็บเข้าชั้น ไม่ใช่หายไปเฉยๆ
+       🔙 ของที่เคยส่งถึงลูกค้าแล้วแต่สถานะถอยกลับ — นับแยกไว้เตือน (ของกลับมาโกดังอีกครั้ง)
+       ♻️ เว็บรุ่นเก่าที่ยังไม่ส่งธง = ถอยไปใช้เกณฑ์ TEMP เดิม (จอต้องเปิดได้เสมอ) */
+    const liveJobs = live.jobs || [];
+    const holding = liveJobs.some((j) => j && typeof j.awaitingShelf === "boolean")
+      ? liveJobs.filter((j) => j && j.awaitingShelf).length
+      : liveJobs.filter(
+          (j) => String((j && j.location) || "").trim().toUpperCase() === "TEMP",
+        ).length;
+    const cameBack = liveJobs.filter((j) => j && j.cameBack).length;
     return Object.assign(merged, {
       wh: wh,
       whName: LAYOUT.whName(wh),
@@ -454,6 +478,7 @@ function createWarehouse(supabase, pacredGet) {
       live: { ok: live.ok, at: live.at, error: live.error || null },
       placedCount: placements.length,
       holdingCount: holding,
+      cameBackCount: cameBack,
     });
   }
 
@@ -488,23 +513,35 @@ function createWarehouse(supabase, pacredGet) {
     return data || [];
   }
 
-  /** 🔎 ค้นหา — เลขแทรค · รหัสลูกค้า · รหัสช่อง */
+  /**
+   * 🔎 ค้นหา — เลขแทรค · รหัสลูกค้า · รหัสช่อง
+   *
+   * 🔴 เดฟ/ผู้ตรวจ 2026-11-18 — **อ่านของจาก Pacred ที่เดียว** (เลิกอ่านสมุดเก่า `wh_placement`)
+   *    ตั้งแต่ 11-17 ผังของจอ 3D อ่านตำแหน่งจาก Pacred แล้ว แต่ **ช่องค้นหายังอ่านสมุดเก่าอยู่**
+   *    ⇒ ค้นแล้วได้ของคนละชุดกับที่ผังวาด · แย่กว่านั้นคือพาสลับโกดังตามสมุดที่ไม่มีใครเขียนแล้ว
+   *    (ของที่ยิงเข้าชั้นที่ Pacred หลัง 11-17 ไม่มีอยู่ในสมุดเล่มนั้นสักแถว)
+   *
+   * 🔑 คืนรูปเดิมที่ผู้เรียกอ่านอยู่ (`tracking` · `slot` · `location` · `wh` · `member_code`)
+   *    = รูปเดียวกับที่ `placementsFromJobs` ทำให้ผัง ⇒ หน้าเรียกไม่ต้องแก้สักบรรทัด
+   */
   async function find(term) {
     const q = String(term || "").trim();
     if (!q) return [];
+    const live = await jobsFromPacred([], []);
+    const rows = placementsFromJobs(live.jobs);
+
     /* 🏷 parseSlot รับทั้ง "A0101" และป้ายเก่า "A0101-L" แล้วคืนช่องเดียวกัน */
     const loc = LAYOUT.parseSlot(q);
-    if (loc) {
-      const { data, error } = await supabase.from("wh_placement").select("*")
-        .eq("location", loc.code);
-      if (error) throw new Error(error.message);
-      return data || [];
-    }
-    const esc = q.replace(/[%,]/g, "");
-    const { data, error } = await supabase.from("wh_placement").select("*")
-      .or("tracking.ilike.%" + esc + "%,member_code.ilike.%" + esc + "%").limit(50);
-    if (error) throw new Error(error.message);
-    return (data || []).map((r) => Object.assign({}, r, { wh: LAYOUT.normWh(r.wh) }));
+    if (loc) return rows.filter((r) => String(r.location || "").toUpperCase() === loc.code);
+
+    const needle = q.toUpperCase();
+    return rows
+      .filter(
+        (r) =>
+          String(r.tracking || "").toUpperCase().includes(needle) ||
+          String(r.member_code || "").toUpperCase().includes(needle),
+      )
+      .slice(0, 50);
   }
 
   /** 🧺 ค้นกรงเหล็กจากชื่อ (ข้ามโกดัง) — ภูม: *"รองรับการค้นหาทั้งชื่อกรง"* */

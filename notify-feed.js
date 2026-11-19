@@ -51,6 +51,11 @@ const NOTIFY_CATEGORIES = [
      เคสที่ธงชี้ถูกแต่แถวแม่ถูกเขียนทับด้วยค่าของล็อตลูก ⇒ คิวไม่เห็น + เก็บเงินขาดเงียบ ๆ
      ⇒ ภูมสั่ง: *"ถ้าเจอปุ๊ปก็แจ้งเตือนมาเลย"* (ไม่เอาหน้า /admin/data-health เพราะปอนจะลบ) */
   { key: "lots_missing", group: "🧰 ทีมระบบ",  label: "ของขาดจากที่ MOMO แจ้ง",      scope: "all",      unit: "ชุด" },
+  /* 🔴 ของถึงไทยแล้วแต่ไม่รู้เจ้าของ (ภูม 2026-11-19) — MOMO ยิงของมาโดยช่องรหัสลูกค้าว่าง
+     ⇒ ระบบรับไว้แล้วมาร์คว่า NO CODE · ของเดินขั้นปกติถึงไทย (owner 2026-08-15) แต่
+     **เก็บเงินไม่ได้** จนกว่าจะมีคนไปตามว่าของใคร · ก่อนหน้านี้ไม่มีหมวดไหนครอบเรื่องนี้เลย
+     ⇒ ของนอนอยู่โกดังเราเงียบ ๆ (📏 prod 19/11: 31 กล่อง จากไร้เจ้าของทั้งหมด 52) */
+  { key: "no_code_th",  group: "🧰 ทีมระบบ",   label: "ของถึงไทยแล้วยังไม่รู้เจ้าของ", scope: "all",      unit: "กล่อง" },
   /* ⚠️ ท่อชีตพาร์ทเนอร์ (ภูม 2026-10-28) — *"นี่ถ้าไม่มาเปิดดูก็ไม่รู้เลยนะเนี่ย
      พาร์ตเนอร์หนีหมดแบบนี้ใครจะใช้งานกับเราหละ"* */
   { key: "pw_sheet",    group: "🧰 ทีมระบบ",   label: "แทรคเข้าชีต PW ไม่ได้",        scope: "all",      unit: "แทรค" },
@@ -74,6 +79,7 @@ function itdtSections(feed) {
     { key: "hs_pending",   rows: it.hsPending     || [], total: it.hsPendingTotal },
     { key: "track_stuck",  rows: it.tracksStuck   || [], total: it.tracksStuckTotal },
     { key: "lots_missing", rows: it.lotsMissing   || [], total: it.lotsMissingTotal },
+    { key: "no_code_th",   rows: it.noCodeArrived || [], total: it.noCodeArrivedTotal },
     { key: "pw_sheet",     rows: it.pwSheetFailed || [], total: it.pwSheetFailedTotal },
   ];
 }

@@ -70,6 +70,12 @@ const CATEGORIES = [
   { key: "lots_missing", group: "🧰 ทีมระบบ", scope: "all",
     label: "ของขาดจากที่ MOMO แจ้ง",
     hint: "ธงบอกว่าเข้าระบบแล้ว แต่ Σ กล่อง/น้ำหนัก ในระบบไม่ครบตามที่ MOMO ประกาศ — เก็บเงินขาด ต้องไปเติมแถวเอง" },
+  /* 🔴 ภูม 2026-11-19 — MOMO ยิงของมาโดยช่องรหัสลูกค้าว่าง ⇒ ระบบรับไว้แล้วมาร์ค NO CODE ·
+     owner 2026-08-15 ให้ของเดินขั้นปกติถึงไทยได้ (ยิงรับ/เข้าตู้/คิดต้นทุน) แต่ **เก็บเงินไม่ได้**
+     ⇒ ถ้าไม่มีใครไปตามว่าของใคร ของก็นอนอยู่โกดังเราเงียบ ๆ · ไม่มีหมวดไหนครอบเรื่องนี้มาก่อน */
+  { key: "no_code_th",  group: "🧰 ทีมระบบ", scope: "all",
+    label: "ของถึงไทยแล้วยังไม่รู้เจ้าของ",
+    hint: "ของอยู่โกดังเราแล้วแต่ไม่มีรหัสลูกค้า (NO CODE) — เก็บเงินไม่ได้จนกว่าจะใส่ PR ที่หน้าคิวฝากนำเข้า" },
   { key: "pw_sheet",    group: "🧰 ทีมระบบ", scope: "all",
     label: "แทรคเข้าชีต PW ไม่ได้",
     hint: "ส่งเข้าชีตพาร์ทเนอร์ไม่สำเร็จ + เหตุผลจริง (ไม่มีรหัสลูกค้าปลายทาง · ช่องทางที่ชีตไม่มี ฯลฯ)" },
@@ -113,7 +119,7 @@ const DEFAULT_BY_POSITION = {
   "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt", "acc_credit"],
 
   // ── 🧰 ทีมระบบ (ITDT) ───────────────────────────────────────────────
-  "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
+  "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th"],
   "Back End":            ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
   "Full Stack":          ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
   "Project Manager":     ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
@@ -133,7 +139,7 @@ const DEFAULT_BY_POSITION = {
 const DEFAULT_BY_DEPARTMENT = {
   /* 🔄 2026-10-22 ภูม: *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด · งานอัพแทรคเข้าระบบ"*
      เดิมแจก "system" ซึ่ง**ไม่มีตัวนับงานค้าง** ⇒ กดปุ่มแล้วขึ้น "หมวดที่ติ๊กไว้ยังไม่มีตัวนับ" */
-  ITDT:                 ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
+  ITDT:                 ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th"],
   Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
   Operations:           [],                     // 4 ตำแหน่งคนละงาน — เดาจากแผนกไม่ได้ (ดูตารางตำแหน่ง)
   Logistics:            [],                     // คนขับ vs โกดัง คนละเรื่อง

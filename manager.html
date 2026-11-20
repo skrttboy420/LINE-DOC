@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>ศูนย์จัดการโกดัง</title>
+<style>
+  /* layout: mobile manager cockpit — sticky bar + fixed tab nav · Lucide-style line icons
+     🔒 ข้อมูลเก็บใน Supabase ของบอท (ตาราง mgr_*) ผ่าน /manager/api — ไม่เกี่ยว pacred */
+  :root{
+    color-scheme:light;
+    --red:#B30000; --red-soft:#fdecec;
+    --ink:#1f2430; --muted:#6b7280; --faint:#9aa1ad; --line:#eceef2; --bg:#f4f5f7; --card:#fff;
+    --green:#17a66a; --green-soft:#e6f6ee;
+    --amber:#e08a00; --amber-soft:#fdf2df;
+    --danger:#d8352a; --danger-soft:#fdeceb;
+    --blue:#2563c9; --blue-soft:#e8f0fd;
+    --shadow:0 1px 2px rgba(20,24,40,.05),0 6px 20px rgba(20,24,40,.05);
+    --font:"Noto Sans Thai","Sarabun",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;margin:0;padding-bottom:82px}
+  .wrap{max-width:430px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative}
+  svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+
+  .top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;
+    background:linear-gradient(135deg,#7d0000,#B30000 60%,#cf1818);color:#fff;
+    padding-top:17px;padding-bottom:17px;
+    padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));
+    box-shadow:0 3px 16px rgba(179,0,0,.28)}
+  .top .hi{font-size:12.5px;opacity:.88}
+  .top .mgr{font-size:20px;font-weight:800;margin-top:2px}
+  .top .date{font-size:12px;opacity:.85;margin-top:3px}
+  .top .sync{position:absolute;right:16px;top:19px;font-size:11px;font-weight:700;background:rgba(255,255,255,.16);padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:5px}
+  .top .sync svg{font-size:13px}
+
+  .page{display:none;padding-top:14px;padding-bottom:12px;
+    padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+  .page.on{display:block}
+  .sec{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;color:var(--muted);margin:16px 2px 9px}
+  .sec svg{font-size:15px;color:var(--faint)}
+  .sec:first-child{margin-top:3px}
+
+  .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:14px;margin-bottom:12px}
+  .card.flat{box-shadow:none;border:1px solid var(--line)}
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:16px 8px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:var(--card);border-radius:14px;box-shadow:var(--shadow);padding:13px}
+  .stat .sh{display:flex;align-items:center;justify-content:space-between;color:var(--faint);font-size:16px}
+  .stat .n{font-size:26px;font-weight:800;line-height:1;margin-top:6px;font-variant-numeric:tabular-nums}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:4px}
+
+  .row{display:flex;align-items:center;gap:11px}
+  .row + .row{border-top:1px solid var(--line);padding-top:11px;margin-top:11px}
+  .av{width:38px;height:38px;border-radius:11px;background:var(--red-soft);color:var(--red);font-weight:800;display:grid;place-items:center;flex:0 0 auto;font-size:14px}
+  .av.b{background:var(--blue-soft);color:var(--blue)}
+  .nm{font-weight:700;min-width:0}
+  .sub{font-size:12px;color:var(--muted)}
+  .right{margin-left:auto;text-align:right}
+  .pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .p-ok{color:var(--green);background:var(--green-soft)}
+  .p-warn{color:var(--amber);background:var(--amber-soft)}
+  .p-bad{color:var(--danger);background:var(--danger-soft)}
+  .hint{font-size:11.5px;color:var(--muted)}
+
+  .stars{display:inline-flex;gap:2px;font-size:17px;cursor:pointer}
+  .stars span{color:#d9dde4}
+  .stars span.on{color:#f4b400}
+
+  /* checklist */
+  .datebar{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:13px;box-shadow:var(--shadow);padding:11px 13px;margin-bottom:11px}
+  .datebar svg{font-size:17px;color:var(--red)}
+  .datebar .d{font-weight:800}
+  .datebar .insp{font-size:12px;color:var(--muted);margin-left:auto}
+  .prog{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);margin:2px 2px 9px}
+  .prog b{color:var(--ink)}
+  .chk{display:flex;align-items:center;gap:12px;padding:12px 2px;cursor:pointer}
+  .chk + .chk{border-top:1px solid var(--line)}
+  .box{width:24px;height:24px;border-radius:8px;border:2px solid #cbd1da;flex:0 0 auto;display:grid;place-items:center;color:#fff;transition:.12s}
+  .box svg{font-size:15px;stroke-width:2.6;opacity:0}
+  .chk.done .box{background:var(--green);border-color:var(--green)}
+  .chk.done .box svg{opacity:1}
+  .chk.done .txt{color:var(--muted);text-decoration:line-through}
+  .txt{font-size:14.5px}
+  .num{width:66px;border:1.5px solid var(--line);border-radius:8px;padding:4px 8px;font-family:inherit;font-size:13.5px;color:var(--ink)}
+  .num:focus{outline:none;border-color:var(--red)}
+
+  .actbar{display:flex;gap:9px;margin-top:4px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:12px;font-family:inherit;font-size:13.5px;font-weight:800;padding:11px 13px;cursor:pointer}
+  .btn svg{font-size:16px}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-ghost{background:#fff;color:var(--red);border:1.5px solid #f0c4c0}
+  .btn-line{background:#fff;color:var(--ink);border:1.5px solid var(--line);font-weight:700}
+  .btn.full{flex:1}
+  .btn:disabled{opacity:.45}
+  .photobox{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+  .addphoto{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted);border:1.5px dashed #ccd2db;border-radius:11px;padding:10px 12px;cursor:pointer}
+  .addphoto svg{font-size:17px;color:var(--red)}
+  .thumb{width:54px;height:54px;border-radius:10px;object-fit:cover;border:1px solid var(--line)}
+
+  .tr{border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
+  .tr .h{display:flex;align-items:center;gap:11px;padding:13px;cursor:pointer;background:var(--card)}
+  .tic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex:0 0 auto}
+  .tr .h .cv{margin-left:auto;color:var(--faint);transition:.2s;font-size:18px}
+  .tr.open .h .cv{transform:rotate(180deg)}
+  .tr .b{display:none;padding:2px 14px 14px;background:#fbfbfc}
+  .tr.open .b{display:block}
+  .tr .b li{margin:7px 0;font-size:13.5px;line-height:1.5}
+  .tr .b ul{margin:4px 0 0;padding-left:20px}
+  .tr .b .lead{font-size:12px;font-weight:800;color:var(--red);margin:2px 0 6px}
+
+  .truck{border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:10px}
+  .truck .tt{display:flex;align-items:center;gap:9px;font-weight:800}
+  .truck .tt .del{margin-left:auto;color:var(--faint);font-size:17px;cursor:pointer}
+  .fld{margin-top:10px}
+  .fld label{font-size:11.5px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px}
+  .fld input[type=text]{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px;color:var(--ink);background:#fff}
+  .fld input:focus{outline:none;border-color:var(--red)}
+  .licrow{display:flex;align-items:center;gap:10px;margin-top:6px}
+  .licup{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--red);border:1.5px dashed #f0c4c0;border-radius:10px;padding:9px 12px;cursor:pointer}
+  .licup svg{font-size:16px}
+  .licimg{width:58px;height:42px;border-radius:8px;object-fit:cover;border:1px solid var(--line);cursor:pointer}
+  .addrow{display:flex;gap:8px;margin-bottom:12px}
+  .addrow input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:12px;padding:12px;font-family:inherit;font-size:14px;background:#fff}
+  .addrow input:focus{outline:none;border-color:var(--red)}
+  .addrow button{flex:0 0 auto;width:48px;border:0;border-radius:12px;background:var(--red);color:#fff;display:grid;place-items:center;cursor:pointer}
+  .addrow button svg{font-size:20px}
+
+  .task{display:flex;align-items:center;gap:11px;padding:12px 2px}
+  .task + .task{border-top:1px solid var(--line)}
+  .task .tbox{width:22px;height:22px;border-radius:7px;border:2px solid #cbd1da;flex:0 0 auto;display:grid;place-items:center;color:#fff;cursor:pointer}
+  .task.done .tbox{background:var(--green);border-color:var(--green)}
+  .task.done .tt2{color:var(--muted);text-decoration:line-through}
+  .task .tt2{min-width:0;font-weight:600}
+  .task .del{color:var(--faint);font-size:17px;cursor:pointer;flex:0 0 auto;margin-left:auto}
+
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid var(--line);display:flex;max-width:430px;margin:0 auto;
+    padding-top:7px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 7px);
+    padding-left:max(4px,env(safe-area-inset-left,0px));padding-right:max(4px,env(safe-area-inset-right,0px))}
+  .nav button{flex:1;background:none;border:0;padding:4px 2px;color:var(--faint);font-family:inherit;font-size:10.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+  .nav button .ni{font-size:23px}
+  .nav button.on{color:var(--red)}
+  .nav button:focus-visible{outline:2px solid var(--red);outline-offset:2px;border-radius:9px}
+
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(20,24,40,.55);display:none;align-items:center;justify-content:center;padding:20px}
+  .modal.on{display:flex}
+  .modal .mc{background:#fff;border-radius:16px;max-width:360px;width:100%;max-height:85vh;overflow:auto;padding:16px}
+  .modal .mh{display:flex;align-items:center;margin-bottom:10px;font-weight:800}
+  .modal .mh .x{margin-left:auto;color:var(--faint);font-size:20px;cursor:pointer}
+  .modal img{width:100%;border-radius:10px;border:1px solid var(--line)}
+  .toast{position:fixed;left:50%;bottom:94px;transform:translateX(-50%) translateY(10px);z-index:60;background:var(--ink);color:#fff;font-size:13px;font-weight:700;padding:10px 16px;border-radius:22px;opacity:0;transition:.22s;pointer-events:none;max-width:88%;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  #report{position:fixed;left:-9999px;top:0;width:360px;background:#fff;padding:18px;color:#1f2430;box-sizing:border-box}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="sync" id="sync"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg><span id="synct">กำลังเชื่อม…</span></div>
+    <div class="hi">ศูนย์จัดการโกดัง · สมุทรสาคร</div>
+    <div class="mgr">สวัสดี, หัวหน้าภูมิ</div>
+    <div class="date" id="topdate">—</div>
+  </div>
+
+  <!-- หน้าหลัก -->
+  <div class="page on" id="p-home">
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M4 13h4v7H4zM10 8h4v12h-4zM16 4h4v16h-4z"/></svg> สรุปวันนี้</div>
+    <div class="grid">
+      <div class="stat"><div class="sh"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg></div><div class="n" id="h-chk">—</div><div class="l">เช็คลิสต์ความปลอดภัย</div></div>
+      <div class="stat"><div class="sh"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9 4.5a3 3 0 0 1 6 0M9.5 10h5M9.5 13.5h5M9.5 17h3"/></svg></div><div class="n" id="h-task" style="color:var(--amber)">—</div><div class="l">งานผู้จัดการค้าง</div></div>
+      <div class="stat"><div class="sh"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg></div><div class="n" id="h-truck">—</div><div class="l">รถที่ลงทะเบียน</div></div>
+      <div class="stat"><div class="sh"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg></div><div class="n" id="h-team">—</div><div class="l">ทีมที่ประเมิน</div></div>
+    </div>
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg> ที่ต้องตามต่อ</div>
+    <div class="card" id="home-todo"><div class="empty">กำลังโหลด…</div></div>
+    <div class="hint" style="margin:2px">ข้อมูลทั้งหมดในแอปนี้ภูมกรอกเอง เก็บในที่เก็บของบอท — ไม่เกี่ยวกับระบบ pacred</div>
+  </div>
+
+  <!-- ความปลอดภัย -->
+  <div class="page" id="p-safe">
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg> เช็คลิสต์ก่อนเลิกงาน</div>
+    <div class="datebar"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg><div class="d" id="ckdate">—</div><div class="insp">ผู้ตรวจ: หัวหน้าภูมิ</div></div>
+    <div class="prog" id="prog">—</div>
+    <div class="card" id="checklist"></div>
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg> แนบรูปหลักฐาน (ถ้ามีปัญหา)</div>
+    <div class="card"><div class="photobox" id="photobox"><label class="addphoto"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>ถ่าย/แนบรูป<input type="file" accept="image/*" capture="environment" id="photoin" hidden multiple></label></div></div>
+    <div class="actbar">
+      <button class="btn btn-red full" id="copytext"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M5 15.5A2 2 0 0 1 4 14V5a2 2 0 0 1 2-2h8a2 2 0 0 1 1.5 1"/></svg>คัดลอกข้อความ</button>
+      <button class="btn btn-ghost full" id="copyimg"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 18l5-5 4 3 3-3 4 4"/></svg>บันทึกเป็นรูป</button>
+    </div>
+    <div class="hint" style="margin:9px 2px 0">คัดลอก/บันทึกไปส่งเจ้านายได้เลย — ข้อที่ยังไม่ติ๊กจะไม่ติดไปด้วย · เช็คลิสต์บันทึกต่อวัน (เปิดวันใหม่เริ่มใหม่) · รูปแนบไว้ใช้ทำรายงานรอบนี้ (ไม่ได้เก็บถาวร)</div>
+  </div>
+
+  <!-- ทีม -->
+  <div class="page" id="p-team">
+    <div id="team-list-view">
+      <div class="sec"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/></svg> ประเมินทีม</div>
+      <div class="addrow">
+        <input type="text" id="teamin" placeholder="เพิ่มชื่อ + ตำแหน่ง เช่น สมชาย · หัวหน้าโกดัง">
+        <button id="teamadd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+      <div class="card" id="teamlist"><div class="empty">กำลังโหลด…</div></div>
+      <div class="hint" style="margin:2px">แตะที่พนักงานเพื่อดู/บันทึกประวัติการประเมิน</div>
+    </div>
+    <div id="team-detail-view" hidden>
+      <button class="btn btn-line" id="team-back" style="margin:0 0 12px"><svg class="i" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg> กลับ</button>
+      <div class="card" id="team-head"></div>
+      <div class="sec"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg> ประวัติการประเมิน (บันทึกตามวัน)</div>
+      <div class="addrow">
+        <input type="text" id="notein" placeholder="จดการประเมิน/สิ่งที่เห็นวันนี้…">
+        <button id="noteadd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      </div>
+      <div class="card" id="team-notes"><div class="empty">ยังไม่มีบันทึก</div></div>
+    </div>
+  </div>
+
+  <!-- อบรม -->
+  <div class="page" id="p-train">
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M12 5 2.5 9 12 13l9.5-4L12 5Z"/><path d="M6 11v4.5c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V11M21.5 9v5"/></svg> คู่มือสอน (ใช้พูดตอนอบรมพนักงาน)</div>
+    <div class="tr"><div class="h"><div class="tic" style="background:var(--amber-soft)">🚜</div><div class="nm">ขับรถโฟล์คลิฟท์ ปลอดภัย</div><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="b"><div class="lead">พูดสั้นๆ เน้นจำง่าย</div><ul><li>คาดเข็มขัดทุกครั้งก่อนสตาร์ท</li><li>ก่อนขับเช็ครอบรถ: เบรก · แตร · ไฟ · น้ำมัน/แบต</li><li>ยกของ "ไม่เกินพิกัด" · วิ่งงาส้อมต่ำติดพื้น</li><li>ในโกดังวิ่งช้าๆ เท่าคนเดิน · มุมอับ/ทางแยกบีบแตร</li><li>ห้ามคนยืนใต้ของที่ยก · ห้ามคนขึ้นบนงา</li><li>จอดแล้วดับเครื่อง ลดงาลงพื้น ดึงเบรกมือ</li></ul></div></div>
+    <div class="tr"><div class="h"><div class="tic" style="background:var(--green-soft)">📥</div><div class="nm">คลังรับ (ยิงรับ + เก็บเข้าชั้น)</div><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="b"><div class="lead">พูดสั้นๆ เน้นจำง่าย</div><ul><li>เช็คเลขตู้/เลขแทรคให้ตรงก่อนยิง</li><li>ยิงรับ "ทุกกล่อง" ห้ามข้าม · นับให้ครบ</li><li>ของชำรุด/เปียก = ถ่ายรูปแจ้งทันที อย่าเก็บเงียบ</li><li>เก็บเข้าชั้นตามช่องที่ระบบบอก แล้วยิงยืนยันช่อง</li><li>ของหนักไว้ชั้นล่าง ของเบาไว้ชั้นบน</li></ul></div></div>
+    <div class="tr"><div class="h"><div class="tic" style="background:var(--blue-soft)">📤</div><div class="nm">คลังส่ง (จัด + โหลดของออก)</div><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="b"><div class="lead">พูดสั้นๆ เน้นจำง่าย</div><ul><li>เช็ครายการกับใบส่งให้ตรงก่อนโหลด</li><li>ยิงออกทุกกล่อง · ครบแล้วค่อยปิดงาน</li><li>จัดเรียงในรถให้แน่น ไม่ให้ของล้ม/ชนเสียหาย</li><li>ของแตกง่าย = แยกวาง + ติดป้ายระวัง</li><li>ถ่ายรูปของก่อนส่งเก็บเป็นหลักฐาน</li></ul></div></div>
+    <div class="tr"><div class="h"><div class="tic" style="background:var(--red-soft)">🗣️</div><div class="nm">คุยกับลูกค้า (โกดัง + คนขับไปส่ง)</div><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="b"><div class="lead">พูดสั้นๆ เน้นจำง่าย</div><ul><li>ยิ้ม ทักทาย สุภาพ บอกว่ามาจาก Pacred</li><li>ส่งของถึงมือ เช็คของกับลูกค้าก่อนให้เซ็นรับ</li><li>ลูกค้าถาม/บ่น = ไม่เถียง รับเรื่องไว้ แล้วแจ้งหัวหน้า</li><li>ของเสียหาย = ถ่ายรูป แจ้งทันที ห้ามปิดบัง</li><li>ตรงเวลา · โทรแจ้งลูกค้าก่อนถึง</li></ul></div></div>
+    <div class="tr"><div class="h"><div class="tic" style="background:var(--danger-soft)">🔥</div><div class="nm">อัคคีภัย (ซ้อมหนีไฟ)</div><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+      <div class="b"><div class="lead">พูดสั้นๆ เน้นจำง่าย</div><ul><li>รู้ตำแหน่งถังดับเพลิง + ทางหนีไฟทุกจุด</li><li>ใช้ถังดับเพลิง: ดึงสลัก · เล็งฐานไฟ · บีบ · ส่ายไปมา</li><li>ไฟใหญ่คุมไม่อยู่ = ไม่ดับเอง รีบหนี โทร 199</li><li>หนีไฟ: ก้มต่ำ · ปิดจมูก · ห้ามใช้ลิฟต์</li><li>ไปจุดรวมพล (ลานหน้าโกดัง) · เช็คจำนวนคนให้ครบ</li></ul></div></div>
+
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg> ทะเบียนใบขับขี่โฟล์คลิฟท์</div>
+    <div class="addrow"><input type="text" id="truckin" placeholder="เพิ่มรถ เช่น FL-01"><button id="truckadd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div id="trucks"><div class="empty">กำลังโหลด…</div></div>
+  </div>
+
+  <!-- งานผม -->
+  <div class="page" id="p-me">
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 7v10M7 12h10"/></svg> จดงาน / ประชุม (กันตกหล่น)</div>
+    <div class="addrow"><input type="text" id="taskin" placeholder="พิมพ์งาน เช่น ประชุมทีม 14:00 …"><button id="taskadd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    <div class="card" id="tasklist"><div class="empty">กำลังโหลด…</div></div>
+    <div class="hint" style="margin:2px">แตะวงกลมเพื่อทำเสร็จ · บันทึกอัตโนมัติ เปิดเครื่องอื่นก็เห็น</div>
+  </div>
+
+  <div class="nav">
+    <button class="on" data-t="home"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/><path d="M9.5 20v-6h5v6"/></svg></span>หน้าหลัก</button>
+    <button data-t="safe"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg></span>ความปลอดภัย</button>
+    <button data-t="team"><span class="ni"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><path d="M16 5.3a3 3 0 0 1 0 5.4M18 14.3c2 .6 3.5 2.3 3.5 4.7"/></svg></span>ประเมินทีม</button>
+    <button data-t="train"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M12 5 2.5 9 12 13l9.5-4L12 5Z"/><path d="M6 11v4.5c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V11M21.5 9v5"/></svg></span>อบรม</button>
+    <button data-t="me"><span class="ni"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="4.5" width="12" height="16" rx="2"/><path d="M9 4.5a3 3 0 0 1 6 0M9.5 10h5M9.5 13.5h5M9.5 17h3"/></svg></span>งานผม</button>
+  </div>
+</div>
+
+<div id="report"></div>
+<div class="modal" id="imgmodal"><div class="mc"><div class="mh">รูปเช็คลิสต์ (กดค้างที่รูปเพื่อบันทึก)<span class="x" id="imgx">✕</span></div><div id="imgwrap"></div></div></div>
+<div class="modal" id="licmodal"><div class="mc"><div class="mh">รูปใบขับขี่ (กดค้างที่รูปเพื่อบันทึก)<span class="x" id="licx">✕</span></div><div id="licwrap"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var esc=function(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
+  var TH_DAY=["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"],
+      TH_MON=["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  var now=new Date();
+  function thDate(d){return TH_DAY[d.getDay()]+" "+d.getDate()+" "+TH_MON[d.getMonth()]+" "+(d.getFullYear()+543)}
+  function thTime(d){return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)+" น."}
+  function dayKey(d){return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+  $("topdate").textContent=thDate(now)+" · "+thTime(now);
+  $("ckdate").textContent=thDate(now);
+  var TODAY=dayKey(now);
+  function toast(t){var el=$("toast");el.textContent=t;el.classList.add("on");setTimeout(function(){el.classList.remove("on")},2200)}
+
+  // ====== ที่เก็บข้อมูล = /manager/api (Supabase ของบอท) ======
+  // 🔑 คีย์มาจาก ?key=… ท้าย URL (หน้านี้เปิดได้ก็แปลว่าคีย์ถูก) — ส่งไปกับทุก request
+  var KEY=(new URLSearchParams(location.search)).get("key")||"";
+  function api(path, body){
+    var opt={ headers:{ "x-manager-key":KEY } };
+    if(body!==undefined){ opt.method="POST"; opt.headers["content-type"]="application/json"; opt.body=JSON.stringify(body); }
+    return fetch("/manager/api"+path, opt).then(function(r){
+      return r.json().catch(function(){return {}}).then(function(j){ return r.ok?j:Promise.reject(j||{}); });
+    });
+  }
+  function errMsg(e){ return (e&&e.error) ? e.error : "บันทึกไม่สำเร็จ ลองใหม่"; }
+
+  // บีบรูปฝั่งเว็บก่อนส่ง (ใบขับขี่ไม่กี่คัน — ไม่ต้องตั้ง storage แยก)
+  function compressImage(file, maxDim, quality){
+    return new Promise(function(resolve,reject){
+      var fr=new FileReader();
+      fr.onerror=function(){reject(new Error("อ่านไฟล์ไม่ได้"))};
+      fr.onload=function(){
+        var img=new Image();
+        img.onerror=function(){reject(new Error("ไฟล์รูปเสีย"))};
+        img.onload=function(){
+          var w=img.width||1, h=img.height||1, m=maxDim||1400;
+          if(w>m||h>m){ if(w>=h){ h=Math.round(h*m/w); w=m; } else { w=Math.round(w*m/h); h=m; } }
+          var c=document.createElement("canvas"); c.width=w; c.height=h;
+          c.getContext("2d").drawImage(img,0,0,w,h);
+          try{ resolve(c.toDataURL("image/jpeg", quality||0.72)); }catch(err){ reject(err); }
+        };
+        img.src=fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  // checklist template (คงที่) — เก็บในฐานแค่ "ติ๊กข้อไหน" + จำนวนพาเลท
+  var CHK=[
+    {k:"shelf",t:"ชั้นวางสินค้า — ไม่ชำรุด/เอียง/ล้ม"},
+    {k:"clean",t:"ความสะอาดพื้น — ทางเดินโล่ง ไม่มีของกีดขวาง"},
+    {k:"fork",t:"รถโฟล์คลิฟท์ — เบรก/แตร/ไฟ ปกติ จอดชาร์จ"},
+    {k:"pallet",t:"นับจำนวนพาเลท — ตรงทะเบียน",num:true},
+    {k:"fire",t:"ถังดับเพลิง — อยู่ครบ เข็มชี้เขียว"},
+    {k:"exit",t:"ทางหนีไฟ/ประตูฉุกเฉิน — ไม่มีของขวาง"},
+    {k:"lock",t:"ประตูโกดัง/กุญแจ — ล็อกครบ"},
+    {k:"light",t:"ไฟฟ้า/ไฟส่องสว่าง — ปิดจุดที่ไม่ใช้"},
+    {k:"cctv",t:"กล้องวงจรปิด — ทำงานครบทุกตัว"},
+    {k:"valuable",t:"ของมีค่า/ของเสี่ยง — เก็บเข้าที่ปลอดภัย"}
+  ];
+
+  // ---- tabs ----
+  document.querySelectorAll(".nav button").forEach(function(b){
+    b.addEventListener("click",function(){
+      document.querySelectorAll(".nav button").forEach(function(x){x.classList.remove("on")});
+      b.classList.add("on");
+      document.querySelectorAll(".page").forEach(function(p){p.classList.remove("on")});
+      $("p-"+b.dataset.t).classList.add("on");window.scrollTo(0,0);
+    });
+  });
+  // ---- training expand ----
+  document.querySelectorAll(".tr .h").forEach(function(h){h.addEventListener("click",function(){h.parentNode.classList.toggle("open")})});
+
+  // ====== state ======
+  var state={ chk:{checks:{},pallet:""}, team:[], trucks:[], tasks:[], chkReady:false, teamReady:false, truckReady:false, taskReady:false };
+  function setSync(txt,cls){var s=$("sync");s.style.background=cls||"rgba(255,255,255,.16)";$("synct").textContent=txt}
+  var SYNC_OK="rgba(23,166,106,.45)", SYNC_BAD="rgba(216,53,42,.5)";
+
+  function photosCount(){return document.querySelectorAll("#photobox .thumb").length}
+
+  function renderChecklist(){
+    var cl=$("checklist"); cl.innerHTML="";
+    var checks=(state.chk&&state.chk.checks)||{}, pallet=(state.chk&&state.chk.pallet)||"";
+    CHK.forEach(function(it){
+      var done=!!checks[it.k];
+      var row=document.createElement("div"); row.className="chk"+(done?" done":"");
+      var inner='<div class="box"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></svg></div>';
+      if(it.num){
+        inner+='<div style="min-width:0"><div class="txt">'+it.t+'</div><div class="hint" style="display:flex;align-items:center;gap:6px;margin-top:4px">นับได้ <input class="num" id="palletn" type="number" inputmode="numeric" placeholder="42" value="'+esc(pallet)+'"> พาเลท</div></div>';
+      } else { inner+='<div class="txt">'+it.t+'</div>'; }
+      row.innerHTML=inner;
+      row.addEventListener("click",function(e){ if(e.target.tagName==="INPUT")return; toggleChk(it.k); });
+      cl.appendChild(row);
+    });
+    var pn=$("palletn");
+    if(pn) pn.addEventListener("change",function(){ savePallet(pn.value.trim()); });
+    var done=Object.keys(checks).filter(function(k){return checks[k]}).length;
+    $("prog").innerHTML="เช็คแล้ว <b>"+done+"</b>/"+CHK.length+" รายการ · วันนี้";
+  }
+  function curChecks(){return (state.chk&&state.chk.checks)?Object.assign({},state.chk.checks):{}}
+  function writeChk(next){
+    state.chk=next; renderChecklist(); renderHome();
+    api("/checklist",{day:TODAY,checks:next.checks||{},pallet:next.pallet||""}).catch(function(e){toast(errMsg(e))});
+  }
+  function toggleChk(k){var c=curChecks(); if(c[k])delete c[k];else c[k]=true; writeChk({checks:c,pallet:(state.chk&&state.chk.pallet)||""});}
+  function savePallet(v){writeChk({checks:curChecks(),pallet:v});}
+
+  // ====== ทีม + โน้ตประเมิน ======
+  var selTeam=null, notesData=[], notesReady=false;
+  function stars5(n){var h="";for(var s=1;s<=5;s++)h+='<span class="'+(s<=(n||0)?"on":"")+'" data-s="'+s+'">★</span>';return h;}
+
+  function renderTeam(){
+    if(selTeam && state.teamReady && !state.team.some(function(m){return m.id===selTeam})) closeTeamDetail();
+    var el=$("teamlist");
+    if(!state.teamReady){el.innerHTML='<div class="empty">กำลังโหลด…</div>';}
+    else if(!state.team.length){el.innerHTML='<div class="empty">ยังไม่มี — พิมพ์ชื่อ+ตำแหน่งด้านบนเพื่อเพิ่ม</div>';}
+    else {
+      el.innerHTML="";
+      state.team.forEach(function(m,i){
+        var row=document.createElement("div"); row.className="row"; row.style.cursor="pointer";
+        row.innerHTML='<div class="av'+(i%2?" b":"")+'">'+esc((m.name||"?").trim().slice(0,2))+'</div>'+
+          '<div style="min-width:0;flex:1"><div class="nm">'+esc(m.name||"—")+'</div>'+
+          '<div class="stars" style="pointer-events:none;font-size:14px">'+stars5(m.stars)+'</div></div>'+
+          '<svg class="i" viewBox="0 0 24 24" style="color:var(--faint);font-size:18px;flex:0 0 auto"><path d="M9 6l6 6-6 6"/></svg>';
+        row.addEventListener("click",function(){ openTeamDetail(m.id); });
+        el.appendChild(row);
+      });
+    }
+    if(selTeam) renderTeamHead();
+  }
+  function renderTeamHead(){
+    var m=state.team.filter(function(x){return x.id===selTeam})[0]; if(!m)return;
+    var h=$("team-head");
+    h.innerHTML='<div class="row"><div class="av">'+esc((m.name||"?").trim().slice(0,2))+'</div>'+
+      '<div style="min-width:0"><div class="nm" style="font-size:16px">'+esc(m.name||"—")+'</div><div class="hint">ให้ดาวประเมินภาพรวม</div></div></div>'+
+      '<div class="stars" id="head-stars" style="margin-top:10px;font-size:23px">'+stars5(m.stars)+'</div>'+
+      '<button class="btn btn-line" id="team-del" style="margin-top:12px;color:var(--danger);border-color:#f0c4c0">ลบพนักงานคนนี้</button>';
+    h.querySelectorAll("#head-stars span").forEach(function(sp){sp.addEventListener("click",function(){updateTeam(selTeam,{stars:+sp.dataset.s});});});
+    var dl=$("team-del"); if(dl)dl.addEventListener("click",function(){ deleteTeam(selTeam); });
+  }
+  function renderNotes(){
+    var el=$("team-notes");
+    if(!notesReady){el.innerHTML='<div class="empty">กำลังโหลด…</div>';return;}
+    if(!notesData.length){el.innerHTML='<div class="empty">ยังไม่มีบันทึก — พิมพ์ด้านบนเพื่อเพิ่ม</div>';return;}
+    el.innerHTML="";
+    notesData.forEach(function(n){
+      var d=new Date(n.created_at||Date.now());
+      var row=document.createElement("div"); row.className="task";
+      row.innerHTML='<div style="min-width:0;flex:1"><div style="font-size:11.5px;color:var(--red);font-weight:800">'+thDate(d)+' · '+thTime(d)+'</div><div style="font-size:14px;margin-top:2px">'+esc(n.body)+'</div></div>'+
+        '<span class="del" data-del="'+esc(n.id)+'">×</span>';
+      row.querySelector(".del").addEventListener("click",function(){ deleteNote(n.id); });
+      el.appendChild(row);
+    });
+  }
+  function openTeamDetail(id){
+    selTeam=id; notesData=[]; notesReady=false;
+    $("team-list-view").hidden=true; $("team-detail-view").hidden=false; window.scrollTo(0,0);
+    renderTeamHead(); renderNotes();
+    api("/team/notes?member="+encodeURIComponent(id)).then(function(r){
+      if(selTeam!==id)return; notesData=r.notes||[]; notesReady=true; renderNotes();
+    }).catch(function(e){ if(selTeam!==id)return; notesReady=true; renderNotes(); toast(errMsg(e)); });
+  }
+  function closeTeamDetail(){
+    selTeam=null; $("team-detail-view").hidden=true; $("team-list-view").hidden=false;
+  }
+  function addNote(){
+    var v=$("notein").value.trim(); if(!v||!selTeam)return;
+    var mid=selTeam; $("notein").value="";
+    api("/team/notes/add",{member:mid,body:v}).then(function(row){
+      if(selTeam===mid){ notesData.unshift(row); renderNotes(); }
+    }).catch(function(e){toast(errMsg(e))});
+  }
+  function deleteNote(id){
+    notesData=notesData.filter(function(n){return n.id!==id}); renderNotes();
+    api("/team/notes/delete",{id:id}).catch(function(e){toast(errMsg(e))});
+  }
+  function addTeam(){
+    var v=$("teamin").value.trim(); if(!v){return;}
+    $("teamin").value="";
+    api("/team/add",{name:v}).then(function(row){ state.team.push(row); renderTeam(); renderHome(); }).catch(function(e){toast(errMsg(e))});
+  }
+  function updateTeam(id,patch){
+    var m=state.team.filter(function(x){return x.id===id})[0]; if(m)Object.assign(m,patch);
+    renderTeam(); renderHome();
+    api("/team/update",Object.assign({id:id},patch)).catch(function(e){toast(errMsg(e))});
+  }
+  function deleteTeam(id){
+    closeTeamDetail();
+    state.team=state.team.filter(function(m){return m.id!==id}); renderTeam(); renderHome();
+    api("/team/delete",{id:id}).catch(function(e){toast(errMsg(e))});
+  }
+
+  // ====== รถ / ใบขับขี่ ======
+  function renderTrucks(){
+    var el=$("trucks");
+    if(!state.truckReady){el.innerHTML='<div class="empty">กำลังโหลด…</div>';return;}
+    if(!state.trucks.length){el.innerHTML='<div class="empty">ยังไม่มีรถ — พิมพ์ชื่อรถด้านบนเพื่อเพิ่ม</div>';return;}
+    el.innerHTML="";
+    state.trucks.forEach(function(t){
+      var has=!!t.license_photo;
+      var d=document.createElement("div"); d.className="truck";
+      var tag = has ? '<span class="pill p-ok">ใบขับขี่ ✓</span>' : '<span class="pill p-warn">ยังไม่ลงใบขับขี่</span>';
+      var img = has ? '<img class="licimg" data-view="'+esc(t.id)+'" src="'+esc(t.license_photo)+'">' : '';
+      d.innerHTML='<div class="tt"><span>รถ '+esc(t.name||"—")+'</span>'+tag+'<span class="del" data-del="'+esc(t.id)+'">×</span></div>'+
+        '<div class="fld"><label>ผู้รับผิดชอบรถ</label><input type="text" data-person="'+esc(t.id)+'" placeholder="พิมพ์ชื่อผู้รับผิดชอบ" value="'+esc(t.person||"")+'"></div>'+
+        '<div class="fld"><label>รูปใบขับขี่ (ยืนยันว่ามีจริง)</label><div class="licrow"><label class="licup"><svg class="i" viewBox="0 0 24 24"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>'+(has?"เปลี่ยนรูป":"อัปรูป")+'<input type="file" accept="image/*" hidden data-lic="'+esc(t.id)+'"></label>'+img+'</div></div>';
+      el.appendChild(d);
+    });
+    el.querySelectorAll("[data-person]").forEach(function(inp){inp.addEventListener("change",function(){
+      updateTruck(inp.dataset.person,{person:inp.value.trim()});});});
+    el.querySelectorAll("[data-del]").forEach(function(d){d.addEventListener("click",function(){ deleteTruck(d.dataset.del); });});
+    el.querySelectorAll("[data-lic]").forEach(function(inp){inp.addEventListener("change",function(){uploadLicense(inp.dataset.lic,inp.files[0]);});});
+    el.querySelectorAll("[data-view]").forEach(function(im){im.addEventListener("click",function(){
+      var w=$("licwrap"); w.innerHTML=""; var big=new Image(); big.src=im.src; w.appendChild(big); $("licmodal").classList.add("on");});});
+  }
+  function addTruck(){
+    var v=$("truckin").value.trim(); if(!v){return;}
+    $("truckin").value="";
+    api("/truck/add",{name:v}).then(function(row){ state.trucks.push(row); renderTrucks(); renderHome(); }).catch(function(e){toast(errMsg(e))});
+  }
+  function updateTruck(id,patch){
+    var t=state.trucks.filter(function(x){return x.id===id})[0]; if(t)Object.assign(t,patch);
+    renderHome();
+    api("/truck/update",Object.assign({id:id},patch)).catch(function(e){toast(errMsg(e))});
+  }
+  function deleteTruck(id){
+    state.trucks=state.trucks.filter(function(t){return t.id!==id}); renderTrucks(); renderHome();
+    api("/truck/delete",{id:id}).catch(function(e){toast(errMsg(e))});
+  }
+  function uploadLicense(id,file){
+    if(!file)return;
+    toast("กำลังอัปรูป…");
+    compressImage(file,1400,0.72).then(function(durl){
+      return api("/truck/update",{id:id,license_photo:durl}).then(function(){
+        var t=state.trucks.filter(function(x){return x.id===id})[0]; if(t)t.license_photo=durl;
+        renderTrucks(); renderHome(); toast("อัปรูปใบขับขี่แล้ว");
+      });
+    }).catch(function(e){ toast(errMsg(e)); });
+  }
+
+  // ====== สมุดงาน ======
+  function renderTasks(){
+    var el=$("tasklist");
+    if(!state.taskReady){el.innerHTML='<div class="empty">กำลังโหลด…</div>';return;}
+    if(!state.tasks.length){el.innerHTML='<div class="empty">ยังไม่มีงาน — พิมพ์เพิ่มด้านบน</div>';return;}
+    el.innerHTML="";
+    state.tasks.forEach(function(t){
+      var row=document.createElement("div"); row.className="task"+(t.done?" done":"");
+      row.innerHTML='<span class="tbox">'+(t.done?'<svg class="i" viewBox="0 0 24 24" style="font-size:14px;stroke-width:2.6"><path d="M5 12.5 10 17.5 19.5 7"/></svg>':'')+'</span>'+
+        '<div class="tt2">'+esc(t.body)+'</div><span class="del" data-del="'+esc(t.id)+'">×</span>';
+      row.querySelector(".tbox").addEventListener("click",function(){ toggleTask(t.id); });
+      row.querySelector(".del").addEventListener("click",function(){ deleteTask(t.id); });
+      el.appendChild(row);
+    });
+  }
+  function addTask(){
+    var v=$("taskin").value.trim(); if(!v){return;}
+    $("taskin").value="";
+    api("/task/add",{body:v}).then(function(row){ state.tasks.unshift(row); renderTasks(); renderHome(); }).catch(function(e){toast(errMsg(e))});
+  }
+  function toggleTask(id){
+    var t=state.tasks.filter(function(x){return x.id===id})[0]; if(!t)return;
+    t.done=!t.done; renderTasks(); renderHome();
+    api("/task/update",{id:id,done:t.done}).catch(function(e){toast(errMsg(e))});
+  }
+  function deleteTask(id){
+    state.tasks=state.tasks.filter(function(t){return t.id!==id}); renderTasks(); renderHome();
+    api("/task/delete",{id:id}).catch(function(e){toast(errMsg(e))});
+  }
+
+  function renderHome(){
+    var checks=(state.chk&&state.chk.checks)||{};
+    var cdone=Object.keys(checks).filter(function(k){return checks[k]}).length;
+    $("h-chk").textContent=state.chkReady?(cdone+"/"+CHK.length):"—";
+    var pend=state.tasks.filter(function(t){return !t.done}).length;
+    $("h-task").textContent=state.taskReady?pend:"—";
+    $("h-truck").textContent=state.truckReady?state.trucks.length:"—";
+    $("h-team").textContent=state.teamReady?state.team.length:"—";
+    var td=$("home-todo"); var items=[];
+    state.tasks.filter(function(t){return !t.done}).slice(0,4).forEach(function(t){items.push({c:"var(--amber)",t:t.body,s:"งานผู้จัดการ"});});
+    state.trucks.filter(function(t){return !t.license_photo}).slice(0,2).forEach(function(t){items.push({c:"var(--danger)",t:"รถ "+(t.name||"")+" ยังไม่ลงใบขับขี่",s:"ทะเบียนรถ"});});
+    if(state.chkReady && cdone<CHK.length) items.push({c:"var(--blue)",t:"เช็คลิสต์ความปลอดภัยยังไม่ครบ ("+cdone+"/"+CHK.length+")",s:"ก่อนเลิกงาน"});
+    if(!state.taskReady&&!state.truckReady){ td.innerHTML='<div class="empty">กำลังโหลด…</div>'; return; }
+    if(!items.length){ td.innerHTML='<div class="empty">เคลียร์หมดแล้ว 👍</div>'; return; }
+    td.innerHTML="";
+    items.forEach(function(it){
+      var r=document.createElement("div"); r.className="task";
+      r.innerHTML='<span style="width:9px;height:9px;border-radius:50%;background:'+it.c+';flex:0 0 auto"></span><div style="min-width:0"><div class="nm">'+esc(it.t)+'</div><div class="sub">'+esc(it.s)+'</div></div>';
+      td.appendChild(r);
+    });
+  }
+
+  // ---- checklist copy / image (ทำจาก state ปัจจุบัน) ----
+  function doneItems(){ var checks=(state.chk&&state.chk.checks)||{}; return CHK.filter(function(it){return checks[it.k]}); }
+  function palletVal(){ return (state.chk&&state.chk.pallet)||""; }
+  function checkedText(){
+    var items=doneItems(), pv=palletVal(), ph=photosCount();
+    var L=["✅ เช็คลิสต์ความปลอดภัยโกดัง Pacred","📅 "+thDate(now)+" · "+thTime(now),"👤 ผู้ตรวจ: หัวหน้าภูมิ","","ผ่านแล้ว "+items.length+"/"+CHK.length+" รายการ"];
+    items.forEach(function(it){L.push("✓ "+it.t)});
+    if(pv)L.push("• นับพาเลทได้ "+pv+" พาเลท");
+    if(ph)L.push("","📎 แนบรูปหลักฐาน "+ph+" รูป");
+    return L.join("\n");
+  }
+  $("copytext").addEventListener("click",function(){
+    var t=checkedText();
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(function(){toast("คัดลอกแล้ว — ไปวางในไลน์ได้เลย")},function(){toast("คัดลอกไม่ได้")});
+    else toast("คัดลอกไม่ได้บนเครื่องนี้");
+  });
+  function buildReport(){
+    var items=doneItems(), pv=palletVal(), ph=Array.prototype.map.call(document.querySelectorAll("#photobox .thumb"),function(i){return i.src});
+    var h='<div style="font-weight:800;font-size:16px;color:#B30000">เช็คลิสต์ความปลอดภัยโกดัง Pacred</div>'+
+      '<div style="font-size:12.5px;color:#6b7280;margin:5px 0 1px">'+thDate(now)+' · '+thTime(now)+'</div>'+
+      '<div style="font-size:12.5px;color:#6b7280;margin-bottom:11px">ผู้ตรวจ: หัวหน้าภูมิ</div>'+
+      '<div style="font-weight:700;margin-bottom:7px">ผ่านแล้ว '+items.length+'/'+CHK.length+' รายการ</div>';
+    items.forEach(function(it){h+='<div style="font-size:13.5px;margin:5px 0;color:#17a66a;font-weight:700">✓ <span style="color:#1f2430;font-weight:400">'+esc(it.t)+'</span></div>'});
+    if(pv)h+='<div style="font-size:13.5px;margin:7px 0 0;font-weight:700">• นับพาเลทได้ '+esc(pv)+' พาเลท</div>';
+    if(ph.length){h+='<div style="font-weight:700;margin:12px 0 6px;font-size:13.5px">รูปหลักฐาน ('+ph.length+')</div><div style="display:flex;gap:6px;flex-wrap:wrap">';ph.forEach(function(s){h+='<img src="'+s+'" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid #eceef2">'});h+='</div>';}
+    $("report").innerHTML=h;
+  }
+  $("copyimg").addEventListener("click",function(){
+    if(typeof html2canvas!=="function"){toast("ตัวสร้างรูปยังโหลดไม่เสร็จ");return;}
+    buildReport();toast("กำลังสร้างรูป…");
+    html2canvas($("report"),{backgroundColor:"#ffffff",scale:2}).then(function(cv){
+      var w=$("imgwrap");w.innerHTML="";var im=new Image();im.src=cv.toDataURL("image/png");w.appendChild(im);$("imgmodal").classList.add("on");
+    }).catch(function(){toast("สร้างรูปไม่สำเร็จ")});
+  });
+  $("imgx").addEventListener("click",function(){$("imgmodal").classList.remove("on")});
+  $("imgmodal").addEventListener("click",function(e){if(e.target.id==="imgmodal")this.classList.remove("on")});
+  $("licx").addEventListener("click",function(){$("licmodal").classList.remove("on")});
+  $("licmodal").addEventListener("click",function(e){if(e.target.id==="licmodal")this.classList.remove("on")});
+  $("photoin").addEventListener("change",function(e){
+    Array.prototype.forEach.call(e.target.files,function(f){
+      compressImage(f,1200,0.7).then(function(durl){var im=document.createElement("img");im.className="thumb";im.src=durl;$("photobox").appendChild(im)}).catch(function(){toast("แนบรูปไม่สำเร็จ")});
+    });
+    e.target.value="";
+  });
+
+  // ---- add buttons ----
+  $("teamadd").addEventListener("click",addTeam); $("teamin").addEventListener("keydown",function(e){if(e.key==="Enter")addTeam()});
+  $("team-back").addEventListener("click",closeTeamDetail);
+  $("noteadd").addEventListener("click",addNote); $("notein").addEventListener("keydown",function(e){if(e.key==="Enter")addNote()});
+  $("truckadd").addEventListener("click",addTruck); $("truckin").addEventListener("keydown",function(e){if(e.key==="Enter")addTruck()});
+  $("taskadd").addEventListener("click",addTask); $("taskin").addEventListener("keydown",function(e){if(e.key==="Enter")addTask()});
+
+  // initial renders (loading state)
+  renderChecklist(); renderHome();
+
+  // ====== โหลดข้อมูลทีเดียวตอนเปิด ======
+  var loadTimer=setTimeout(function(){ if(!state.chkReady){ setSync("เชื่อมช้า…",SYNC_BAD); } },10000);
+  function markAllReady(){ state.chkReady=state.teamReady=state.truckReady=state.taskReady=true; }
+  function renderAll(){ renderChecklist(); renderTeam(); renderTrucks(); renderTasks(); renderHome(); }
+
+  if(!KEY){ setSync("ไม่มีคีย์",SYNC_BAD); markAllReady(); renderAll(); toast("เปิดหน้านี้ด้วยลิงก์จากบอทไลน์ (ต้องมีคีย์)"); return; }
+
+  api("/bootstrap?day="+encodeURIComponent(TODAY)).then(function(d){
+    clearTimeout(loadTimer);
+    var cl=d.checklist||{};
+    state.chk={checks:(cl.checks&&typeof cl.checks==="object")?cl.checks:{}, pallet:cl.pallet||""};
+    state.team=d.team||[]; state.trucks=d.trucks||[]; state.tasks=d.tasks||[];
+    markAllReady(); setSync("ซิงก์แล้ว",SYNC_OK); renderAll();
+  }).catch(function(e){
+    clearTimeout(loadTimer);
+    markAllReady(); setSync("เชื่อมไม่ได้",SYNC_BAD); renderAll();
+    toast(errMsg(e));
+  });
+})();
+</script>
+</body>
+</html>

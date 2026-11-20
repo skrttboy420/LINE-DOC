@@ -72,8 +72,12 @@ const { mountStaffAdmin } = require("./staff-admin");
       สถานะงานอ่านสดจากเว็บผ่าน /api/bot?q=warehouse · ไม่แตะระบบ Pacred */
 const { createWarehouse } = require("./warehouse");
 const { mountWarehouse, warehouseLink } = require("./warehouse-page");
+/* 🧑‍💼 ศูนย์จัดการโกดัง (ภูม 2026-11-20) — แอปแยกของหัวหน้า เก็บในฐานของบอท (mgr_*) ไม่แตะ Pacred */
+const { createManager } = require("./manager");
+const { mountManager, managerLink } = require("./manager-page");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
 const warehouse = createWarehouse(supabase, pacredGet);
+const manager = createManager(supabase);
 /** ✏️ ข้อความแจ้งเตือนที่ภูมแก้เอง — อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด (ไม่เคยทำให้แจ้งเตือนเงียบ) */
 const templateStore = createTemplateStore(supabase);
 
@@ -278,10 +282,11 @@ function buildMenuFlex(opts) {
   }
 
   /* 🧑‍💼 ปุ่มเข้าแอป "ศูนย์จัดการโกดัง" (หัวหน้าโกดัง · ภูม 2026-11-20)
-     แอปแยกของหัวหน้า — เก็บข้อมูลในตัวเอง (เช็คลิสต์ความปลอดภัย · ประเมินทีม · อบรม/ทะเบียนรถ · สมุดงาน)
-     🔒 ไม่เกี่ยวระบบ pacred (ไม่ดึงข้อมูลบริษัท) · แก้ URL ได้ที่ env MANAGER_APP_URL */
-  const managerUrl = process.env.MANAGER_APP_URL || "https://claude.ai/artifact/M5aFrDrJ8cjda27R9QAbrV";
-  if (managerUrl && (isOwner || showTools || isWarehouseDept(opts && opts.me))) {
+     แอปแยกของหัวหน้า เสิร์ฟจากบอทเอง (/manager) เก็บในฐานของบอท (mgr_*)
+     🔒 ไม่เกี่ยวระบบ pacred · มีข้อมูลประเมินทีม ⇒ โชว์เฉพาะเจ้าของ/ทีมระบบ (ไม่ให้พนักงานทั่วไปเห็น)
+     🔑 ลิงก์พากุญแจ (MANAGER_KEY หรือ ADMIN_KEY) ไปด้วย · ตั้ง env MANAGER_APP_URL ทับได้ */
+  const managerUrl = process.env.MANAGER_APP_URL || managerLink();
+  if (managerUrl && (isOwner || showTools)) {
     contents.push({ type: "separator", margin: "md" });
     contents.push({ type: "text", text: "สำหรับหัวหน้าโกดัง", size: "xs", color: "#999999", margin: "sm" });
     contents.push({ type: "button", style: "primary", color: "#7c3aed", height: "sm",
@@ -2316,6 +2321,9 @@ mountStaffAdmin(app, staffRegistry, templateStore, lineBudget, SAVER_ON ? notify
 
 // 🏭 หน้าโกดัง 3D (ภูม 2026-11-12) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
 mountWarehouse(app, warehouse);
+
+// 🧑‍💼 หน้าศูนย์จัดการโกดัง (ภูม 2026-11-20) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
+mountManager(app, manager);
 
 app.use(express.json());
 

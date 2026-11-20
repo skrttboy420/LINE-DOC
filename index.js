@@ -277,6 +277,17 @@ function buildMenuFlex(opts) {
       action: { type: "uri", label: "📥 คีย์ตำแหน่งเอง", uri: warehouseLink("assign") } });
   }
 
+  /* 🧑‍💼 ปุ่มเข้าแอป "ศูนย์จัดการโกดัง" (หัวหน้าโกดัง · ภูม 2026-11-20)
+     แอปแยกของหัวหน้า — เก็บข้อมูลในตัวเอง (เช็คลิสต์ความปลอดภัย · ประเมินทีม · อบรม/ทะเบียนรถ · สมุดงาน)
+     🔒 ไม่เกี่ยวระบบ pacred (ไม่ดึงข้อมูลบริษัท) · แก้ URL ได้ที่ env MANAGER_APP_URL */
+  const managerUrl = process.env.MANAGER_APP_URL || "https://claude.ai/artifact/M5aFrDrJ8cjda27R9QAbrV";
+  if (managerUrl && (isOwner || showTools || isWarehouseDept(opts && opts.me))) {
+    contents.push({ type: "separator", margin: "md" });
+    contents.push({ type: "text", text: "สำหรับหัวหน้าโกดัง", size: "xs", color: "#999999", margin: "sm" });
+    contents.push({ type: "button", style: "primary", color: "#7c3aed", height: "sm",
+      action: { type: "uri", label: "🧑‍💼 ศูนย์จัดการโกดัง", uri: managerUrl } });
+  }
+
   return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: showTools ? QUICK_TOOLS : QUICK, contents: {
     type: "bubble",
     header: headerBox("🤖 ผู้ช่วยงาน Pacred"),

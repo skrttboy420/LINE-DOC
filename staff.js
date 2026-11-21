@@ -64,6 +64,10 @@ const CATEGORIES = [
     label: "ออเดอร์รอตอบพิกัด",  hint: "ออเดอร์ที่ยังไม่มีพิกัด — คิวเดียวกับปุ่ม รอตอบพิกัด" },
   { key: "track_stuck", group: "🧰 ทีมระบบ", scope: "all",
     label: "แทรครออัพเข้าระบบ",   hint: "MOMO sync มาแล้วแต่ยังไม่ได้นำเข้า — บอกเหตุผลรายแทรค (รอน้ำหนัก/รอขนาด)" },
+  /* 🎲 ภูม 2026-11-06 ทำฝั่งเว็บไว้แล้ว แต่บอทไม่มีหมวดรับ ⇒ ข้อมูลส่งมาแต่ไม่เคยเด้ง (ต่อให้ 21/11) */
+  { key: "risky_tracks", group: "🧰 ทีมระบบ", scope: "all",
+    label: "แทรคที่ระบบไม่อัพให้เอง",
+    hint: "เลขสุ่มเสี่ยง (ไม่เป็นรูปแทรค · ซ้ำกับของคนอื่น) ระบบเลยไม่อัพให้ — ของยังไม่เข้าระบบ ต้องคนตรวจแล้วกดเองในคิวนำเข้า" },
   /* 🔴 ภูม 2026-10-28 — *"แทรคกิ้งมันตกหล่นไปได้ยังไง … แทรค -4 และ -5 หายไป"*
      คนละเรื่องกับ track_stuck: อันนั้น "ยังไม่ได้นำเข้า (เห็นในคิว)" · อันนี้ "ธงบอกว่าเข้าแล้ว
      แต่ของไม่ครบ" ⇒ **ไม่โผล่ในคิวเลย** = ของหายเงียบ + เก็บเงินขาด */
@@ -119,7 +123,7 @@ const DEFAULT_BY_POSITION = {
   "Accounting Supervisor": ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt", "acc_credit"],
 
   // ── 🧰 ทีมระบบ (ITDT) ───────────────────────────────────────────────
-  "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th"],
+  "Front End":           ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th", "risky_tracks"],
   "Back End":            ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
   "Full Stack":          ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
   "Project Manager":     ["hs_pending", "track_stuck", "lots_missing", "pw_sheet"],
@@ -139,7 +143,7 @@ const DEFAULT_BY_POSITION = {
 const DEFAULT_BY_DEPARTMENT = {
   /* 🔄 2026-10-22 ภูม: *"ของภูมิ ก็แสดงทั้ง งานรอตอบพิกัด · งานอัพแทรคเข้าระบบ"*
      เดิมแจก "system" ซึ่ง**ไม่มีตัวนับงานค้าง** ⇒ กดปุ่มแล้วขึ้น "หมวดที่ติ๊กไว้ยังไม่มีตัวนับ" */
-  ITDT:                 ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th"],
+  ITDT:                 ["hs_pending", "track_stuck", "lots_missing", "pw_sheet", "no_code_th", "risky_tracks"],
   Accounting:           ["acc_yuan", "acc_slip", "acc_wht", "acc_cnt"],
   Operations:           [],                     // 4 ตำแหน่งคนละงาน — เดาจากแผนกไม่ได้ (ดูตารางตำแหน่ง)
   Logistics:            [],                     // คนขับ vs โกดัง คนละเรื่อง

@@ -112,7 +112,10 @@ function mountManager(app, manager) {
   /* เช็คลิสต์ */
   api("get", "/manager/api/checklist", async (req) => manager.getChecklist(req.query.day));
   api("post", "/manager/api/checklist", async (req) =>
-    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req)));
+    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req), req.body.photos));
+  /* ประวัติย้อนหลัง — สรุปต่อวัน (กดวันไหนค่อยเรียก /checklist?day= ของวันนั้น) */
+  api("get", "/manager/api/checklist/history", async (req) =>
+    ({ days: await manager.listChecklistDays(req.query.limit) }));
 
   /* ทีม */
   api("get", "/manager/api/team", async () => ({ team: await manager.listTeam() }));

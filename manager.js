@@ -49,16 +49,64 @@ function createManager(supabase) {
   async function getChecklist(day) {
     const d = normDay(day);
     const { data, error } = await supabase
-      .from("mgr_checklist").select("day,checks,pallet,updated_at").eq("day", d).maybeSingle();
+      .from("mgr_checklist")
+      .select("day,checks,pallet,photos,updated_by,updated_at")
+      .eq("day", d).maybeSingle();
     if (error) boom(error);
-    return data || { day: d, checks: {}, pallet: "" };
+    return data || { day: d, checks: {}, pallet: "", photos: [] };
   }
 
-  async function saveChecklist(day, checks, pallet, who) {
+  /**
+   * ประวัติเช็คลิสต์ย้อนหลัง (ภูม 2026-11-21 — *"มีประวัติให้กลับไปย้อนดูได้"*)
+   *
+   * คืน **สรุปต่อวัน** ไม่เอา checks/photos ทั้งก้อนมาในลิสต์ (รูป data URL ก้อนใหญ่ —
+   * ดึง 60 วันพร้อมรูปคือหลายสิบ MB) ⇒ กดวันไหนค่อยเรียก getChecklist ของวันนั้น.
+   */
+  async function listChecklistDays(limit) {
+    const n = Math.max(1, Math.min(Math.round(Number(limit) || 60), 365));
+    const { data, error } = await supabase
+      .from("mgr_checklist")
+      .select("day,checks,pallet,updated_by,updated_at")
+      .order("day", { ascending: false })
+      .limit(n);
+    if (error) boom(error);
+    return (data || []).map((r) => {
+      const c = r && r.checks && typeof r.checks === "object" ? r.checks : {};
+      return {
+        day: r.day,
+        done: Object.keys(c).filter((k) => c[k]).length,
+        pallet: r.pallet || "",
+        updated_by: r.updated_by || "",
+        updated_at: r.updated_at || null,
+      };
+    });
+  }
+
+  /** เพดานรูปหลักฐานต่อวัน — กันแถวบวม (ดู manager-schema.sql) */
+  const MAX_PHOTOS = 3;
+  const MAX_PHOTO_LEN = 1_500_000;
+
+  /** รูปหลักฐาน: data URL เท่านั้น · เกินเพดาน = ปฏิเสธพร้อมบอกเหตุ (ไม่ตัดเงียบ) */
+  function normPhotos(photos) {
+    if (photos === undefined) return undefined;
+    if (photos === null) return [];
+    if (!Array.isArray(photos)) throw new Error("รูปหลักฐานต้องเป็นรายการ");
+    if (photos.length > MAX_PHOTOS) throw new Error("แนบรูปได้ไม่เกิน " + MAX_PHOTOS + " รูปต่อวัน");
+    return photos.map((p) => {
+      const s = String(p == null ? "" : p);
+      if (!/^data:image[/]/.test(s)) throw new Error("ไฟล์รูปไม่ถูกต้อง");
+      if (s.length > MAX_PHOTO_LEN) throw new Error("รูปใหญ่เกินไป (บีบรูปก่อนอัป)");
+      return s;
+    });
+  }
+
+  async function saveChecklist(day, checks, pallet, who, photos) {
+    const ph = normPhotos(photos);
     const row = {
       day: normDay(day),
       checks: checks && typeof checks === "object" ? checks : {},
       pallet: pallet == null ? null : clip(pallet, 20),
+      ...(ph === undefined ? {} : { photos: ph }),
       updated_by: clip(who, 40) || "หัวหน้า",
       updated_at: new Date().toISOString(),
     };
@@ -215,7 +263,7 @@ function createManager(supabase) {
 
   return {
     isReady,
-    getChecklist, saveChecklist,
+    getChecklist, saveChecklist, listChecklistDays,
     listTeam, addTeam, updateTeam, deleteTeam,
     listNotes, addNote, deleteNote,
     listTrucks, addTruck, updateTruck, deleteTruck,

@@ -34,6 +34,11 @@ create table if not exists public.mgr_checklist (
 );
 comment on table public.mgr_checklist is
   'ศูนย์จัดการโกดัง: เช็คลิสต์ความปลอดภัย 1 แถว/วัน (ของบอท ไม่ใช่ Pacred)';
+
+-- 📸 รูปหลักฐานของวันนั้น (ภูม 2026-11-21) — เดิมหน้าเว็บให้แนบรูปได้ แต่ไม่มีที่เก็บ
+--    ⇒ รีหน้าแล้วรูปหาย (จอเขียนไว้เองว่า "ไม่ได้เก็บถาวร"). เก็บเป็น data URL ที่เว็บบีบแล้ว
+--    เพดาน 3 รูป/วัน (ตัวเขียนบังคับ) ⇒ แถวละไม่เกิน ~1 MB · โตเกินค่อยย้ายไป storage bucket
+alter table public.mgr_checklist add column if not exists photos jsonb not null default '[]'::jsonb;
 alter table public.mgr_checklist enable row level security;
 
 -- ── ② ทีมที่ประเมิน ──────────────────────────────────────────────────

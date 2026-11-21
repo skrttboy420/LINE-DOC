@@ -25,7 +25,7 @@ function mk(cfg) {
   cfg = cfg || {};
   const db = { last: null };
   db.from = function (table) {
-    const st = { table, op: null, payload: null, opts: null, filters: {} };
+    const st = { table, op: null, payload: null, opts: null, filters: {}, cols: null };
     db.last = st;
     function result(one) {
       if (cfg.error) return Promise.resolve({ data: null, error: cfg.error });
@@ -38,7 +38,7 @@ function mk(cfg) {
       return Promise.resolve({ data, error: null });
     }
     const b = {
-      select() { return b; },
+      select(cols) { st.cols = cols || null; return b; },   /* จำคอลัมน์ที่ขอ — ใช้ตรวจว่าไม่ลากของก้อนใหญ่มา */
       eq(c, v) { st.filters[c] = v; return b; },
       order() { return b; },
       limit() { return result(false); },
@@ -191,6 +191,65 @@ const MISSING = { code: "42P01", message: 'relation "public.mgr_team" does not e
   await ok("ฐานฟ้องว่าไม่มีตาราง = แปลงเป็นข้อความชวนไปรัน manager-schema.sql", async () => {
     const m = createManager(mk({ error: MISSING }));
     await assert.rejects(() => m.listTeam(), /manager-schema\.sql/);
+  });
+
+
+  /* ══ 🕘 ประวัติเช็คลิสต์ + 📸 รูปหลักฐาน (ภูม 2026-11-21) ═══════════════════
+   * ภูม: *"พอขึ้นวันใหม่ จะได้เป็นของใหม่ และมีประวัติให้กลับไปย้อนดูได้"*
+   * + จอมีช่องแนบรูปมาตั้งแต่แรก แต่ไม่มีที่เก็บ ⇒ รีหน้าแล้วรูปหาย
+   */
+  await ok("ประวัติ: สรุปต่อวัน — นับเฉพาะข้อที่ติ๊กจริง (false ไม่นับ)", async () => {
+    const db = mk({ rows: [
+      { day: "2026-11-20", checks: { a: true, b: true, c: false }, pallet: "38", updated_by: "ภูม", updated_at: "t1" },
+      { day: "2026-11-19", checks: {}, pallet: null, updated_by: null, updated_at: "t2" },
+    ] });
+    const days = await createManager(db).listChecklistDays();
+    assert.equal(days.length, 2);
+    assert.equal(days[0].done, 2, "ติ๊ก 2 ข้อ (c:false ไม่นับ)");
+    assert.equal(days[0].pallet, "38");
+    assert.equal(days[1].done, 0);
+    assert.equal(days[1].pallet, "", "ไม่มีพาเลท = ค่าว่าง ไม่ใช่ null (จอเอาไปต่อข้อความได้เลย)");
+  });
+
+  await ok("🔒 ประวัติ: ไม่ลาก checks/photos ทั้งก้อนมาในลิสต์ (รูปก้อนใหญ่)", async () => {
+    const db = mk({ rows: [{ day: "2026-11-20", checks: { a: true }, pallet: "", updated_at: "t" }] });
+    const days = await createManager(db).listChecklistDays();
+    assert.deepEqual(Object.keys(days[0]).sort(), ["day", "done", "pallet", "updated_at", "updated_by"]);
+    assert.ok(!db.last.cols.includes("photos"), "คิวรีลิสต์ต้องไม่ดึง photos — ได้: " + db.last.cols);
+  });
+
+  await ok("ประวัติ: เพดานจำนวนวัน 1–365 (ส่งมั่วมาก็ไม่พัง)", async () => {
+    const m = createManager(mk({ rows: [] }));
+    for (const v of [0, -5, "abc", null, undefined, 99999]) {
+      await m.listChecklistDays(v);   // ไม่ throw = ผ่าน
+    }
+  });
+
+  await ok("📸 รูปหลักฐาน: data URL เท่านั้น · ไม่ใช่รูป = ปฏิเสธ", async () => {
+    const m = createManager(mk({}));
+    await assert.rejects(() => m.saveChecklist("2026-11-21", {}, "", "x", ["https://evil/x.png"]), /ไฟล์รูปไม่ถูกต้อง/);
+    await assert.rejects(() => m.saveChecklist("2026-11-21", {}, "", "x", "ไม่ใช่รายการ"), /ต้องเป็นรายการ/);
+  });
+
+  await ok("📸 รูปหลักฐาน: เกิน 3 รูป/วัน = ปฏิเสธ (กันแถวบวม)", async () => {
+    const m = createManager(mk({}));
+    const img = "data:image/jpeg;base64,AAAA";
+    await m.saveChecklist("2026-11-21", {}, "", "x", [img, img, img]);   // 3 รูป = ผ่าน
+    await assert.rejects(() => m.saveChecklist("2026-11-21", {}, "", "x", [img, img, img, img]), /ไม่เกิน 3/);
+  });
+
+  await ok("📸 ไม่ส่ง photos มา = ไม่แตะรูปเดิม · ส่ง null = ล้างรูป", async () => {
+    const db1 = mk({});
+    await createManager(db1).saveChecklist("2026-11-21", { a: true }, "", "x");
+    assert.ok(!("photos" in db1.last.payload), "ไม่ส่งมา = ต้องไม่เขียนทับรูปเดิมเป็น []");
+    const db2 = mk({});
+    await createManager(db2).saveChecklist("2026-11-21", { a: true }, "", "x", null);
+    assert.deepEqual(db2.last.payload.photos, []);
+  });
+
+  await ok("getChecklist: ไม่มีของวันนั้น = photos เป็น [] (จอวนลูปได้เลย)", async () => {
+    const c = await createManager(mk({ row: null })).getChecklist("2026-11-21");
+    assert.deepEqual(c.photos, []);
   });
 
   console.log("\n✅ manager: " + pass + " pass, " + fail + " fail\n");

@@ -113,5 +113,27 @@ it("หัวคำขอ x-manager-key ยังใช้ได้ (ไว้�
   assert.equal(a.checkKey(req({ header: KEY })), "ok");
 });
 
+
+/* ══ 🔴 หน้าเว็บต้องไม่พึ่งคีย์ใน URL (ภูม 2026-11-21) ═══════════════════════
+ * ตั้งแต่เปลี่ยนทางเข้าเป็นคุกกี้ (20/11) URL ไม่มี ?key= อีก แต่ manager.html ยังมี
+ * `if(!KEY) return` ⇒ **หน้าไม่โหลดและไม่บันทึกอะไรเลย** — ติ๊กแล้วเห็นติ๊ก (จอจำเอง)
+ * รีหน้าแล้วหายหมด เพราะไม่เคยถึงฐาน. ยามนี้กันไม่ให้ด่านนั้นกลับมา.
+ */
+const PAGE = require("node:fs").readFileSync(require("node:path").join(__dirname, "manager.html"), "utf8");
+
+it("🔴 หน้าเว็บต้องไม่ตัดจบเมื่อ URL ไม่มีคีย์ (เข้าด้วยคุกกี้ได้)", () => {
+  assert.ok(!/if\(!KEY\)\s*\{[^}]*return/.test(PAGE), "ยังมีด่าน if(!KEY) return อยู่ — หน้าจะไม่โหลด/ไม่บันทึก");
+});
+
+it("fetch ต้องส่งคุกกี้ไปด้วย (same-origin) ไม่งั้น server ไม่รู้จักเรา", () => {
+  assert.ok(/credentials\s*:\s*"same-origin"/.test(PAGE), "ตัวเรียก /manager/api ต้องตั้ง credentials");
+});
+
+it("💾 เช็คลิสต์ต้องบอกผลบันทึกจริง + ถอยคืนเมื่อฐานไม่รับ", () => {
+  assert.ok(/setSaveBar\(/.test(PAGE), "ต้องมีแถบบอกสถานะบันทึก");
+  assert.ok(/chkGood/.test(PAGE), "ต้องถอยกลับไปสถานะที่ฐานรับแล้วจริง");
+  assert.ok(/บันทึกอีกครั้ง/.test(PAGE), "บันทึกไม่ผ่านต้องมีปุ่มให้กดซ้ำ");
+});
+
 console.log("\n" + (fail ? "❌" : "✅") + " manager-auth: " + pass + " pass, " + fail + " fail");
 if (fail) process.exit(1);

@@ -95,10 +95,24 @@
   .btn-line{background:#fff;color:var(--ink);border:1.5px solid var(--line);font-weight:700}
   .btn.full{flex:1}
   .btn:disabled{opacity:.45}
+  .savebar{display:flex;align-items:center;gap:8px;margin:8px 2px 0;font-size:12.5px;color:var(--muted);min-height:20px}
+  .savebar.bad{color:var(--danger)}
+  .savebar button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:3px 10px;font:inherit;cursor:pointer}
+  .newday[hidden]{display:none}   /* 🪤 display:flex ชนะ attribute hidden — ต้องสั่งปิดเอง */
+  .newday{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--amber-soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:9px 0;font-size:13px}
+  .hrow{display:flex;align-items:center;gap:10px;padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}
+  .hrow:last-child{border-bottom:0}
+  .hrow .hd{flex:1;min-width:0}
+  .hrow .hn{font-weight:600;font-size:13.5px}
+  .hrow .hs{font-size:12px;color:var(--muted);margin-top:2px}
+  .hbody{padding:0 13px 12px;font-size:12.5px;color:var(--muted);border-bottom:1px solid var(--line)}
+  .hbody li{margin:3px 0}
   .photobox{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
   .addphoto{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--muted);border:1.5px dashed #ccd2db;border-radius:11px;padding:10px 12px;cursor:pointer}
   .addphoto svg{font-size:17px;color:var(--red)}
   .thumb{width:54px;height:54px;border-radius:10px;object-fit:cover;border:1px solid var(--line)}
+  .phwrap{position:relative;line-height:0}
+  .phx{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--danger);font:700 12px/1 inherit;cursor:pointer;padding:0}
 
   .tr{border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
   .tr .h{display:flex;align-items:center;gap:11px;padding:13px;cursor:pointer;background:var(--card)}
@@ -182,15 +196,21 @@
   <div class="page" id="p-safe">
     <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg> เช็คลิสต์ก่อนเลิกงาน</div>
     <div class="datebar"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg><div class="d" id="ckdate">—</div><div class="insp">ผู้ตรวจ: หัวหน้าภูมิ</div></div>
+    <div class="newday" id="newday" hidden>ขึ้นวันใหม่แล้ว — หน้านี้ยังเป็นของเมื่อวาน <button class="btn btn-red" id="newdaygo">เริ่มวันใหม่</button></div>
     <div class="prog" id="prog">—</div>
     <div class="card" id="checklist"></div>
+    <div class="savebar" id="chksave"></div>
     <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg> แนบรูปหลักฐาน (ถ้ามีปัญหา)</div>
     <div class="card"><div class="photobox" id="photobox"><label class="addphoto"><svg class="i" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>ถ่าย/แนบรูป<input type="file" accept="image/*" capture="environment" id="photoin" hidden multiple></label></div></div>
     <div class="actbar">
       <button class="btn btn-red full" id="copytext"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M5 15.5A2 2 0 0 1 4 14V5a2 2 0 0 1 2-2h8a2 2 0 0 1 1.5 1"/></svg>คัดลอกข้อความ</button>
       <button class="btn btn-ghost full" id="copyimg"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 18l5-5 4 3 3-3 4 4"/></svg>บันทึกเป็นรูป</button>
     </div>
-    <div class="hint" style="margin:9px 2px 0">คัดลอก/บันทึกไปส่งเจ้านายได้เลย — ข้อที่ยังไม่ติ๊กจะไม่ติดไปด้วย · เช็คลิสต์บันทึกต่อวัน (เปิดวันใหม่เริ่มใหม่) · รูปแนบไว้ใช้ทำรายงานรอบนี้ (ไม่ได้เก็บถาวร)</div>
+    <div class="hint" style="margin:9px 2px 0">คัดลอก/บันทึกไปส่งเจ้านายได้เลย — ข้อที่ยังไม่ติ๊กจะไม่ติดไปด้วย · เช็คลิสต์บันทึกต่อวัน (เปิดวันใหม่เริ่มใหม่) · รูปที่แนบเก็บไว้กับวันนั้นด้วย</div>
+
+    <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M12 7v5l3.5 2"/><circle cx="12" cy="12" r="8.5"/></svg> ประวัติย้อนหลัง</div>
+    <div class="card" id="chkhist"><div class="empty">—</div></div>
+    <div class="hint" style="margin:2px">แตะวันที่เพื่อดูว่าวันนั้นติ๊กอะไรไปบ้าง (ดูอย่างเดียว แก้ไม่ได้)</div>
   </div>
 
   <!-- ทีม -->
@@ -274,16 +294,23 @@
   function toast(t){var el=$("toast");el.textContent=t;el.classList.add("on");setTimeout(function(){el.classList.remove("on")},2200)}
 
   // ====== ที่เก็บข้อมูล = /manager/api (Supabase ของบอท) ======
-  // 🔑 คีย์มาจาก ?key=… ท้าย URL (หน้านี้เปิดได้ก็แปลว่าคีย์ถูก) — ส่งไปกับทุก request
+  // 🔑 ปกติเข้าด้วย **คุกกี้** (ใส่คีย์ครั้งเดียว จำ 30 วัน) ⇒ URL ไม่มีคีย์ = เรื่องปกติ
+  //
+  // 🔴 ภูม 2026-11-21 — ต้นเหตุ "บันทึกแล้วรีหน้าแล้วหายหมด": ตั้งแต่เปลี่ยนทางเข้าเป็นคุกกี้
+  //    (20/11) URL ไม่มี ?key= อีก แต่หน้านี้ยังมี dif(!KEY) returnd ⇒ **หน้าไม่โหลดและไม่บันทึก
+  //    อะไรเลย** · ติ๊กแล้วเห็นติ๊ก (จอจำเอง) รีหน้าแล้วหายทั้งหมด เพราะไม่เคยถึงฐาน
+  //    ⇒ คุกกี้ไปกับ fetch เองอยู่แล้ว (same-origin) ⇒ ไม่ต้องมีคีย์ในหน้า
   var KEY=(new URLSearchParams(location.search)).get("key")||"";
   function api(path, body){
-    var opt={ headers:{ "x-manager-key":KEY } };
+    var opt={ credentials:"same-origin", headers:{} };
+    if(KEY) opt.headers["x-manager-key"]=KEY;   // เผื่อเข้าตรงด้วยลิงก์จากไลน์ครั้งแรก
     if(body!==undefined){ opt.method="POST"; opt.headers["content-type"]="application/json"; opt.body=JSON.stringify(body); }
     return fetch("/manager/api"+path, opt).then(function(r){
       return r.json().catch(function(){return {}}).then(function(j){ return r.ok?j:Promise.reject(j||{}); });
     });
   }
-  function errMsg(e){ return (e&&e.error) ? e.error : "บันทึกไม่สำเร็จ ลองใหม่"; }
+  /** ข้อความจากฝั่ง server ถ้ามี · ไม่มี = ต่อไม่ติด (เน็ตหลุด/บอทหลับ) ⇒ อย่าบอกว่า "บันทึกไม่สำเร็จ" ตอนกำลังอ่าน */
+  function errMsg(e){ return (e&&e.error) ? e.error : "ต่อกับเซิร์ฟเวอร์ไม่ได้ — เช็คเน็ตแล้วลองใหม่"; }
 
   // บีบรูปฝั่งเว็บก่อนส่ง (ใบขับขี่ไม่กี่คัน — ไม่ต้องตั้ง storage แยก)
   function compressImage(file, maxDim, quality){
@@ -327,17 +354,42 @@
       b.classList.add("on");
       document.querySelectorAll(".page").forEach(function(p){p.classList.remove("on")});
       $("p-"+b.dataset.t).classList.add("on");window.scrollTo(0,0);
+      if(b.dataset.t==="safe") loadHist();        /* โหลดประวัติตอนเปิดแท็บ (ไม่ดึงทุกครั้งที่เปิดหน้า) */
     });
   });
   // ---- training expand ----
   document.querySelectorAll(".tr .h").forEach(function(h){h.addEventListener("click",function(){h.parentNode.classList.toggle("open")})});
 
   // ====== state ======
-  var state={ chk:{checks:{},pallet:""}, team:[], trucks:[], tasks:[], chkReady:false, teamReady:false, truckReady:false, taskReady:false };
+  var state={ chk:{checks:{},pallet:"",photos:[]}, team:[], trucks:[], tasks:[], chkReady:false, teamReady:false, truckReady:false, taskReady:false };
   function setSync(txt,cls){var s=$("sync");s.style.background=cls||"rgba(255,255,255,.16)";$("synct").textContent=txt}
   var SYNC_OK="rgba(23,166,106,.45)", SYNC_BAD="rgba(216,53,42,.5)";
 
-  function photosCount(){return document.querySelectorAll("#photobox .thumb").length}
+  /** เปิดรูปที่แนบดูเต็มจอ (โมดัลตัวเดียวกับ "บันทึกเป็นรูป") */
+  function openImg(src){ var w=$("imgwrap"); w.innerHTML=""; var im=new Image(); im.src=src; w.appendChild(im); $("imgmodal").classList.add("on"); }
+  function curPhotos(){return (state.chk&&Array.isArray(state.chk.photos))?state.chk.photos.slice():[]}
+  function photosCount(){return curPhotos().length}
+  var MAX_PHOTOS=3;
+
+  /* 📸 รูปหลักฐานวาดจาก state (เดิมเก็บไว้ใน DOM เท่านั้น ⇒ รีหน้าแล้วหาย) */
+  function renderPhotos(){
+    var box=$("photobox"); if(!box) return;
+    Array.prototype.forEach.call(box.querySelectorAll(".phwrap"),function(n){n.remove()});
+    var lab=box.querySelector(".addphoto");
+    curPhotos().forEach(function(src,i){
+      var w=document.createElement("div"); w.className="phwrap";
+      var im=document.createElement("img"); im.className="thumb"; im.src=src;
+      im.addEventListener("click",function(){openImg(src)});
+      var x=document.createElement("button"); x.className="phx"; x.textContent="✕"; x.title="เอารูปออก";
+      x.addEventListener("click",function(ev){ ev.stopPropagation(); removePhoto(i); });
+      w.appendChild(im); w.appendChild(x); box.insertBefore(w,lab);
+    });
+    if(lab) lab.style.display = curPhotos().length>=MAX_PHOTOS ? "none" : "";
+  }
+  function removePhoto(i){
+    var p=curPhotos(); p.splice(i,1);
+    writeChk({checks:curChecks(),pallet:(state.chk&&state.chk.pallet)||"",photos:p});
+  }
 
   function renderChecklist(){
     var cl=$("checklist"); cl.innerHTML="";
@@ -359,12 +411,46 @@
     $("prog").innerHTML="เช็คแล้ว <b>"+done+"</b>/"+CHK.length+" รายการ · วันนี้";
   }
   function curChecks(){return (state.chk&&state.chk.checks)?Object.assign({},state.chk.checks):{}}
-  function writeChk(next){
-    state.chk=next; renderChecklist(); renderHome();
-    api("/checklist",{day:TODAY,checks:next.checks||{},pallet:next.pallet||""}).catch(function(e){toast(errMsg(e))});
+
+  /* 💾 สถานะบันทึก (ภูม 2026-11-21 ถามว่าควรมีปุ่มบันทึกไหม)
+   *
+   * คงไว้เป็น "บันทึกเองทุกครั้งที่ติ๊ก" (กันลืมกดแล้วงานหาย) แต่ให้จอ **พูดความจริง**:
+   *   - กำลังบันทึก... แล้วเปลี่ยนเป็น "บันทึกแล้ว HH:MM น." = ถึงฐานจริง
+   *   - บันทึกไม่ผ่าน = ถอยติ๊กกลับ + ขึ้นแดงค้าง + ปุ่มบันทึกอีกครั้ง
+   *     (เดิมจอค้างว่าติ๊กแล้วทั้งที่ฐานไม่รับ ⇒ รีหน้าแล้วหาย = อาการที่ภูมเจอ)
+   */
+  /* chkGood = สถานะล่าสุดที่ **ฐานรับแล้วจริง** — ใช้เป็นที่ถอยกลับ
+   * 🪤 ถอยไป "ค่าก่อนหน้าของการกดครั้งนั้น" ไม่ได้ — กดรัวตอนเน็ตหลุดจะถอยไปค้าง
+   *    สถานะกลางๆ ที่ฐานไม่เคยมี (กด 3 ที = ถอยไปของการกดที่ 2) */
+  var chkSeq=0, chkRetry=null, chkGood=null;
+  function setSaveBar(txt,bad,retry){
+    var el=$("chksave"); if(!el) return;
+    el.className="savebar"+(bad?" bad":"");
+    el.textContent=txt||"";
+    chkRetry=retry||null;
+    if(retry){
+      var b=document.createElement("button"); b.textContent="บันทึกอีกครั้ง";
+      b.addEventListener("click",function(){ var r=chkRetry; if(r) writeChk(r); });
+      el.appendChild(b);
+    }
   }
-  function toggleChk(k){var c=curChecks(); if(c[k])delete c[k];else c[k]=true; writeChk({checks:c,pallet:(state.chk&&state.chk.pallet)||""});}
-  function savePallet(v){writeChk({checks:curChecks(),pallet:v});}
+  function writeChk(next){
+    if(!chkGood) chkGood=state.chk;
+    var body={checks:next.checks||{},pallet:next.pallet||"",photos:Array.isArray(next.photos)?next.photos:curPhotos()};
+    state.chk=body; renderChecklist(); renderPhotos(); renderHome();
+    var my=++chkSeq;
+    setSaveBar("กำลังบันทึก…");
+    api("/checklist",{day:TODAY,checks:body.checks,pallet:body.pallet,photos:body.photos})
+      .then(function(){ chkGood=body; if(my===chkSeq){ setSaveBar("บันทึกแล้ว "+thTime(new Date())); histDirty=true; } })
+      .catch(function(e){
+        if(my!==chkSeq) return;                      /* มีการติ๊กใหม่แล้ว - อย่าถอยทับของใหม่ */
+        state.chk=chkGood; renderChecklist(); renderPhotos(); renderHome();
+        setSaveBar(errMsg(e),true,body);
+        toast(errMsg(e));
+      });
+  }
+  function toggleChk(k){var c=curChecks(); if(c[k])delete c[k];else c[k]=true; writeChk({checks:c,pallet:(state.chk&&state.chk.pallet)||"",photos:curPhotos()});}
+  function savePallet(v){writeChk({checks:curChecks(),pallet:v,photos:curPhotos()});}
 
   // ====== ทีม + โน้ตประเมิน ======
   var selTeam=null, notesData=[], notesReady=false;
@@ -568,7 +654,7 @@
     else toast("คัดลอกไม่ได้บนเครื่องนี้");
   });
   function buildReport(){
-    var items=doneItems(), pv=palletVal(), ph=Array.prototype.map.call(document.querySelectorAll("#photobox .thumb"),function(i){return i.src});
+    var items=doneItems(), pv=palletVal(), ph=curPhotos();
     var h='<div style="font-weight:800;font-size:16px;color:#B30000">เช็คลิสต์ความปลอดภัยโกดัง Pacred</div>'+
       '<div style="font-size:12.5px;color:#6b7280;margin:5px 0 1px">'+thDate(now)+' · '+thTime(now)+'</div>'+
       '<div style="font-size:12.5px;color:#6b7280;margin-bottom:11px">ผู้ตรวจ: หัวหน้าภูมิ</div>'+
@@ -589,12 +675,89 @@
   $("imgmodal").addEventListener("click",function(e){if(e.target.id==="imgmodal")this.classList.remove("on")});
   $("licx").addEventListener("click",function(){$("licmodal").classList.remove("on")});
   $("licmodal").addEventListener("click",function(e){if(e.target.id==="licmodal")this.classList.remove("on")});
+  /* 📸 บีบเล็กลงกว่าเดิม (1200/0.7 → 1000/0.6) เพราะตอนนี้เก็บลงฐานจริง ไม่ใช่แค่โชว์ */
   $("photoin").addEventListener("change",function(e){
-    Array.prototype.forEach.call(e.target.files,function(f){
-      compressImage(f,1200,0.7).then(function(durl){var im=document.createElement("img");im.className="thumb";im.src=durl;$("photobox").appendChild(im)}).catch(function(){toast("แนบรูปไม่สำเร็จ")});
-    });
+    var files=Array.prototype.slice.call(e.target.files);
     e.target.value="";
+    var room=MAX_PHOTOS-photosCount();
+    if(room<=0){ toast("แนบได้ไม่เกิน "+MAX_PHOTOS+" รูปต่อวัน"); return; }
+    if(files.length>room){ toast("แนบได้อีก "+room+" รูป (เกินนั้นไม่ถูกแนบ)"); files=files.slice(0,room); }
+    Promise.all(files.map(function(f){return compressImage(f,1000,0.6)}))
+      .then(function(urls){ writeChk({checks:curChecks(),pallet:(state.chk&&state.chk.pallet)||"",photos:curPhotos().concat(urls)}); })
+      .catch(function(){ toast("แนบรูปไม่สำเร็จ") });
   });
+
+  /* ══ 🕘 ประวัติย้อนหลัง (ภูม 2026-11-21 *"มีประวัติให้กลับไปย้อนดูได้"*) ═════════
+   * ลิสต์โหลดเฉพาะ **สรุปต่อวัน** (วัน · ติ๊กกี่ข้อ · พาเลท · ใครบันทึก)
+   * แตะวันไหนค่อยดึงของวันนั้นมาเต็ม (รูป data URL ก้อนใหญ่ — ดึงรวดเดียวไม่ได้)
+   * โหลดตอนเปิดแท็บความปลอดภัยครั้งแรก · บันทึกใหม่แล้ว histDirty=true ⇒ เปิดแท็บอีกรอบโหลดใหม่
+   */
+  var histDirty=true, histLoading=false, histDays=null, histOpen=null, histDetail={};
+  function thDayKey(k){ var p=String(k||"").split("-"); if(p.length!==3) return String(k||""); return thDate(new Date(+p[0],+p[1]-1,+p[2])); }
+  function renderHist(){
+    var el=$("chkhist"); if(!el) return;
+    if(histLoading && !histDays){ el.innerHTML='<div class="empty">กำลังโหลด…</div>'; return; }
+    if(!histDays){ el.innerHTML='<div class="empty">—</div>'; return; }
+    var rows=histDays.filter(function(d){return d.day!==TODAY});
+    if(!rows.length){ el.innerHTML='<div class="empty">ยังไม่มีของวันก่อนหน้า — พอขึ้นวันใหม่ ของวันนี้จะมาอยู่ที่นี่</div>'; return; }
+    el.innerHTML="";
+    rows.forEach(function(d){
+      var r=document.createElement("div"); r.className="hrow";
+      r.innerHTML='<div class="hd"><div class="hn">'+esc(thDayKey(d.day))+'</div>'
+        +'<div class="hs">เช็คแล้ว '+d.done+'/'+CHK.length+' รายการ'
+        +(d.pallet?(' · '+esc(d.pallet)+' พาเลท'):'')
+        +(d.updated_by?(' · '+esc(d.updated_by)):'')+'</div></div>'
+        +'<svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+      r.addEventListener("click",function(){ openHistDay(d.day); });
+      el.appendChild(r);
+      if(histOpen===d.day){
+        var b=document.createElement("div"); b.className="hbody";
+        var det=histDetail[d.day];
+        if(!det){ b.textContent="กำลังโหลด…"; }
+        else {
+          var c=det.checks||{};
+          var ul=CHK.map(function(it){ return '<li>'+(c[it.k]?"✅":"⬜")+' '+esc(it.t)+'</li>'; }).join("");
+          b.innerHTML='<ul style="margin:8px 0 0;padding-left:2px;list-style:none">'+ul+'</ul>';
+          var ph=Array.isArray(det.photos)?det.photos:[];
+          if(ph.length){
+            var pb=document.createElement("div"); pb.className="photobox";
+            ph.forEach(function(src){ var im=document.createElement("img"); im.className="thumb"; im.src=src; im.addEventListener("click",function(){openImg(src)}); pb.appendChild(im); });
+            b.appendChild(pb);
+          }
+        }
+        el.appendChild(b);
+      }
+    });
+  }
+  function loadHist(force){
+    if(histLoading) return;
+    if(!force && !histDirty) return;
+    histLoading=true; histDirty=false; renderHist();
+    api("/checklist/history?limit=60").then(function(d){
+      histLoading=false; histDays=d.days||[]; renderHist();
+    }).catch(function(e){
+      histLoading=false; histDirty=true;
+      var el=$("chkhist"); if(el) el.innerHTML='<div class="empty">อ่านประวัติไม่ได้ — '+esc(errMsg(e))+'</div>';
+    });
+  }
+  function openHistDay(day){
+    if(histOpen===day){ histOpen=null; renderHist(); return; }
+    histOpen=day; renderHist();
+    if(histDetail[day]) return;
+    api("/checklist?day="+encodeURIComponent(day)).then(function(d){
+      histDetail[day]=d||{}; if(histOpen===day) renderHist();
+    }).catch(function(e){ toast(errMsg(e)); if(histOpen===day){ histOpen=null; renderHist(); } });
+  }
+
+  /* ══ 🌅 ขึ้นวันใหม่ขณะเปิดหน้าค้าง ════════════════════════════════
+   * TODAY ถูกคิดตอนเปิดหน้า ⇒ เปิดค้างข้ามเที่ยงคืนแล้วติ๊ก = ไปลงของเมื่อวาน
+   * ⇒ เฝ้าทุกนาที เจอวันเปลี่ยน = ขึ้นแถบให้กดเริ่มวันใหม่ (โหลดหน้าใหม่)
+   */
+  setInterval(function(){
+    if(dayKey(new Date())===TODAY) return;
+    var n=$("newday"); if(n) n.hidden=false;
+  },60000);
+  $("newdaygo").addEventListener("click",function(){ location.reload(); });
 
   // ---- add buttons ----
   $("teamadd").addEventListener("click",addTeam); $("teamin").addEventListener("keydown",function(e){if(e.key==="Enter")addTeam()});
@@ -609,14 +772,14 @@
   // ====== โหลดข้อมูลทีเดียวตอนเปิด ======
   var loadTimer=setTimeout(function(){ if(!state.chkReady){ setSync("เชื่อมช้า…",SYNC_BAD); } },10000);
   function markAllReady(){ state.chkReady=state.teamReady=state.truckReady=state.taskReady=true; }
-  function renderAll(){ renderChecklist(); renderTeam(); renderTrucks(); renderTasks(); renderHome(); }
-
-  if(!KEY){ setSync("ไม่มีคีย์",SYNC_BAD); markAllReady(); renderAll(); toast("เปิดหน้านี้ด้วยลิงก์จากบอทไลน์ (ต้องมีคีย์)"); return; }
+  function renderAll(){ renderChecklist(); renderPhotos(); renderTeam(); renderTrucks(); renderTasks(); renderHome(); }
 
   api("/bootstrap?day="+encodeURIComponent(TODAY)).then(function(d){
     clearTimeout(loadTimer);
     var cl=d.checklist||{};
-    state.chk={checks:(cl.checks&&typeof cl.checks==="object")?cl.checks:{}, pallet:cl.pallet||""};
+    state.chk={checks:(cl.checks&&typeof cl.checks==="object")?cl.checks:{}, pallet:cl.pallet||"", photos:Array.isArray(cl.photos)?cl.photos:[]};
+    chkGood=state.chk;                              /* ของที่เพิ่งโหลดมา = ของจริงในฐาน */
+    if(cl.updated_at) setSaveBar("บันทึกล่าสุด "+thTime(new Date(cl.updated_at))+(cl.updated_by?(" · "+cl.updated_by):""));
     state.team=d.team||[]; state.trucks=d.trucks||[]; state.tasks=d.tasks||[];
     markAllReady(); setSync("ซิงก์แล้ว",SYNC_OK); renderAll();
   }).catch(function(e){

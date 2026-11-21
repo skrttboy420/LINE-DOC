@@ -109,4 +109,7 @@ select
   (select count(*) from public.mgr_team_note)  as "โน้ตประเมิน",
   (select count(*) from public.mgr_truck)      as "รถที่ลงทะเบียน",
   (select count(*) from public.mgr_task where not done) as "งานค้าง",
-  (select count(*) from public.mgr_checklist)  as "วันที่มีเช็คลิสต์";
+  (select count(*) from public.mgr_checklist)  as "วันที่มีเช็คลิสต์",
+  (select count(*) from information_schema.columns
+    where table_schema='public' and table_name='mgr_checklist' and column_name='photos')
+                                                      as "ช่องรูปหลักฐาน (ต้องได้ 1)";

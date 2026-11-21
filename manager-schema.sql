@@ -39,6 +39,24 @@ comment on table public.mgr_checklist is
 --    ⇒ รีหน้าแล้วรูปหาย (จอเขียนไว้เองว่า "ไม่ได้เก็บถาวร"). เก็บเป็น data URL ที่เว็บบีบแล้ว
 --    เพดาน 3 รูป/วัน (ตัวเขียนบังคับ) ⇒ แถวละไม่เกิน ~1 MB · โตเกินค่อยย้ายไป storage bucket
 alter table public.mgr_checklist add column if not exists photos jsonb not null default '[]'::jsonb;
+
+-- 📝 หมายเหตุรายข้อ (ภูม 2026-11-21) — *"ถ้าสมมุติมันเกิดปัญหาหละ คือไม่ต้องติ๊กหรือไง
+--    … ให้ทำเป็นหมายเหตุไว้ได้ไหม อย่างวันนี้มีคนขับรถชนตัวกั้นชั้นวางบุบ
+--    ตรงช่องติ๊กชั้นวาง มันควรมีให้ใส่หมายเหตุด้วย"*
+-- รูปร่าง { "shelf": "คนขับชนตัวกั้น ชั้นวางบุบ 1 ช่อง แจ้งช่างแล้ว" } — คีย์เดียวกับ checks
+-- 🔑 กติกาที่โค้ดคุม: มีหมายเหตุ = "ตรวจแล้ว เจอปัญหา" (ไม่ใช่ลืมตรวจ) · เขียนได้ทั้งที่ติ๊กและไม่ติ๊ก
+alter table public.mgr_checklist add column if not exists notes jsonb not null default '{}'::jsonb;
+
+-- 🔗 ลิงก์ส่งเจ้านาย (ภูม 2026-11-21) — *"กดออกลิงค์ฟอร์มลิสที่ตรวจไปส่งพี่ป๊อปได้
+--    พี่ป๊อปสามารถกดดูรูปที่แนบเป็นหลักฐานได้ด้วย"*
+-- โทเคนสุ่ม 24 ตัวอักษร = ทางเข้าหน้า /manager/r/<โทเคน> (ดูอย่างเดียว · ไม่ต้องใส่คีย์)
+-- 🔒 **ไม่ใช่คีย์หัวหน้า** — เปิดได้แค่เช็คลิสต์ของวันนั้นวันเดียว ไม่เห็นคะแนนประเมินทีม
+-- 🔑 1 วัน = 1 โทเคน · กด "ออกลิงก์ใหม่" = เขียนทับ ⇒ ลิงก์เดิมใช้ไม่ได้ทันที (= ปุ่มปิดลิงก์)
+-- 🔑 unique index: ตัวอ่านใช้ .eq("share_token", …).maybeSingle() ⇒ ซ้ำกัน 2 แถวจะอ่านพัง
+alter table public.mgr_checklist add column if not exists share_token text;
+create unique index if not exists mgr_checklist_share_token_idx
+  on public.mgr_checklist (share_token) where share_token is not null;
+
 alter table public.mgr_checklist enable row level security;
 
 -- ── ② ทีมที่ประเมิน ──────────────────────────────────────────────────
@@ -111,5 +129,10 @@ select
   (select count(*) from public.mgr_task where not done) as "งานค้าง",
   (select count(*) from public.mgr_checklist)  as "วันที่มีเช็คลิสต์",
   (select count(*) from information_schema.columns
-    where table_schema='public' and table_name='mgr_checklist' and column_name='photos')
-                                                      as "ช่องรูปหลักฐาน (ต้องได้ 1)";
+    where table_schema='public' and table_name='mgr_checklist'
+      and column_name in ('photos','notes','share_token'))
+                                                      as "ช่องรูป+หมายเหตุ+ลิงก์ (ต้องได้ 3)",
+  (select count(*) from public.mgr_checklist where notes <> '{}'::jsonb)
+                                                      as "วันที่มีหมายเหตุ",
+  (select count(*) from public.mgr_checklist where share_token is not null)
+                                                      as "วันที่ออกลิงก์ให้เจ้านายแล้ว";

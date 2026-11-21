@@ -200,22 +200,26 @@ const MISSING = { code: "42P01", message: 'relation "public.mgr_team" does not e
    */
   await ok("ประวัติ: สรุปต่อวัน — นับเฉพาะข้อที่ติ๊กจริง (false ไม่นับ)", async () => {
     const db = mk({ rows: [
-      { day: "2026-11-20", checks: { a: true, b: true, c: false }, pallet: "38", updated_by: "ภูม", updated_at: "t1" },
+      /* 🔑 ต้องเป็น "คีย์ข้อจริง" ของเช็คลิสต์ — ตัวนับนับเฉพาะข้อที่มีอยู่ในรายการวันนี้
+         (ข้อที่เลิกใช้ไปแล้วไม่ถูกนับ ⇒ เลขในลิสต์ตรงกับที่กดเข้าไปดูเสมอ) */
+      { day: "2026-11-20", checks: { shelf: true, clean: true, fork: false }, pallet: "38", updated_by: "ภูม", updated_at: "t1" },
       { day: "2026-11-19", checks: {}, pallet: null, updated_by: null, updated_at: "t2" },
     ] });
     const days = await createManager(db).listChecklistDays();
     assert.equal(days.length, 2);
-    assert.equal(days[0].done, 2, "ติ๊ก 2 ข้อ (c:false ไม่นับ)");
+    assert.equal(days[0].done, 2, "ติ๊ก 2 ข้อ (fork:false ไม่นับ)");
     assert.equal(days[0].pallet, "38");
     assert.equal(days[1].done, 0);
     assert.equal(days[1].pallet, "", "ไม่มีพาเลท = ค่าว่าง ไม่ใช่ null (จอเอาไปต่อข้อความได้เลย)");
   });
 
   await ok("🔒 ประวัติ: ไม่ลาก checks/photos ทั้งก้อนมาในลิสต์ (รูปก้อนใหญ่)", async () => {
-    const db = mk({ rows: [{ day: "2026-11-20", checks: { a: true }, pallet: "", updated_at: "t" }] });
+    const db = mk({ rows: [{ day: "2026-11-20", checks: { shelf: true }, pallet: "", updated_at: "t" }] });
     const days = await createManager(db).listChecklistDays();
-    assert.deepEqual(Object.keys(days[0]).sort(), ["day", "done", "pallet", "updated_at", "updated_by"]);
+    assert.deepEqual(Object.keys(days[0]).sort(),
+      ["checked", "day", "done", "issues", "pallet", "total", "updated_at", "updated_by"]);
     assert.ok(!db.last.cols.includes("photos"), "คิวรีลิสต์ต้องไม่ดึง photos — ได้: " + db.last.cols);
+    assert.ok(db.last.cols.includes("notes"), "ต้องดึง notes มานับ (ข้อความสั้น ไม่ใช่รูป)");
   });
 
   await ok("ประวัติ: เพดานจำนวนวัน 1–365 (ส่งมั่วมาก็ไม่พัง)", async () => {
@@ -252,6 +256,106 @@ const MISSING = { code: "42P01", message: 'relation "public.mgr_team" does not e
     assert.deepEqual(c.photos, []);
   });
 
+  /* ══ 📝 หมายเหตุรายข้อ + 🔗 ลิงก์ส่งเจ้านาย (ภูม 2026-11-21) ═══════════════
+   * ภูม: *"ถ้าสมมุติมันเกิดปัญหาหละ คือไม่ต้องติ๊กหรือไง … ให้ทำเป็นหมายเหตุไว้ได้ไหม"*
+   *      + *"กดออกลิงค์ฟอร์มลิสที่ตรวจไปส่งพี่ป๊อปได้"*
+   * (หน้าที่เจ้านายเปิด + กติกานับสถานะ อยู่ใน manager-share.test.js)
+   */
+
+  await ok("📝 หมายเหตุ: บันทึกลงฐานเป็น { คีย์ข้อ: ข้อความ }", async () => {
+    const db = mk({}); const m = createManager(db);
+    await m.saveChecklist("2026-11-21", { clean: true }, "", "ภูม", undefined, { shelf: "คนขับชนตัวกั้น ชั้นวางบุบ" });
+    assert.deepEqual(db.last.payload.notes, { shelf: "คนขับชนตัวกั้น ชั้นวางบุบ" });
+  });
+
+  await ok("📝 หมายเหตุ: ไม่ส่งมา = ไม่แตะของเดิม · null = ล้างทั้งหมด · ว่าง = ลบข้อนั้น", async () => {
+    const a = mk({}); await createManager(a).saveChecklist("2026-11-21", {}, "", "x");
+    assert.ok(!("notes" in a.last.payload), "ไม่ส่งมา = ต้องไม่เขียนทับหมายเหตุเดิม");
+    const b = mk({}); await createManager(b).saveChecklist("2026-11-21", {}, "", "x", undefined, null);
+    assert.deepEqual(b.last.payload.notes, {});
+    const c = mk({}); await createManager(c).saveChecklist("2026-11-21", {}, "", "x", undefined, { shelf: "   " });
+    assert.deepEqual(c.last.payload.notes, {}, "ข้อความว่างล้วน = ไม่เก็บ");
+  });
+
+  await ok("🔒 หมายเหตุ: คีย์ที่ไม่มีในเช็คลิสต์ = ไม่ลงฐาน · ไม่ใช่ออบเจ็กต์ = ปฏิเสธ", async () => {
+    const db = mk({}); const m = createManager(db);
+    await m.saveChecklist("2026-11-21", {}, "", "x", undefined, { shelf: "ok", ไม่มีข้อนี้: "ขยะ" });
+    assert.deepEqual(Object.keys(db.last.payload.notes), ["shelf"]);
+    await assert.rejects(() => m.saveChecklist("2026-11-21", {}, "", "x", undefined, ["a"]), /หมายเหตุไม่ถูกต้อง/);
+    await assert.rejects(() => m.saveChecklist("2026-11-21", {}, "", "x", undefined, "ข้อความ"), /หมายเหตุไม่ถูกต้อง/);
+  });
+
+  await ok("📝 หมายเหตุ: ยาวเกิน 300 ตัว = ตัด (ไม่ปฏิเสธทั้งวัน)", async () => {
+    const db = mk({});
+    await createManager(db).saveChecklist("2026-11-21", {}, "", "x", undefined, { shelf: "ก".repeat(900) });
+    assert.equal(db.last.payload.notes.shelf.length, 300);
+  });
+
+  await ok("getChecklist: แถวเก่าที่ notes เป็น null = คืน {} (จอวนลูปได้เลย)", async () => {
+    const c = await createManager(mk({ row: { day: "2026-11-20", checks: null, notes: null, photos: null } }))
+      .getChecklist("2026-11-20");
+    assert.deepEqual(c.notes, {});
+    assert.deepEqual(c.checks, {});
+    assert.deepEqual(c.photos, []);
+  });
+
+  await ok("ประวัติ: นับ 'ตรวจแล้ว' ด้วยกติกาเดียวกับจอ — ติ๊ก+มีหมายเหตุ ไม่นับซ้ำ", async () => {
+    const db = mk({ rows: [
+      { day: "2026-11-21", checks: { shelf: true, clean: true }, notes: { shelf: "บุบแต่ใช้ได้", fork: "เบรกหลวม" } },
+    ] });
+    const [d] = await createManager(db).listChecklistDays();
+    assert.equal(d.done, 2, "ติ๊กจริง 2 ข้อ");
+    assert.equal(d.issues, 1, "มีหมายเหตุแต่ยังไม่ติ๊ก = fork ข้อเดียว");
+    assert.equal(d.checked, 3, "ตรวจแล้ว = 2 ติ๊ก + 1 ที่เขียนหมายเหตุ (ห้ามนับ shelf ซ้ำ)");
+    assert.ok(d.total >= 10);
+  });
+
+  await ok("🔗 ลิงก์: มีอยู่แล้วใช้ใบเดิม (กดซ้ำไม่ทำให้ลิงก์ที่ส่งไปแล้วตาย)", async () => {
+    const db = mk({ row: { day: "2026-11-21", share_token: "tok-เดิม-1234567890" } });
+    const r = await createManager(db).ensureShareToken("2026-11-21");
+    assert.equal(r.token, "tok-เดิม-1234567890");
+    assert.equal(r.created, false);
+    assert.notEqual(db.last.op, "upsert", "ไม่ควรเขียนฐานเมื่อมีลิงก์อยู่แล้ว");
+  });
+
+  await ok("🔗 ลิงก์: ยังไม่มี = ออกใบใหม่ยาวพอเดาไม่ได้ · ไม่แตะเวลาบันทึก", async () => {
+    const db = mk({ row: null }); const r = await createManager(db).ensureShareToken("2026-11-21");
+    assert.ok(r.token.length >= 20, "โทเคนสั้นเกินไป: " + r.token);
+    assert.match(r.token, /^[A-Za-z0-9_-]+$/, "โทเคนต้องใส่ใน URL ได้ตรงๆ");
+    assert.equal(db.last.op, "upsert");
+    assert.deepEqual(Object.keys(db.last.payload).sort(), ["day", "share_token"]);
+    assert.ok(!("updated_at" in db.last.payload), "ออกลิงก์ ≠ แก้เช็คลิสต์ ⇒ ห้ามขยับเวลาบันทึก");
+  });
+
+  await ok("🔗 ลิงก์: ออกใบใหม่ = โทเคนไม่ซ้ำใบเดิม (ใบเก่าตาย)", async () => {
+    const m = createManager(mk({ row: { share_token: "tok-เดิม-1234567890" } }));
+    const a = await m.rotateShareToken("2026-11-21");
+    const b = await m.rotateShareToken("2026-11-21");
+    assert.notEqual(a.token, "tok-เดิม-1234567890");
+    assert.notEqual(a.token, b.token);
+  });
+
+  await ok("🔒 ลิงก์: โทเคนรูปแบบมั่ว = ไม่ถามฐานเลย (กันยิงเดาถี่ๆ)", async () => {
+    const db = mk({ row: { day: "x" } }); const m = createManager(db);
+    for (const bad of ["", "สั้น", "มีช่องว่าง ปะปน", "a".repeat(200), "../../etc/passwd"]) {
+      assert.equal(await m.getShared(bad), null, "ควรปฏิเสธก่อนถามฐาน: " + bad);
+    }
+    assert.equal(db.last, null, "ไม่ควรแตะฐานเลยสักครั้ง");
+  });
+
+  await ok("🔗 ลิงก์: อ่านด้วยโทเคน = ได้เฉพาะช่องของเช็คลิสต์วันนั้น", async () => {
+    const db = mk({ row: { day: "2026-11-21", checks: { shelf: true }, notes: { fork: "x" }, pallet: "42", photos: [], updated_by: "ภูม" } });
+    const row = await createManager(db).getShared("abcdefghij1234567890");
+    assert.equal(db.last.filters.share_token, "abcdefghij1234567890");
+    assert.ok(!/stars|mgr_team|license/.test(String(db.last.cols)), "คิวรีต้องไม่ลากของตารางอื่น");
+    assert.ok(!String(db.last.cols).includes("share_token"), "ไม่ควรคืนตัวโทเคนกลับไปกับข้อมูล");
+    assert.equal(row.pallet, "42");
+    assert.deepEqual(row.notes, { fork: "x" });
+  });
+
+  await ok("🔗 ลิงก์: ไม่มีแถวตรงโทเคน = null (หน้าโชว์ 'ลิงก์ใช้ไม่ได้แล้ว')", async () => {
+    assert.equal(await createManager(mk({ row: null })).getShared("abcdefghij1234567890"), null);
+  });
   console.log("\n✅ manager: " + pass + " pass, " + fail + " fail\n");
   process.exit(fail ? 1 : 0);
 })();

@@ -15,6 +15,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+/* 🔗 หน้าลิงก์ "ดูอย่างเดียว" ที่ส่งให้เจ้านาย (ไม่ต้องใช้คีย์) — ดู manager-share.js */
+const { sharePage, shareDeadPage } = require("./manager-share");
+
 /* 🔐 ทางเข้า (คีย์ → คุกกี้ → URL สะอาด) อยู่ที่ manager-auth.js ที่เดียว —
       หน้านี้เก็บคะแนนประเมินพนักงาน ⇒ คีย์ต้องไม่ค้างใน URL/ประวัติ/ภาพหน้าจอ */
 const {
@@ -32,6 +35,43 @@ function readPage(file) {
   if (process.env.NODE_ENV !== "production") return fs.readFileSync(path.join(__dirname, file), "utf8");
   if (!pageCache[file]) pageCache[file] = fs.readFileSync(path.join(__dirname, file), "utf8");
   return pageCache[file];
+}
+
+/* ── 📋 ฝังตัวเช็คลิสต์ลงหน้าเว็บ ──────────────────────────────────
+ *
+ * 🔑 ทั้ง **ข้อความ 10 ข้อ** และ **กติกาตัดสินสถานะ** (ผ่าน / มีหมายเหตุ / ยังไม่ตรวจ)
+ *    อยู่ใน manager-checklist.js ที่เดียว แล้วยก "ซอร์สจริง" ฝังเข้าหน้าเว็บตอนเสิร์ฟ
+ *    ⇒ จอของหัวหน้า กับ หน้าลิงก์ที่เจ้านายเปิด **นับด้วยโค้ดบรรทัดเดียวกัน**
+ *    (ถ้าก๊อปกติกาไว้ 2 ที่ วันไหนแก้ ตัวเลขบน 2 จอจะไม่ตรงกัน = เรื่องที่ภูมจับได้แน่)
+ * 🪤 หาเครื่องหมายไม่เจอ / แปลงซอร์สไม่ได้ = **พังเสียงดังทันที** ไม่ใช่ปล่อยให้เช็คลิสต์ว่างเงียบๆ
+ */
+const CHK_MARK = /\/\*__CHK_MODULE__\*\/[\s\S]*?\/\*__CHK_MODULE_END__\*\//;
+const EXPORT_LINE = /^module\.exports\s*=.*$/m;
+
+/** ซอร์สของ manager-checklist.js ที่รันในเบราว์เซอร์ได้ (ครอบ IIFE · ยิงออกทาง window.MGR_CHK) */
+function checklistBrowserSource() {
+  const src = fs.readFileSync(path.join(__dirname, "manager-checklist.js"), "utf8");
+  if (!EXPORT_LINE.test(src)) {
+    throw new Error("manager-checklist.js: หาบรรทัด module.exports ไม่เจอ — แปลงเป็นสคริปต์เบราว์เซอร์ไม่ได้");
+  }
+  const body = src.replace(EXPORT_LINE, "window.MGR_CHK = { CHECKLIST, CHECK_KEYS, itemState, summarize };");
+  return "(function(){\n" + body + "\n})();";
+}
+
+function injectChecklist(html) {
+  const out = html.replace(CHK_MARK, () => checklistBrowserSource());
+  if (out === html) {
+    throw new Error("manager.html: หาเครื่องหมาย __CHK_MODULE__ ไม่เจอ — เช็คลิสต์จะขึ้นเป็นหน้าว่าง");
+  }
+  return out;
+}
+
+/** ลิงก์เต็มของหน้าแชร์ — ไม่รู้โดเมน (รันในเครื่อง) = คืน "" แล้วให้จอต่อ origin เอง */
+function shareUrlOf(token) {
+  const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
+  /* 🪤 อย่าตั้งชื่อตัวแปรนี้ว่า path — จะไปบังโมดูล path ที่ไฟล์นี้ใช้อ่านไฟล์หน้าเว็บ */
+  const at = "/manager/r/" + encodeURIComponent(token);
+  return { token, path: at, url: base ? base + at : "" };
 }
 
 /**
@@ -58,7 +98,7 @@ function mountManager(app, manager) {
       setSession(res);
       return res.redirect(302, "/manager");
     }
-    res.type("html").send(readPage("manager.html"));
+    res.type("html").send(injectChecklist(readPage("manager.html")));
   });
 
   /* หน้ากรอกคีย์ส่งมาที่นี่ — POST ⇒ คีย์ไม่ติดไปกับ URL เลย */
@@ -67,6 +107,28 @@ function mountManager(app, manager) {
     if (checkKey(req) !== "ok") return res.status(401).type("html").send(signInPage(true));
     setSession(res);
     res.redirect(302, "/manager");
+  });
+
+  /* ── 🔗 หน้าที่เจ้านายเปิด (ไม่ต้องใช้คีย์) ─────────────────────
+   *
+   * 🔒 ทางเข้าคือ **โทเคนของวันนั้น** ไม่ใช่คีย์หัวหน้า ⇒ เปิดได้แค่เช็คลิสต์วันเดียว อ่านอย่างเดียว
+   *    (คีย์หัวหน้าเปิดได้ทั้งแอป รวมคะแนนประเมินพนักงาน — ห้ามเอาไปทำลิงก์ส่งต่อ)
+   * 🔒 ห้ามให้ค้นเจอ/ถูกแคชตามพร็อกซี — ใส่หัวคำขอ noindex + no-store ทุกครั้ง
+   */
+  app.get("/manager/r/:token", async (req, res) => {
+    res.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.set("Referrer-Policy", "no-referrer");
+    try {
+      const row = await manager.getShared(req.params.token);
+      /* ไม่เจอ = 404 + บอกว่าทำไม (มักเพราะหัวหน้าออกใบใหม่ทับ) */
+      if (!row) return res.status(404).type("html").send(shareDeadPage());
+      res.type("html").send(sharePage(row));
+    } catch (e) {
+      const msg = (e && e.message) || "เปิดลิงก์ไม่ได้";
+      res.status(/ยังไม่ได้ลงตาราง/.test(msg) ? 503 : 400)
+        .type("text/plain; charset=utf-8").send(msg);
+    }
   });
 
   /* ── ท่อข้อมูล (ทุกเส้นต้องผ่านคีย์) ───────────────────────────── */
@@ -112,10 +174,18 @@ function mountManager(app, manager) {
   /* เช็คลิสต์ */
   api("get", "/manager/api/checklist", async (req) => manager.getChecklist(req.query.day));
   api("post", "/manager/api/checklist", async (req) =>
-    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req), req.body.photos));
+    /* 🪤 ครั้งแรกลืมส่ง notes ต่อตรงนี้ ⇒ จอขึ้น "บันทึกแล้ว" แต่หมายเหตุไม่เคยถึงฐาน (รีหน้าแล้วหาย)
+          — เทส "หมายเหตุที่พิมพ์ต้องไปโผล่หน้าเจ้านาย" ใน manager-share.test.js กันไว้แล้ว */
+    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req), req.body.photos, req.body.notes));
   /* ประวัติย้อนหลัง — สรุปต่อวัน (กดวันไหนค่อยเรียก /checklist?day= ของวันนั้น) */
   api("get", "/manager/api/checklist/history", async (req) =>
     ({ days: await manager.listChecklistDays(req.query.limit) }));
+
+  /* 🔗 ลิงก์ส่งเจ้านาย — มีอยู่แล้วใช้ใบเดิม · "ใบใหม่" = ใบเก่าใช้ไม่ได้ทันที */
+  api("get", "/manager/api/share", async (req) =>
+    shareUrlOf((await manager.ensureShareToken(req.query.day)).token));
+  api("post", "/manager/api/share/new", async (req) =>
+    shareUrlOf((await manager.rotateShareToken(req.body.day)).token));
 
   /* ทีม */
   api("get", "/manager/api/team", async () => ({ team: await manager.listTeam() }));

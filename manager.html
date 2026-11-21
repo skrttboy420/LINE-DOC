@@ -114,6 +114,37 @@
   .phwrap{position:relative;line-height:0}
   .phx{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--danger);font:700 12px/1 inherit;cursor:pointer;padding:0}
 
+  /* 📝 หมายเหตุรายข้อ (ภูม 2026-11-21) — ของเดิมมีแต่ติ๊ก/ไม่ติ๊ก พอเจอปัญหาจริงไม่มีที่เขียน */
+  .chk{align-items:flex-start}                     /* เดิม center — มีหมายเหตุแล้วแถวสูงขึ้น ต้องชิดบน */
+  .chk .body{min-width:0;flex:1}
+  .chk.issue .box{border-color:var(--amber);background:var(--amber-soft)}
+  .chk.issue .box svg{opacity:0}
+  .nbtn{flex:0 0 auto;align-self:flex-start;border:1.5px solid var(--line);background:#fff;border-radius:9px;
+    padding:6px 9px;font:800 11.5px/1.2 inherit;color:var(--muted);cursor:pointer;white-space:nowrap}
+  .nbtn.has{border-color:#f0cc8a;background:var(--amber-soft);color:var(--amber)}
+  .note{margin-top:6px;background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 9px 9px 0;
+    padding:7px 9px;font-size:13px;color:#7a4a00;white-space:pre-wrap;word-break:break-word}
+  .note b{display:block;font-size:11px;font-weight:800;color:var(--amber);margin-bottom:1px}
+  .noteed{margin-top:7px}
+  .noteed textarea{width:100%;border:1.5px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;
+    font-size:13.5px;color:var(--ink);resize:vertical;min-height:64px;line-height:1.5}
+  .noteed textarea:focus{outline:none;border-color:var(--amber)}
+  .noteed .r{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+  .noteed .r button{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;
+    font:800 12.5px/1.2 inherit;color:var(--ink);cursor:pointer}
+  .noteed .r button.go{background:var(--amber);border-color:var(--amber);color:#fff}
+  .noteed .r button.del{color:var(--danger)}
+
+  /* 🔗 กล่องลิงก์ส่งเจ้านาย — เปิดได้โดยไม่ต้องมีคีย์ ⇒ เขียนเตือนไว้บนจอด้วย */
+  .share{background:var(--blue-soft);border:1px solid #cfe0fb;border-radius:13px;padding:12px;margin-top:11px}
+  .share .t{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13.5px;color:var(--blue)}
+  .share .u{display:block;margin:9px 0 0;background:#fff;border:1px solid #d7e3f8;border-radius:9px;
+    padding:8px 10px;font-size:12px;color:var(--blue);word-break:break-all;text-decoration:none}
+  .share .r{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+  .share .r button{border:1.5px solid #cfe0fb;background:#fff;border-radius:9px;padding:8px 12px;
+    font:800 12.5px/1.2 inherit;color:var(--blue);cursor:pointer}
+  .share .r button.go{background:var(--blue);border-color:var(--blue);color:#fff}
+
   .tr{border:1px solid var(--line);border-radius:14px;margin-bottom:10px;overflow:hidden}
   .tr .h{display:flex;align-items:center;gap:11px;padding:13px;cursor:pointer;background:var(--card)}
   .tic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex:0 0 auto}
@@ -206,7 +237,15 @@
       <button class="btn btn-red full" id="copytext"><svg class="i" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M5 15.5A2 2 0 0 1 4 14V5a2 2 0 0 1 2-2h8a2 2 0 0 1 1.5 1"/></svg>คัดลอกข้อความ</button>
       <button class="btn btn-ghost full" id="copyimg"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 18l5-5 4 3 3-3 4 4"/></svg>บันทึกเป็นรูป</button>
     </div>
-    <div class="hint" style="margin:9px 2px 0">คัดลอก/บันทึกไปส่งเจ้านายได้เลย — ข้อที่ยังไม่ติ๊กจะไม่ติดไปด้วย · เช็คลิสต์บันทึกต่อวัน (เปิดวันใหม่เริ่มใหม่) · รูปที่แนบเก็บไว้กับวันนั้นด้วย</div>
+    <div class="hint" style="margin:9px 2px 0">คัดลอก/บันทึกไปส่งเจ้านายได้เลย — ข้อที่ยังไม่ได้ตรวจจะไม่ติดไปด้วย (ข้อที่มีหมายเหตุติดไปพร้อมหมายเหตุ) · เช็คลิสต์บันทึกต่อวัน (เปิดวันใหม่เริ่มใหม่) · รูปที่แนบเก็บไว้กับวันนั้นด้วย</div>
+
+    <!-- 🔗 ลิงก์ส่งเจ้านาย (ภูม 2026-11-21) — ข้อความ+รูปอยู่ในหน้าเดียวกัน กดดูรูปเต็มจอได้ -->
+    <div class="share">
+      <div class="t"><svg class="i" viewBox="0 0 24 24"><path d="M9.5 13.5a4 4 0 0 0 5.7 0l2.3-2.3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14.5 10.5a4 4 0 0 0-5.7 0l-2.3 2.3a4 4 0 0 0 5.7 5.7l1-1"/></svg> ลิงก์ส่งเจ้านาย</div>
+      <div class="hint" style="margin-top:4px">เจ้านายกดเปิดได้เลย ไม่ต้องใส่คีย์ — เห็นเช็คลิสต์ของวันนี้ + <b>กดดูรูปหลักฐานเต็มจอได้</b> (ดูอย่างเดียว แก้ไม่ได้)</div>
+      <div id="sharebody"></div>
+      <div class="hint" style="margin-top:9px">⚠️ ใครถือลิงก์นี้ก็เปิดได้ — ส่งเฉพาะคนที่ควรเห็น · ลิงก์เปิดได้แค่เช็คลิสต์วันนี้ (ไม่เห็นคะแนนประเมินทีม)</div>
+    </div>
 
     <div class="sec"><svg class="i" viewBox="0 0 24 24"><path d="M12 7v5l3.5 2"/><circle cx="12" cy="12" r="8.5"/></svg> ประวัติย้อนหลัง</div>
     <div class="card" id="chkhist"><div class="empty">—</div></div>
@@ -277,6 +316,9 @@
 <div class="modal" id="licmodal"><div class="mc"><div class="mh">รูปใบขับขี่ (กดค้างที่รูปเพื่อบันทึก)<span class="x" id="licx">✕</span></div><div id="licwrap"></div></div></div>
 <div class="toast" id="toast"></div>
 
+<!-- 📋 ตัวเช็คลิสต์ (ข้อความ 10 ข้อ + กติกาตัดสินสถานะ) — เซิร์ฟเวอร์ฝังซอร์สจริงของ
+     manager-checklist.js มาให้ตรงนี้ ⇒ จอนี้กับหน้าลิงก์ที่เจ้านายเปิด นับด้วยโค้ดชุดเดียวกัน -->
+<script>/*__CHK_MODULE__*/window.MGR_CHK=null;/*__CHK_MODULE_END__*/</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 (function(){
@@ -333,19 +375,15 @@
     });
   }
 
-  // checklist template (คงที่) — เก็บในฐานแค่ "ติ๊กข้อไหน" + จำนวนพาเลท
-  var CHK=[
-    {k:"shelf",t:"ชั้นวางสินค้า — ไม่ชำรุด/เอียง/ล้ม"},
-    {k:"clean",t:"ความสะอาดพื้น — ทางเดินโล่ง ไม่มีของกีดขวาง"},
-    {k:"fork",t:"รถโฟล์คลิฟท์ — เบรก/แตร/ไฟ ปกติ จอดชาร์จ"},
-    {k:"pallet",t:"นับจำนวนพาเลท — ตรงทะเบียน",num:true},
-    {k:"fire",t:"ถังดับเพลิง — อยู่ครบ เข็มชี้เขียว"},
-    {k:"exit",t:"ทางหนีไฟ/ประตูฉุกเฉิน — ไม่มีของขวาง"},
-    {k:"lock",t:"ประตูโกดัง/กุญแจ — ล็อกครบ"},
-    {k:"light",t:"ไฟฟ้า/ไฟส่องสว่าง — ปิดจุดที่ไม่ใช้"},
-    {k:"cctv",t:"กล้องวงจรปิด — ทำงานครบทุกตัว"},
-    {k:"valuable",t:"ของมีค่า/ของเสี่ยง — เก็บเข้าที่ปลอดภัย"}
-  ];
+  /* 📋 ข้อความเช็คลิสต์ + กติกาตัดสินสถานะ มาจาก manager-checklist.js **ที่เดียว**
+     (เซิร์ฟเวอร์ฝังซอร์สจริงมาให้ในแท็ก script ข้างบน — ดู injectChecklist ใน manager-page.js)
+     ⇒ ฐานยังเก็บแค่ "ติ๊กข้อไหน" + หมายเหตุรายข้อ + จำนวนพาเลท ไม่เก็บตัวข้อความ
+     🪤 โหลดไม่ได้ = จอบอกตรงๆ (renderChecklist) ไม่ใช่โชว์รายการเปล่าแล้วคนคิดว่าตรวจครบ */
+  var MGR=window.MGR_CHK||null;
+  var CHK=MGR?MGR.CHECKLIST:[];
+  /** สถานะข้อ: "ok" ติ๊กแล้ว · "issue" ไม่ติ๊กแต่มีหมายเหตุ = ตรวจแล้วเจอปัญหา · "todo" ยังไม่ตรวจ */
+  function itemState(k,c,n){return MGR?MGR.itemState(k,c,n):"todo"}
+  function sumChk(c,n){return MGR?MGR.summarize(c,n):{ok:0,issue:0,todo:0,checked:0,total:CHK.length}}
 
   // ---- tabs ----
   document.querySelectorAll(".nav button").forEach(function(b){
@@ -361,13 +399,15 @@
   document.querySelectorAll(".tr .h").forEach(function(h){h.addEventListener("click",function(){h.parentNode.classList.toggle("open")})});
 
   // ====== state ======
-  var state={ chk:{checks:{},pallet:"",photos:[]}, team:[], trucks:[], tasks:[], chkReady:false, teamReady:false, truckReady:false, taskReady:false };
+  var state={ chk:{checks:{},notes:{},pallet:"",photos:[]}, team:[], trucks:[], tasks:[], chkReady:false, teamReady:false, truckReady:false, taskReady:false };
   function setSync(txt,cls){var s=$("sync");s.style.background=cls||"rgba(255,255,255,.16)";$("synct").textContent=txt}
   var SYNC_OK="rgba(23,166,106,.45)", SYNC_BAD="rgba(216,53,42,.5)";
 
   /** เปิดรูปที่แนบดูเต็มจอ (โมดัลตัวเดียวกับ "บันทึกเป็นรูป") */
   function openImg(src){ var w=$("imgwrap"); w.innerHTML=""; var im=new Image(); im.src=src; w.appendChild(im); $("imgmodal").classList.add("on"); }
   function curPhotos(){return (state.chk&&Array.isArray(state.chk.photos))?state.chk.photos.slice():[]}
+  /** สำเนาหมายเหตุ { คีย์ข้อ: ข้อความ } — คืนสำเนาเสมอ (กันแก้ state ตรงๆ แล้วถอยกลับไม่ได้) */
+  function curNotes(){return (state.chk&&state.chk.notes&&typeof state.chk.notes==="object")?Object.assign({},state.chk.notes):{}}
   function photosCount(){return curPhotos().length}
   var MAX_PHOTOS=3;
 
@@ -388,27 +428,72 @@
   }
   function removePhoto(i){
     var p=curPhotos(); p.splice(i,1);
-    writeChk({checks:curChecks(),pallet:(state.chk&&state.chk.pallet)||"",photos:p});
+    writeChk({photos:p});
   }
 
+  /* 📝 หมายเหตุรายข้อ (ภูม 2026-11-21)
+   * ภูม: *"ถ้าสมมุติมันเกิดปัญหาหละ คือไม่ต้องติ๊กหรือไง … ให้ทำเป็นหมายเหตุไว้ได้ไหม
+   *        อย่างวันนี้มีคนขับรถชนตัวกั้นชั้นวางบุบ ตรงช่องติ๊กชั้นวางมันควรมีให้ใส่หมายเหตุด้วย"*
+   * ⇒ เจอปัญหา = **เขียนหมายเหตุ** แล้วถือว่า "ตรวจแล้ว" (ไม่ใช่ปล่อยว่างให้ดูเหมือนลืมตรวจ)
+   *   noteOpen = ข้อที่กำลังเปิดช่องพิมพ์ (ทีละข้อ) · noteDraft = ที่พิมพ์ค้างไว้
+   *   🪤 ต้องเก็บ draft ไว้ เพราะ renderChecklist วาดใหม่ทั้งรายการทุกครั้งที่บันทึก */
+  var noteOpen=null, noteDraft=null;
+
   function renderChecklist(){
-    var cl=$("checklist"); cl.innerHTML="";
-    var checks=(state.chk&&state.chk.checks)||{}, pallet=(state.chk&&state.chk.pallet)||"";
+    var cl=$("checklist"); if(!cl) return;
+    if(!MGR||!CHK.length){
+      cl.innerHTML='<div class="empty" style="color:var(--danger)">โหลดรายการเช็คลิสต์ไม่ได้ — ลองรีเฟรชหน้าอีกครั้ง (ยังไม่ขึ้นให้แจ้งภูม)</div>';
+      $("prog").textContent="—"; return;
+    }
+    cl.innerHTML="";
+    var checks=curChecks(), notes=curNotes(), pallet=(state.chk&&state.chk.pallet)||"";
     CHK.forEach(function(it){
-      var done=!!checks[it.k];
-      var row=document.createElement("div"); row.className="chk"+(done?" done":"");
-      var inner='<div class="box"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></svg></div>';
-      if(it.num){
-        inner+='<div style="min-width:0"><div class="txt">'+it.t+'</div><div class="hint" style="display:flex;align-items:center;gap:6px;margin-top:4px">นับได้ <input class="num" id="palletn" type="number" inputmode="numeric" placeholder="42" value="'+esc(pallet)+'"> พาเลท</div></div>';
-      } else { inner+='<div class="txt">'+it.t+'</div>'; }
-      row.innerHTML=inner;
-      row.addEventListener("click",function(e){ if(e.target.tagName==="INPUT")return; toggleChk(it.k); });
+      var st=itemState(it.k,checks,notes), note=String(notes[it.k]||"").trim(), open=(noteOpen===it.k);
+      var row=document.createElement("div");
+      row.className="chk"+(st==="ok"?" done":"")+(st==="issue"?" issue":"");
+      var h='<div class="box"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></svg></div>'
+        +'<div class="body"><div class="txt">'+it.t+'</div>';
+      if(it.num) h+='<div class="hint" style="display:flex;align-items:center;gap:6px;margin-top:4px">นับได้ <input class="num" id="palletn" type="number" inputmode="numeric" placeholder="42" value="'+esc(pallet)+'"> พาเลท</div>';
+      if(note&&!open) h+='<div class="note"><b>หมายเหตุ</b>'+esc(note)+'</div>';
+      if(open){
+        var draft=(noteDraft===null?note:noteDraft);
+        h+='<div class="noteed"><textarea id="notetx" maxlength="300" placeholder="เกิดอะไรขึ้น เช่น คนขับรถชนตัวกั้น ชั้นวางบุบ 1 ช่อง แจ้งช่างแล้ว">'+esc(draft)+'</textarea>'
+          +'<div class="r"><button type="button" class="go" id="notesave">บันทึกหมายเหตุ</button>'
+          +'<button type="button" id="notecancel">ยกเลิก</button>'
+          +(note?'<button type="button" class="del" id="notedel">ลบหมายเหตุ</button>':'')+'</div></div>';
+      }
+      h+='</div><button type="button" class="nbtn'+(note?' has':'')+'">'+(note?'📝 แก้':'📝 หมายเหตุ')+'</button>';
+      row.innerHTML=h;
+      row.addEventListener("click",function(e){
+        /* 🪤 ปุ่มหมายเหตุกับช่องพิมพ์อยู่ในแถวที่กดแล้วติ๊ก ⇒ ต้องกันไม่ให้ติ๊กตามไปด้วย */
+        if(e.target.closest&&e.target.closest(".noteed")) return;
+        if(e.target.closest&&e.target.closest(".nbtn")){ noteDraft=null; noteOpen=open?null:it.k; renderChecklist(); return; }
+        if(e.target.tagName==="INPUT") return;
+        toggleChk(it.k);
+      });
       cl.appendChild(row);
     });
     var pn=$("palletn");
     if(pn) pn.addEventListener("change",function(){ savePallet(pn.value.trim()); });
-    var done=Object.keys(checks).filter(function(k){return checks[k]}).length;
-    $("prog").innerHTML="เช็คแล้ว <b>"+done+"</b>/"+CHK.length+" รายการ · วันนี้";
+    if(noteOpen){
+      var tx=$("notetx");
+      if(tx){ tx.addEventListener("input",function(){ noteDraft=tx.value; }); tx.focus(); }
+      var sv=$("notesave"); if(sv) sv.addEventListener("click",function(){ saveNote(noteOpen,tx?tx.value:""); });
+      var cc=$("notecancel"); if(cc) cc.addEventListener("click",function(){ noteDraft=null; noteOpen=null; renderChecklist(); });
+      var dl=$("notedel"); if(dl) dl.addEventListener("click",function(){ saveNote(noteOpen,""); });
+    }
+    var sm=sumChk(checks,notes);
+    $("prog").innerHTML="ตรวจแล้ว <b>"+sm.checked+"</b>/"+sm.total+" รายการ"
+      +(sm.issue?' · <b style="color:var(--amber)">⚠ มีปัญหา '+sm.issue+" ข้อ</b>":"")+" · วันนี้";
+  }
+
+  /** ข้อความว่าง = ลบหมายเหตุข้อนั้น (ตัวเขียนฝั่งเซิร์ฟเวอร์คิดกติกาเดียวกัน) */
+  function saveNote(k,v){
+    if(!k) return;
+    var n=curNotes(), t=String(v==null?"":v).trim();
+    if(t) n[k]=t.slice(0,300); else delete n[k];
+    noteDraft=null; noteOpen=null;
+    writeChk({notes:n});
   }
   function curChecks(){return (state.chk&&state.chk.checks)?Object.assign({},state.chk.checks):{}}
 
@@ -434,13 +519,21 @@
       el.appendChild(b);
     }
   }
-  function writeChk(next){
+  /* 🔑 รับเป็น "เฉพาะช่องที่เปลี่ยน" — ช่องที่ไม่ส่งมาคงค่าเดิมเสมอ
+     (เดิมผู้เรียกต้องกรอกครบทุกช่อง ⇒ พอเพิ่ม notes เข้ามา ลืมส่งที่ไหนที่หนึ่ง = หมายเหตุหายเงียบ) */
+  function writeChk(patch){
     if(!chkGood) chkGood=state.chk;
-    var body={checks:next.checks||{},pallet:next.pallet||"",photos:Array.isArray(next.photos)?next.photos:curPhotos()};
+    var p=patch||{}, cur=state.chk||{};
+    var body={
+      checks:p.checks!==undefined?p.checks:curChecks(),
+      notes:p.notes!==undefined?p.notes:curNotes(),
+      pallet:p.pallet!==undefined?(p.pallet||""):(cur.pallet||""),
+      photos:p.photos!==undefined?(Array.isArray(p.photos)?p.photos:[]):curPhotos()
+    };
     state.chk=body; renderChecklist(); renderPhotos(); renderHome();
     var my=++chkSeq;
     setSaveBar("กำลังบันทึก…");
-    api("/checklist",{day:TODAY,checks:body.checks,pallet:body.pallet,photos:body.photos})
+    api("/checklist",{day:TODAY,checks:body.checks,notes:body.notes,pallet:body.pallet,photos:body.photos})
       .then(function(){ chkGood=body; if(my===chkSeq){ setSaveBar("บันทึกแล้ว "+thTime(new Date())); histDirty=true; } })
       .catch(function(e){
         if(my!==chkSeq) return;                      /* มีการติ๊กใหม่แล้ว - อย่าถอยทับของใหม่ */
@@ -449,8 +542,8 @@
         toast(errMsg(e));
       });
   }
-  function toggleChk(k){var c=curChecks(); if(c[k])delete c[k];else c[k]=true; writeChk({checks:c,pallet:(state.chk&&state.chk.pallet)||"",photos:curPhotos()});}
-  function savePallet(v){writeChk({checks:curChecks(),pallet:v,photos:curPhotos()});}
+  function toggleChk(k){var c=curChecks(); if(c[k])delete c[k];else c[k]=true; writeChk({checks:c});}
+  function savePallet(v){writeChk({pallet:v});}
 
   // ====== ทีม + โน้ตประเมิน ======
   var selTeam=null, notesData=[], notesReady=false;
@@ -616,9 +709,9 @@
   }
 
   function renderHome(){
-    var checks=(state.chk&&state.chk.checks)||{};
-    var cdone=Object.keys(checks).filter(function(k){return checks[k]}).length;
-    $("h-chk").textContent=state.chkReady?(cdone+"/"+CHK.length):"—";
+    /* 🔑 นับ "ตรวจแล้ว" = ติ๊ก + ข้อที่เขียนหมายเหตุไว้ (เจอปัญหาก็คือตรวจแล้ว) */
+    var checks=curChecks(), notes=curNotes(), sm=sumChk(checks,notes);
+    $("h-chk").textContent=state.chkReady?(sm.checked+"/"+sm.total):"—";
     var pend=state.tasks.filter(function(t){return !t.done}).length;
     $("h-task").textContent=state.taskReady?pend:"—";
     $("h-truck").textContent=state.truckReady?state.trucks.length:"—";
@@ -626,7 +719,12 @@
     var td=$("home-todo"); var items=[];
     state.tasks.filter(function(t){return !t.done}).slice(0,4).forEach(function(t){items.push({c:"var(--amber)",t:t.body,s:"งานผู้จัดการ"});});
     state.trucks.filter(function(t){return !t.license_photo}).slice(0,2).forEach(function(t){items.push({c:"var(--danger)",t:"รถ "+(t.name||"")+" ยังไม่ลงใบขับขี่",s:"ทะเบียนรถ"});});
-    if(state.chkReady && cdone<CHK.length) items.push({c:"var(--blue)",t:"เช็คลิสต์ความปลอดภัยยังไม่ครบ ("+cdone+"/"+CHK.length+")",s:"ก่อนเลิกงาน"});
+    /* ข้อที่เขียนหมายเหตุไว้ = เรื่องที่ต้องตามต่อจริง (ชั้นวางบุบ ฯลฯ) ⇒ ขึ้นให้เห็นบนหน้าหลัก */
+    CHK.forEach(function(it){
+      var n=String(notes[it.k]||"").trim();
+      if(n) items.push({c:"var(--amber)",t:it.t.split(" — ")[0]+": "+n,s:"หมายเหตุเช็คลิสต์วันนี้"});
+    });
+    if(state.chkReady && sm.todo) items.push({c:"var(--blue)",t:"เช็คลิสต์ความปลอดภัยยังไม่ครบ ("+sm.checked+"/"+sm.total+")",s:"ก่อนเลิกงาน"});
     if(!state.taskReady&&!state.truckReady){ td.innerHTML='<div class="empty">กำลังโหลด…</div>'; return; }
     if(!items.length){ td.innerHTML='<div class="empty">เคลียร์หมดแล้ว 👍</div>'; return; }
     td.innerHTML="";
@@ -638,14 +736,21 @@
   }
 
   // ---- checklist copy / image (ทำจาก state ปัจจุบัน) ----
-  function doneItems(){ var checks=(state.chk&&state.chk.checks)||{}; return CHK.filter(function(it){return checks[it.k]}); }
   function palletVal(){ return (state.chk&&state.chk.pallet)||""; }
+  /* ข้อความที่ก็อปไปวางในไลน์ — ข้อที่ยังไม่ได้ตรวจไม่ติดไป · ข้อที่มีหมายเหตุติดไปพร้อมหมายเหตุ */
   function checkedText(){
-    var items=doneItems(), pv=palletVal(), ph=photosCount();
-    var L=["✅ เช็คลิสต์ความปลอดภัยโกดัง Pacred","📅 "+thDate(now)+" · "+thTime(now),"👤 ผู้ตรวจ: หัวหน้าภูมิ","","ผ่านแล้ว "+items.length+"/"+CHK.length+" รายการ"];
-    items.forEach(function(it){L.push("✓ "+it.t)});
+    var checks=curChecks(), notes=curNotes(), sm=sumChk(checks,notes), pv=palletVal(), ph=photosCount();
+    var L=["✅ เช็คลิสต์ความปลอดภัยโกดัง Pacred","📅 "+thDate(now)+" · "+thTime(now),"👤 ผู้ตรวจ: หัวหน้าภูมิ","","ตรวจแล้ว "+sm.checked+"/"+sm.total+" รายการ"];
+    CHK.forEach(function(it){
+      var st=itemState(it.k,checks,notes), n=String(notes[it.k]||"").trim();
+      if(st==="todo") return;
+      L.push((st==="ok"?"✓ ":"⚠️ ")+it.t);
+      if(n) L.push("   ↳ "+n);
+    });
     if(pv)L.push("• นับพาเลทได้ "+pv+" พาเลท");
+    if(sm.todo)L.push("• ยังไม่ได้ตรวจ "+sm.todo+" รายการ");
     if(ph)L.push("","📎 แนบรูปหลักฐาน "+ph+" รูป");
+    if(shareUrl())L.push("","🔗 เปิดดูพร้อมรูปหลักฐาน:",shareUrl());
     return L.join("\n");
   }
   $("copytext").addEventListener("click",function(){
@@ -654,12 +759,17 @@
     else toast("คัดลอกไม่ได้บนเครื่องนี้");
   });
   function buildReport(){
-    var items=doneItems(), pv=palletVal(), ph=curPhotos();
+    var checks=curChecks(), notes=curNotes(), sm=sumChk(checks,notes), pv=palletVal(), ph=curPhotos();
     var h='<div style="font-weight:800;font-size:16px;color:#B30000">เช็คลิสต์ความปลอดภัยโกดัง Pacred</div>'+
       '<div style="font-size:12.5px;color:#6b7280;margin:5px 0 1px">'+thDate(now)+' · '+thTime(now)+'</div>'+
       '<div style="font-size:12.5px;color:#6b7280;margin-bottom:11px">ผู้ตรวจ: หัวหน้าภูมิ</div>'+
-      '<div style="font-weight:700;margin-bottom:7px">ผ่านแล้ว '+items.length+'/'+CHK.length+' รายการ</div>';
-    items.forEach(function(it){h+='<div style="font-size:13.5px;margin:5px 0;color:#17a66a;font-weight:700">✓ <span style="color:#1f2430;font-weight:400">'+esc(it.t)+'</span></div>'});
+      '<div style="font-weight:700;margin-bottom:7px">ตรวจแล้ว '+sm.checked+'/'+sm.total+' รายการ'+(sm.issue?' · มีปัญหา '+sm.issue+' ข้อ':'')+'</div>';
+    CHK.forEach(function(it){
+      var st=itemState(it.k,checks,notes), n=String(notes[it.k]||"").trim();
+      if(st==="todo") return;
+      h+='<div style="font-size:13.5px;margin:5px 0;color:'+(st==="ok"?"#17a66a":"#e08a00")+';font-weight:700">'+(st==="ok"?"✓":"!")+' <span style="color:#1f2430;font-weight:400">'+esc(it.t)+'</span></div>';
+      if(n) h+='<div style="font-size:12.5px;margin:0 0 6px 14px;padding:6px 9px;background:#fdf2df;border-left:3px solid #e08a00;color:#7a4a00;white-space:pre-wrap">'+esc(n)+'</div>';
+    });
     if(pv)h+='<div style="font-size:13.5px;margin:7px 0 0;font-weight:700">• นับพาเลทได้ '+esc(pv)+' พาเลท</div>';
     if(ph.length){h+='<div style="font-weight:700;margin:12px 0 6px;font-size:13.5px">รูปหลักฐาน ('+ph.length+')</div><div style="display:flex;gap:6px;flex-wrap:wrap">';ph.forEach(function(s){h+='<img src="'+s+'" style="width:78px;height:78px;object-fit:cover;border-radius:8px;border:1px solid #eceef2">'});h+='</div>';}
     $("report").innerHTML=h;
@@ -683,9 +793,47 @@
     if(room<=0){ toast("แนบได้ไม่เกิน "+MAX_PHOTOS+" รูปต่อวัน"); return; }
     if(files.length>room){ toast("แนบได้อีก "+room+" รูป (เกินนั้นไม่ถูกแนบ)"); files=files.slice(0,room); }
     Promise.all(files.map(function(f){return compressImage(f,1000,0.6)}))
-      .then(function(urls){ writeChk({checks:curChecks(),pallet:(state.chk&&state.chk.pallet)||"",photos:curPhotos().concat(urls)}); })
+      .then(function(urls){ writeChk({photos:curPhotos().concat(urls)}); })
       .catch(function(){ toast("แนบรูปไม่สำเร็จ") });
   });
+
+  /* ══ 🔗 ลิงก์ส่งเจ้านาย (ภูม 2026-11-21) ══════════════════════════
+   * ภูม: *"กดออกลิงค์ฟอร์มลิสที่ตรวจไปส่งพี่ป๊อปได้ พี่ป๊อปสามารถกดดูรูปที่แนบเป็นหลักฐานได้ด้วย
+   *        เพราะตอนนี้มันเป็น ข้อความ กับ รูปภาพ มันเลยดูรูปที่เราแนบไปด้วยในลิสไม่ได้"*
+   *
+   * 🔒 ลิงก์ใช้ **โทเคนของวันนั้น** ไม่ใช่คีย์หัวหน้า ⇒ เปิดได้แค่เช็คลิสต์วันนี้ อ่านอย่างเดียว
+   * 🔑 โทเคนของวันนี้มาพร้อม bootstrap อยู่แล้ว (ไม่ต้องยิงถามเพิ่มตอนเปิดหน้า)
+   * 🔑 "ออกลิงก์ใหม่" = เปลี่ยนโทเคน ⇒ ลิงก์เดิมตายทันที (ใช้เป็นปุ่มปิดลิงก์ที่หลุดไปแล้ว)
+   */
+  var shareTok="", shareBusy=false;
+  function shareUrl(){ return shareTok?(location.origin+"/manager/r/"+encodeURIComponent(shareTok)):""; }
+  function renderShare(){
+    var el=$("sharebody"); if(!el) return;
+    if(shareBusy){ el.innerHTML='<div class="hint" style="margin-top:9px">กำลังทำลิงก์…</div>'; return; }
+    if(!shareTok){
+      el.innerHTML='<div class="r"><button type="button" class="go" id="shmake">ออกลิงก์ส่งเจ้านาย</button></div>';
+      $("shmake").addEventListener("click",function(){ callShare("/share?day="+encodeURIComponent(TODAY),null,"ได้ลิงก์แล้ว — กดคัดลอกไปวางในไลน์"); });
+      return;
+    }
+    var u=shareUrl();
+    el.innerHTML='<a class="u" href="'+esc(u)+'" target="_blank" rel="noopener">'+esc(u)+'</a>'
+      +'<div class="r"><button type="button" class="go" id="shcopy">คัดลอกลิงก์</button>'
+      +'<button type="button" id="shnew">ออกลิงก์ใหม่</button></div>';
+    $("shcopy").addEventListener("click",function(){
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function(){toast("คัดลอกลิงก์แล้ว — วางส่งในไลน์ได้เลย")},function(){toast("คัดลอกไม่ได้")});
+      else toast("คัดลอกไม่ได้บนเครื่องนี้ — กดค้างที่ลิงก์เพื่อก็อปเอง");
+    });
+    $("shnew").addEventListener("click",function(){
+      if(!confirm("ออกลิงก์ใบใหม่?\n\nลิงก์เดิมที่ส่งไปแล้วจะใช้ไม่ได้ทันที")) return;
+      callShare("/share/new",{day:TODAY},"ออกลิงก์ใหม่แล้ว — ลิงก์เดิมใช้ไม่ได้แล้ว");
+    });
+  }
+  function callShare(path,body,okMsg){
+    shareBusy=true; renderShare();
+    var p=(body===null)?api(path):api(path,body);
+    p.then(function(d){ shareBusy=false; shareTok=(d&&d.token)||""; renderShare(); toast(okMsg); })
+     .catch(function(e){ shareBusy=false; renderShare(); toast(errMsg(e)); });
+  }
 
   /* ══ 🕘 ประวัติย้อนหลัง (ภูม 2026-11-21 *"มีประวัติให้กลับไปย้อนดูได้"*) ═════════
    * ลิสต์โหลดเฉพาะ **สรุปต่อวัน** (วัน · ติ๊กกี่ข้อ · พาเลท · ใครบันทึก)
@@ -704,7 +852,8 @@
     rows.forEach(function(d){
       var r=document.createElement("div"); r.className="hrow";
       r.innerHTML='<div class="hd"><div class="hn">'+esc(thDayKey(d.day))+'</div>'
-        +'<div class="hs">เช็คแล้ว '+d.done+'/'+CHK.length+' รายการ'
+        +'<div class="hs">ตรวจแล้ว '+(d.checked==null?d.done:d.checked)+'/'+(d.total||CHK.length)+' รายการ'
+        +(d.issues?(' · ⚠ มีปัญหา '+d.issues+' ข้อ'):'')
         +(d.pallet?(' · '+esc(d.pallet)+' พาเลท'):'')
         +(d.updated_by?(' · '+esc(d.updated_by)):'')+'</div></div>'
         +'<svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
@@ -715,8 +864,12 @@
         var det=histDetail[d.day];
         if(!det){ b.textContent="กำลังโหลด…"; }
         else {
-          var c=det.checks||{};
-          var ul=CHK.map(function(it){ return '<li>'+(c[it.k]?"✅":"⬜")+' '+esc(it.t)+'</li>'; }).join("");
+          var c=det.checks||{}, dn=(det.notes&&typeof det.notes==="object")?det.notes:{};
+          var ul=CHK.map(function(it){
+            var st=itemState(it.k,c,dn), n=String(dn[it.k]||"").trim();
+            return '<li>'+(st==="ok"?"✅":st==="issue"?"⚠️":"⬜")+' '+esc(it.t)
+              +(n?'<div class="note" style="margin:4px 0 6px 18px">'+esc(n)+'</div>':'')+'</li>';
+          }).join("");
           b.innerHTML='<ul style="margin:8px 0 0;padding-left:2px;list-style:none">'+ul+'</ul>';
           var ph=Array.isArray(det.photos)?det.photos:[];
           if(ph.length){
@@ -767,17 +920,18 @@
   $("taskadd").addEventListener("click",addTask); $("taskin").addEventListener("keydown",function(e){if(e.key==="Enter")addTask()});
 
   // initial renders (loading state)
-  renderChecklist(); renderHome();
+  renderChecklist(); renderShare(); renderHome();
 
   // ====== โหลดข้อมูลทีเดียวตอนเปิด ======
   var loadTimer=setTimeout(function(){ if(!state.chkReady){ setSync("เชื่อมช้า…",SYNC_BAD); } },10000);
   function markAllReady(){ state.chkReady=state.teamReady=state.truckReady=state.taskReady=true; }
-  function renderAll(){ renderChecklist(); renderPhotos(); renderTeam(); renderTrucks(); renderTasks(); renderHome(); }
+  function renderAll(){ renderChecklist(); renderPhotos(); renderShare(); renderTeam(); renderTrucks(); renderTasks(); renderHome(); }
 
   api("/bootstrap?day="+encodeURIComponent(TODAY)).then(function(d){
     clearTimeout(loadTimer);
     var cl=d.checklist||{};
-    state.chk={checks:(cl.checks&&typeof cl.checks==="object")?cl.checks:{}, pallet:cl.pallet||"", photos:Array.isArray(cl.photos)?cl.photos:[]};
+    state.chk={checks:(cl.checks&&typeof cl.checks==="object")?cl.checks:{}, notes:(cl.notes&&typeof cl.notes==="object")?cl.notes:{}, pallet:cl.pallet||"", photos:Array.isArray(cl.photos)?cl.photos:[]};
+    shareTok=cl.share_token||"";                    /* มีลิงก์ของวันนี้อยู่แล้ว = โชว์ใบเดิม */
     chkGood=state.chk;                              /* ของที่เพิ่งโหลดมา = ของจริงในฐาน */
     if(cl.updated_at) setSaveBar("บันทึกล่าสุด "+thTime(new Date(cl.updated_at))+(cl.updated_by?(" · "+cl.updated_by):""));
     state.team=d.team||[]; state.trucks=d.trucks||[]; state.tasks=d.tasks||[];

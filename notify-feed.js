@@ -216,10 +216,15 @@ function planNotifications(feed, staff, isNew, templates) {
       const fresh = sec.rows.filter((r) => isNew(`${sec.key}|${person.login}|${idOf(r)}`));
       if (fresh.length === 0) continue;
 
+      /* 🔢 ภูม 2026-11-21 — หัวข้อต้องบอก **ทั้งคิว** ไม่ใช่จำนวนตัวอย่างที่เว็บส่งมา
+            เว็บส่ง total = คิวจริง · rows = ตัวอย่างไม่กี่แถว (หมวดงานทีมระบบคิวยาวเป็นร้อยได้)
+            🔴 เดิมนับจากแถวที่ส่งมา ⇒ คิว 500 ขึ้นหัวว่า "10 แทรค" ⇒ อ่านแล้วนึกว่าเหลือน้อย ไว้ก่อน
+            หมวดที่เว็บไม่ได้ส่ง total มา (บัญชี · โกดัง) = นับจากแถวเหมือนเดิมทุกตัวอักษร */
+      const queueTotal = typeof sec.total === "number" ? Math.max(sec.total, fresh.length) : fresh.length;
       const shown = fresh.slice(0, MAX_ROWS_PER_MESSAGE);
       out.push({
         lineUserId: person.line_user_id,
-        text: renderNotification(sec.key, shown, tplOf(sec.key), fresh.length - shown.length),
+        text: renderNotification(sec.key, shown, tplOf(sec.key), queueTotal - shown.length, queueTotal),
         keys: fresh.map((r) => `${sec.key}|${person.login}|${idOf(r)}`),
       });
     }

@@ -179,5 +179,42 @@ ok("🗂 หมวดในทะเบียนบอท ต้องตรง�
   }
 });
 
+
+/* ══ 🔢 หัวข้อต้องบอกจำนวน "ทั้งคิว" ไม่ใช่จำนวนตัวอย่างที่เว็บส่งมา (ภูม 2026-11-21) ══
+ * เว็บส่ง total = คิวจริง · rows = ตัวอย่างไม่กี่แถว ⇒ เดิมหัวข้อบอกน้อยกว่าความจริง
+ * 🔴 คิว 500 ขึ้นหัวว่า "10 แทรค" ⇒ คนอ่านนึกว่าเหลือน้อย เลยไว้ก่อน
+ */
+ok("🔢 หมวดทีมระบบ: หัวข้อนับทั้งคิว (500) ไม่ใช่ตัวอย่างที่ส่งมา (3)", () => {
+  const feed = { itdt: { tracksStuck: [
+    { service: "แทรครออัพเข้าระบบ", ref: "YT001", label: "รอน้ำหนัก" },
+    { service: "แทรครออัพเข้าระบบ", ref: "YT002", label: "รอน้ำหนัก" },
+    { service: "แทรครออัพเข้าระบบ", ref: "YT003", label: "รอขนาด" },
+  ], tracksStuckTotal: 500 } };
+  const [msg] = planNotifications(feed, [BAM], allNew, null);
+  assert.ok(msg, "ต้องมีข้อความ");
+  const head = msg.text.split(String.fromCharCode(10))[0];
+  assert.ok(head.includes("500"), "หัวข้อต้องบอก 500 — ได้: " + head);
+  assert.ok(!head.includes("3 แทรค"), "ห้ามบอกจำนวนตัวอย่าง");
+  assert.ok(msg.text.includes("อีก 497"), "ท้ายต้องบอกส่วนที่เหลือ 497");
+});
+
+ok("หมวดบัญชี (เว็บไม่ส่ง total) นับจากแถวเหมือนเดิมทุกตัวอักษร", () => {
+  const feed = { accounting: { slipReview: [
+    { service: "ฝากโอน", ref: "Y1", label: "รอตรวจ" },
+    { service: "ฝากโอน", ref: "Y2", label: "รอตรวจ" },
+  ] } };
+  const [msg] = planNotifications(feed, [BAM], allNew, null);
+  assert.ok(msg.text.split(String.fromCharCode(10))[0].includes("2"), "ต้องนับ 2 ตามแถวที่มี");
+});
+
+ok("total เพี้ยนต่ำกว่าแถวที่ส่งมา = ไม่ทำให้เลขหายไป", () => {
+  const feed = { itdt: { lotsMissing: [
+    { service: "ของขาด", ref: "A", label: "ขาด 1 กล่อง" },
+    { service: "ของขาด", ref: "B", label: "ขาด 2 กล่อง" },
+  ], lotsMissingTotal: 0 } };
+  const [msg] = planNotifications(feed, [BAM], allNew, null);
+  assert.ok(msg.text.split(String.fromCharCode(10))[0].includes("2"), "ต้องไม่ขึ้น 0 ทั้งที่มี 2 แถว");
+});
+
 console.log("\nรวม: " + pass + " ผ่าน" + (fail ? " · " + fail + " ตก" : ""));
 process.exit(fail ? 1 : 0);

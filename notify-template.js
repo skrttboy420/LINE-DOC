@@ -103,15 +103,20 @@ function fill(tpl, vars) {
   return String(tpl || "").replace(/\{[^{}]+\}/g, (m) => (m in vars ? String(vars[m]) : m));
 }
 
-/** ค่าที่ใช้เติมหัวข้อ */
-function headVars(kind, rows) {
+/**
+ * ค่าที่ใช้เติมหัวข้อ
+ *
+ * 🔢 total = จำนวน **ทั้งคิว** ที่เว็บส่งมา (หมวดงานทีมระบบ) — ไม่ส่งมาก็นับจากแถวที่มี
+ *    หมวดพวกนั้นเว็บส่งแค่ตัวอย่างไม่กี่แถว ⇒ ถ้านับจากแถว หัวข้อจะบอกน้อยกว่าความจริง
+ */
+function headVars(kind, rows, total) {
   if (kind === "arrival") {
     return {
       "{จำนวน}": rows.reduce((a, r) => a + Number(r.pieces || 0), 0),
       "{ลูกค้า}": rows.length,
     };
   }
-  return { "{จำนวน}": rows.length };
+  return { "{จำนวน}": typeof total === "number" && total > 0 ? total : rows.length };
 }
 
 /** ค่าที่ใช้เติมบรรทัดรายการ */
@@ -159,11 +164,11 @@ function templateOf(key, custom) {
  * @param {object|null} custom
  * @param {number} hidden  จำนวนที่ตัดทิ้งไป (บอกท้ายข้อความ)
  */
-function renderNotification(key, rows, custom, hidden) {
+function renderNotification(key, rows, custom, hidden, total) {
   const kind = KIND_OF[key];
   const tpl = templateOf(key, custom);
   if (!kind || !tpl || rows.length === 0) return "";
-  const out = [fill(tpl.head, headVars(kind, rows)), "━━━━━━━━━━━━"];
+  const out = [fill(tpl.head, headVars(kind, rows, total)), "━━━━━━━━━━━━"];
   for (const r of rows) out.push(fill(tpl.line, lineVars(kind, r)));
   if (hidden > 0) out.push(`… อีก ${hidden} รายการ`);
   return out.join("\n");

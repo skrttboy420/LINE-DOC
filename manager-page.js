@@ -15,24 +15,19 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const keyOf = (name) => (process.env[name] || "").trim();
+/* 🔗 หน้าลิงก์ "ดูอย่างเดียว" ที่ส่งให้เจ้านาย (ไม่ต้องใช้คีย์) — ดู manager-share.js */
+const { sharePage, shareDeadPage } = require("./manager-share");
 
-/** เทียบคีย์แบบไม่บอกใบ้ความยาว (แบบเดียวกับ warehouse-page) */
-function sameKey(given, want) {
-  return !!want && given.length === want.length && given === want;
-}
-
-/** "ok" | "no-key" (ยังไม่ตั้ง) | "bad-key" — รับได้ทั้ง MANAGER_KEY และ ADMIN_KEY */
-function checkKey(req) {
-  const mgr = keyOf("MANAGER_KEY"), admin = keyOf("ADMIN_KEY");
-  if (!mgr && !admin) return "no-key";
-  const given = String(req.query.key || req.get("x-manager-key") || "").trim();
-  if (sameKey(given, mgr) || sameKey(given, admin)) return "ok";
-  return "bad-key";
-}
-
-const NO_KEY_MSG =
-  "ยังไม่ได้ตั้ง MANAGER_KEY (หรือ ADMIN_KEY) ที่ Render — หน้าศูนย์จัดการโกดังถูกปิดไว้";
+/* 🔐 ทางเข้า (คีย์ → คุกกี้ → URL สะอาด) อยู่ที่ manager-auth.js ที่เดียว —
+      หน้านี้เก็บคะแนนประเมินพนักงาน ⇒ คีย์ต้องไม่ค้างใน URL/ประวัติ/ภาพหน้าจอ */
+const {
+  NO_KEY_MSG,
+  activeKey,
+  checkKey,
+  cameWithKey,
+  setSession,
+  signInPage,
+} = require("./manager-auth");
 
 /** อ่านไฟล์หน้าเว็บ — อ่านสดตอน dev · แคชตอนรันจริง (แบบเดียวกับ warehouse-page) */
 const pageCache = {};
@@ -40,6 +35,43 @@ function readPage(file) {
   if (process.env.NODE_ENV !== "production") return fs.readFileSync(path.join(__dirname, file), "utf8");
   if (!pageCache[file]) pageCache[file] = fs.readFileSync(path.join(__dirname, file), "utf8");
   return pageCache[file];
+}
+
+/* ── 📋 ฝังตัวเช็คลิสต์ลงหน้าเว็บ ──────────────────────────────────
+ *
+ * 🔑 ทั้ง **ข้อความ 10 ข้อ** และ **กติกาตัดสินสถานะ** (ผ่าน / มีหมายเหตุ / ยังไม่ตรวจ)
+ *    อยู่ใน manager-checklist.js ที่เดียว แล้วยก "ซอร์สจริง" ฝังเข้าหน้าเว็บตอนเสิร์ฟ
+ *    ⇒ จอของหัวหน้า กับ หน้าลิงก์ที่เจ้านายเปิด **นับด้วยโค้ดบรรทัดเดียวกัน**
+ *    (ถ้าก๊อปกติกาไว้ 2 ที่ วันไหนแก้ ตัวเลขบน 2 จอจะไม่ตรงกัน = เรื่องที่ภูมจับได้แน่)
+ * 🪤 หาเครื่องหมายไม่เจอ / แปลงซอร์สไม่ได้ = **พังเสียงดังทันที** ไม่ใช่ปล่อยให้เช็คลิสต์ว่างเงียบๆ
+ */
+const CHK_MARK = /\/\*__CHK_MODULE__\*\/[\s\S]*?\/\*__CHK_MODULE_END__\*\//;
+const EXPORT_LINE = /^module\.exports\s*=.*$/m;
+
+/** ซอร์สของ manager-checklist.js ที่รันในเบราว์เซอร์ได้ (ครอบ IIFE · ยิงออกทาง window.MGR_CHK) */
+function checklistBrowserSource() {
+  const src = fs.readFileSync(path.join(__dirname, "manager-checklist.js"), "utf8");
+  if (!EXPORT_LINE.test(src)) {
+    throw new Error("manager-checklist.js: หาบรรทัด module.exports ไม่เจอ — แปลงเป็นสคริปต์เบราว์เซอร์ไม่ได้");
+  }
+  const body = src.replace(EXPORT_LINE, "window.MGR_CHK = { CHECKLIST, CHECK_KEYS, itemState, summarize };");
+  return "(function(){\n" + body + "\n})();";
+}
+
+function injectChecklist(html) {
+  const out = html.replace(CHK_MARK, () => checklistBrowserSource());
+  if (out === html) {
+    throw new Error("manager.html: หาเครื่องหมาย __CHK_MODULE__ ไม่เจอ — เช็คลิสต์จะขึ้นเป็นหน้าว่าง");
+  }
+  return out;
+}
+
+/** ลิงก์เต็มของหน้าแชร์ — ไม่รู้โดเมน (รันในเครื่อง) = คืน "" แล้วให้จอต่อ origin เอง */
+function shareUrlOf(token) {
+  const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
+  /* 🪤 อย่าตั้งชื่อตัวแปรนี้ว่า path — จะไปบังโมดูล path ที่ไฟล์นี้ใช้อ่านไฟล์หน้าเว็บ */
+  const at = "/manager/r/" + encodeURIComponent(token);
+  return { token, path: at, url: base ? base + at : "" };
 }
 
 /**
@@ -55,9 +87,48 @@ function mountManager(app, manager) {
   app.get("/manager", (req, res) => {
     const k = checkKey(req);
     if (k === "no-key") return res.status(503).type("text/plain; charset=utf-8").send(NO_KEY_MSG);
-    if (k === "bad-key")
-      return res.status(401).type("text/plain; charset=utf-8").send("คีย์ไม่ถูกต้อง — ใส่ ?key=<คีย์> ท้าย URL");
-    res.type("html").send(readPage("manager.html"));
+    if (k === "bad-key") {
+      /* ใส่คีย์มาแล้วผิด = เตือน · ไม่ได้ใส่มาเลย = หน้ากรอกคีย์เฉยๆ (ไม่ใช่หน้า error) */
+      const tried = !!String(req.query.key || req.get("x-manager-key") || "").trim();
+      return res.status(tried ? 401 : 200).type("html").send(signInPage(tried));
+    }
+    /* 🔑 เข้าด้วย ?key=… ถูก ⇒ แลกเป็นคุกกี้ แล้วเด้งไป /manager เปล่าๆ
+          (คีย์หายจากช่อง URL · ประวัติเบราว์เซอร์ · ภาพหน้าจอ ตั้งแต่วินาทีแรก) */
+    if (cameWithKey(req)) {
+      setSession(res);
+      return res.redirect(302, "/manager");
+    }
+    res.type("html").send(injectChecklist(readPage("manager.html")));
+  });
+
+  /* หน้ากรอกคีย์ส่งมาที่นี่ — POST ⇒ คีย์ไม่ติดไปกับ URL เลย */
+  app.post("/manager/login", express.urlencoded({ extended: false }), (req, res) => {
+    if (!activeKey()) return res.status(503).type("text/plain; charset=utf-8").send(NO_KEY_MSG);
+    if (checkKey(req) !== "ok") return res.status(401).type("html").send(signInPage(true));
+    setSession(res);
+    res.redirect(302, "/manager");
+  });
+
+  /* ── 🔗 หน้าที่เจ้านายเปิด (ไม่ต้องใช้คีย์) ─────────────────────
+   *
+   * 🔒 ทางเข้าคือ **โทเคนของวันนั้น** ไม่ใช่คีย์หัวหน้า ⇒ เปิดได้แค่เช็คลิสต์วันเดียว อ่านอย่างเดียว
+   *    (คีย์หัวหน้าเปิดได้ทั้งแอป รวมคะแนนประเมินพนักงาน — ห้ามเอาไปทำลิงก์ส่งต่อ)
+   * 🔒 ห้ามให้ค้นเจอ/ถูกแคชตามพร็อกซี — ใส่หัวคำขอ noindex + no-store ทุกครั้ง
+   */
+  app.get("/manager/r/:token", async (req, res) => {
+    res.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.set("Cache-Control", "no-store, max-age=0");
+    res.set("Referrer-Policy", "no-referrer");
+    try {
+      const row = await manager.getShared(req.params.token);
+      /* ไม่เจอ = 404 + บอกว่าทำไม (มักเพราะหัวหน้าออกใบใหม่ทับ) */
+      if (!row) return res.status(404).type("html").send(shareDeadPage());
+      res.type("html").send(sharePage(row));
+    } catch (e) {
+      const msg = (e && e.message) || "เปิดลิงก์ไม่ได้";
+      res.status(/ยังไม่ได้ลงตาราง/.test(msg) ? 503 : 400)
+        .type("text/plain; charset=utf-8").send(msg);
+    }
   });
 
   /* ── ท่อข้อมูล (ทุกเส้นต้องผ่านคีย์) ───────────────────────────── */
@@ -103,7 +174,18 @@ function mountManager(app, manager) {
   /* เช็คลิสต์ */
   api("get", "/manager/api/checklist", async (req) => manager.getChecklist(req.query.day));
   api("post", "/manager/api/checklist", async (req) =>
-    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req)));
+    /* 🪤 ครั้งแรกลืมส่ง notes ต่อตรงนี้ ⇒ จอขึ้น "บันทึกแล้ว" แต่หมายเหตุไม่เคยถึงฐาน (รีหน้าแล้วหาย)
+          — เทส "หมายเหตุที่พิมพ์ต้องไปโผล่หน้าเจ้านาย" ใน manager-share.test.js กันไว้แล้ว */
+    manager.saveChecklist(req.body.day, req.body.checks, req.body.pallet, who(req), req.body.photos, req.body.notes));
+  /* ประวัติย้อนหลัง — สรุปต่อวัน (กดวันไหนค่อยเรียก /checklist?day= ของวันนั้น) */
+  api("get", "/manager/api/checklist/history", async (req) =>
+    ({ days: await manager.listChecklistDays(req.query.limit) }));
+
+  /* 🔗 ลิงก์ส่งเจ้านาย — มีอยู่แล้วใช้ใบเดิม · "ใบใหม่" = ใบเก่าใช้ไม่ได้ทันที */
+  api("get", "/manager/api/share", async (req) =>
+    shareUrlOf((await manager.ensureShareToken(req.query.day)).token));
+  api("post", "/manager/api/share/new", async (req) =>
+    shareUrlOf((await manager.rotateShareToken(req.body.day)).token));
 
   /* ทีม */
   api("get", "/manager/api/team", async () => ({ team: await manager.listTeam() }));
@@ -129,16 +211,22 @@ function mountManager(app, manager) {
   api("post", "/manager/api/task/delete", async (req) => manager.deleteTask(req.body.id));
 
   console.log(
-    keyOf("MANAGER_KEY") || keyOf("ADMIN_KEY")
-      ? "🧑‍💼 หน้าศูนย์จัดการโกดังเปิดอยู่ที่ /manager?key=…"
+    activeKey()
+      ? "🧑‍💼 หน้าศูนย์จัดการโกดังเปิดอยู่ที่ /manager (ใส่คีย์ครั้งแรกครั้งเดียว)"
       : "⚠️ ยังไม่ได้ตั้ง MANAGER_KEY/ADMIN_KEY — หน้าศูนย์จัดการโกดังปิดอยู่",
   );
 }
 
-/** ลิงก์หน้าศูนย์จัดการโกดัง (พากุญแจไปด้วย) — "" = เปิดไม่ได้ · ใช้ทำปุ่มในบอท */
+/**
+ * ลิงก์หน้าศูนย์จัดการโกดัง — "" = เปิดไม่ได้ · ใช้ทำปุ่มในบอท
+ *
+ * 🔑 ยังพาคีย์ไปด้วย เพื่อให้กดจากไลน์แล้วเข้าได้เลยครั้งแรก — แต่พอถึงหน้าแล้ว
+ *    ระบบแลกเป็นคุกกี้ทันทีและเด้งไป /manager เปล่าๆ ⇒ คีย์ไม่ค้างในประวัติ/ภาพหน้าจอ
+ *    (ตัวลิงก์ในข้อความไลน์ยังมีคีย์อยู่ ⇒ อย่าส่งต่อข้อความนั้นให้คนนอก)
+ */
 function managerLink() {
   const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
-  const key = keyOf("MANAGER_KEY") || keyOf("ADMIN_KEY");
+  const key = activeKey();
   if (!base || !key) return "";
   return base + "/manager?key=" + encodeURIComponent(key);
 }

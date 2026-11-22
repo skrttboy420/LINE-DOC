@@ -47,6 +47,11 @@ const NOTIFY_CATEGORIES = [
      งานอัพแทรคเข้าระบบ มีแทรคค้างอยู่กี่แทรค (พร้อมบอกเหตุผลด้วย เช่น ข้อมูลไม่ครบ)"* */
   { key: "hs_pending",  group: "🧰 ทีมระบบ",   label: "ออเดอร์รอตอบพิกัด",           scope: "all",      unit: "ใบ" },
   { key: "track_stuck", group: "🧰 ทีมระบบ",   label: "แทรครออัพเข้าระบบ",           scope: "all",      unit: "แทรค" },
+  /* 🎲 แทรคที่ cron ไม่อัพให้เอง (ภูม 2026-11-06 ฝั่งเว็บ · ต่อเข้าบอท 2026-11-21) — เลขสุ่มเสี่ยง
+     (เลขไม่เป็นรูปแทรค · ซ้ำกับของคนอื่น ฯลฯ) ระบบเลยไม่กล้าอัพให้ ⇒ **ของยังไม่เข้าระบบ**
+     รออยู่ในคิวนำเข้าให้คนตรวจแล้วกดเอง · คนละเรื่องกับ track_stuck (อันนั้นรอน้ำหนัก/ขนาด)
+     🔴 ท่อฝั่งเว็บส่งมาตั้งแต่ 06/11 แต่บอทไม่มีหมวดรับ ⇒ ไม่เคยเด้งหาใครเลย */
+  { key: "risky_tracks", group: "🧰 ทีมระบบ",  label: "แทรคที่ระบบไม่อัพให้เอง",     scope: "all",      unit: "แทรค" },
   /* 🔴 ของหาย (ภูม 2026-10-28) — *"แทรคกิ้งมันตกหล่นไปได้ยังไง … แทรค -4 และ -5 หายไป"*
      เคสที่ธงชี้ถูกแต่แถวแม่ถูกเขียนทับด้วยค่าของล็อตลูก ⇒ คิวไม่เห็น + เก็บเงินขาดเงียบ ๆ
      ⇒ ภูมสั่ง: *"ถ้าเจอปุ๊ปก็แจ้งเตือนมาเลย"* (ไม่เอาหน้า /admin/data-health เพราะปอนจะลบ) */
@@ -78,6 +83,7 @@ function itdtSections(feed) {
   return [
     { key: "hs_pending",   rows: it.hsPending     || [], total: it.hsPendingTotal },
     { key: "track_stuck",  rows: it.tracksStuck   || [], total: it.tracksStuckTotal },
+    { key: "risky_tracks", rows: it.riskyTracks   || [], total: it.riskyTracksTotal },
     { key: "lots_missing", rows: it.lotsMissing   || [], total: it.lotsMissingTotal },
     { key: "no_code_th",   rows: it.noCodeArrived || [], total: it.noCodeArrivedTotal },
     { key: "pw_sheet",     rows: it.pwSheetFailed || [], total: it.pwSheetFailedTotal },
@@ -210,10 +216,15 @@ function planNotifications(feed, staff, isNew, templates) {
       const fresh = sec.rows.filter((r) => isNew(`${sec.key}|${person.login}|${idOf(r)}`));
       if (fresh.length === 0) continue;
 
+      /* 🔢 ภูม 2026-11-21 — หัวข้อต้องบอก **ทั้งคิว** ไม่ใช่จำนวนตัวอย่างที่เว็บส่งมา
+            เว็บส่ง total = คิวจริง · rows = ตัวอย่างไม่กี่แถว (หมวดงานทีมระบบคิวยาวเป็นร้อยได้)
+            🔴 เดิมนับจากแถวที่ส่งมา ⇒ คิว 500 ขึ้นหัวว่า "10 แทรค" ⇒ อ่านแล้วนึกว่าเหลือน้อย ไว้ก่อน
+            หมวดที่เว็บไม่ได้ส่ง total มา (บัญชี · โกดัง) = นับจากแถวเหมือนเดิมทุกตัวอักษร */
+      const queueTotal = typeof sec.total === "number" ? Math.max(sec.total, fresh.length) : fresh.length;
       const shown = fresh.slice(0, MAX_ROWS_PER_MESSAGE);
       out.push({
         lineUserId: person.line_user_id,
-        text: renderNotification(sec.key, shown, tplOf(sec.key), fresh.length - shown.length),
+        text: renderNotification(sec.key, shown, tplOf(sec.key), queueTotal - shown.length, queueTotal),
         keys: fresh.map((r) => `${sec.key}|${person.login}|${idOf(r)}`),
       });
     }

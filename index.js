@@ -78,6 +78,10 @@ const { mountManager, managerLink } = require("./manager-page");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
 const warehouse = createWarehouse(supabase, pacredGet);
 const manager = createManager(supabase);
+/* 🚚 Delivery Planner (ภูม 2026-11-22) — วางแผนจัดส่ง · ดึงงานพร้อมส่งผ่านท่อโกดังเดิม · ไม่แตะ Pacred */
+const { createDelivery } = require("./delivery");
+const { mountDelivery, deliveryLink } = require("./delivery-page");
+const delivery = createDelivery(supabase, warehouse);
 /** ✏️ ข้อความแจ้งเตือนที่ภูมแก้เอง — อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด (ไม่เคยทำให้แจ้งเตือนเงียบ) */
 const templateStore = createTemplateStore(supabase);
 
@@ -291,6 +295,15 @@ function buildMenuFlex(opts) {
     contents.push({ type: "text", text: "สำหรับหัวหน้าโกดัง", size: "xs", color: "#999999", margin: "sm" });
     contents.push({ type: "button", style: "primary", color: "#7c3aed", height: "sm",
       action: { type: "uri", label: "🧑‍💼 ศูนย์จัดการโกดัง", uri: managerUrl } });
+  }
+
+  /* 🚚 ปุ่มวางแผนจัดส่ง (ภูม 2026-11-22) — โชว์เฉพาะเจ้าของ/ทีมระบบ
+     แค่ "วางแผน" เท่านั้น · มอบงาน/ปิดงานจริงทำในระบบ pacred · ตั้ง env DELIVERY_APP_URL ทับได้ */
+  const deliveryUrl = process.env.DELIVERY_APP_URL || deliveryLink();
+  if (deliveryUrl && (isOwner || showTools)) {
+    contents.push({ type: "separator", margin: "md" });
+    contents.push({ type: "button", style: "primary", color: "#0f766e", height: "sm",
+      action: { type: "uri", label: "🚚 วางแผนจัดส่ง", uri: deliveryUrl } });
   }
 
   return { type: "flex", altText: "ผู้ช่วยงาน Pacred — เลือกหัวข้อ", quickReply: showTools ? QUICK_TOOLS : QUICK, contents: {
@@ -2324,6 +2337,9 @@ mountWarehouse(app, warehouse);
 
 // 🧑‍💼 หน้าศูนย์จัดการโกดัง (ภูม 2026-11-20) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
 mountManager(app, manager);
+
+// 🚚 หน้าวางแผนจัดส่ง (ภูม 2026-11-22) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
+mountDelivery(app, delivery);
 
 app.use(express.json());
 

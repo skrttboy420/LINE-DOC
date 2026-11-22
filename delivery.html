@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>วางแผนจัดส่ง</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --red:#B30000; --red-soft:#fdecec; --ink:#1f2430; --muted:#6b7280; --faint:#9aa1ad;
+    --line:#eceef2; --bg:#f4f5f7; --card:#fff; --blue:#2563c9; --green:#17a66a; --green-soft:#e6f6ee;
+    --amber:#e08a00; --amber-soft:#fdf2df; --teal:#0f766e; --danger:#d8352a;
+    --shadow:0 1px 2px rgba(20,24,40,.06),0 8px 24px rgba(20,24,40,.08);
+    --font:"Noto Sans Thai","Sarabun",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);font-size:15px;overflow:hidden}
+  svg.i{width:1em;height:1em;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;display:block}
+
+  .app{display:flex;flex-direction:column;height:100dvh}
+  .top{flex:0 0 auto;z-index:1200;background:linear-gradient(135deg,#7d0000,#B30000 60%,#cf1818);color:#fff;
+    padding:11px max(14px,env(safe-area-inset-left)) 11px max(14px,env(safe-area-inset-right));
+    display:flex;align-items:center;gap:11px;box-shadow:0 2px 12px rgba(179,0,0,.28)}
+  .top .ttl{font-weight:800;font-size:16px;line-height:1.1}
+  .top .sub{font-size:11px;opacity:.9;margin-top:1px}
+  .top .plan{margin-left:auto;font-size:10.5px;font-weight:800;background:rgba(255,255,255,.17);padding:4px 10px;border-radius:20px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .top .plan svg{font-size:13px}
+  .menu-btn{display:none;background:rgba(255,255,255,.16);border:0;color:#fff;width:34px;height:34px;border-radius:9px;align-items:center;justify-content:center;cursor:pointer}
+  .menu-btn svg{font-size:19px}
+
+  .body{flex:1 1 auto;display:flex;min-height:0;position:relative}
+  .panel{flex:0 0 350px;min-width:0;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0;z-index:1100}
+  #map{flex:1 1 auto;min-width:0;min-height:0}
+
+  .tabs{flex:0 0 auto;display:flex;border-bottom:1px solid var(--line)}
+  .tab{flex:1;background:none;border:0;border-bottom:2.5px solid transparent;padding:12px 4px;font-family:inherit;font-size:12.5px;font-weight:800;color:var(--muted);cursor:pointer}
+  .tab.on{color:var(--red);border-bottom-color:var(--red)}
+  .view{display:none;flex-direction:column;min-height:0;flex:1 1 auto}
+  .view.on{display:flex}
+
+  .psec{padding:12px 14px;border-bottom:1px solid var(--line)}
+  .psec .h{font-size:12px;font-weight:800;color:var(--muted);display:flex;align-items:center;gap:7px;margin-bottom:9px}
+  .psec .h svg{font-size:15px;color:var(--faint)}
+  .search{display:flex;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:11px;padding:9px 11px}
+  .search:focus-within{border-color:var(--red)}
+  .search svg{font-size:16px;color:var(--faint)}
+  .search input{border:0;outline:0;flex:1;min-width:0;font-family:inherit;font-size:14px;background:none;color:var(--ink)}
+  .count{font-size:11.5px;color:var(--muted);margin-top:8px}
+  .count b{color:var(--ink)}
+
+  .list,.scroll{flex:1 1 auto;overflow:auto;min-height:0}
+  .cust{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid #f4f5f7}
+  .cust:hover{background:#fafbfc}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--blue);flex:0 0 auto;box-shadow:0 0 0 3px rgba(37,99,201,.15)}
+  .cust .pr{font-weight:800;font-size:13.5px}
+  .cust .ad{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cust .n{min-width:0;flex:1}
+
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:11px;font-family:inherit;font-size:13.5px;font-weight:800;padding:11px 13px;cursor:pointer}
+  .btn svg{font-size:16px}
+  .btn-red{background:var(--red);color:#fff}
+  .btn-ghost{background:#fff;color:var(--red);border:1.5px solid #f0c4c0}
+  .btn-teal{background:var(--teal);color:#fff}
+  .btn-line{background:#fff;color:var(--ink);border:1.5px solid var(--line);font-weight:700}
+  .btn.full{width:100%}
+  .btn.sm{padding:8px 11px;font-size:12.5px;border-radius:9px}
+  .btn:disabled{opacity:.5;cursor:default}
+  .wh{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted);margin-bottom:9px}
+  .wh b{color:var(--ink)}
+  .wh .pin{color:var(--red);font-size:17px}
+  .hint{font-size:11px;color:var(--faint);line-height:1.5;margin-top:9px}
+  .empty{text-align:center;color:var(--faint);font-size:12.5px;padding:18px 10px}
+  select{font-family:inherit;font-size:13px;border:1.5px solid var(--line);border-radius:9px;padding:8px 9px;background:#fff;color:var(--ink);min-width:0}
+  select:focus,input:focus{outline:none;border-color:var(--red)}
+
+  /* trip view */
+  .trhead{flex:0 0 auto;padding:11px 14px 0;display:flex;align-items:center;gap:8px}
+  .trhead select{flex:1;min-width:0}
+  .trhead .del{flex:0 0 auto;border:1.5px solid var(--line);background:#fff;border-radius:9px;width:38px;height:36px;display:grid;place-items:center;cursor:pointer;color:var(--danger);font-size:16px}
+  .trbar{flex:0 0 auto;padding:9px 14px 11px;display:flex;gap:8px;border-bottom:1px solid var(--line)}
+  .trbar input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:13.5px;font-weight:700;color:var(--ink)}
+  .trbar select{flex:0 0 auto;max-width:48%}
+  .sub2{flex:0 0 auto;padding:10px 14px 7px;font-size:11.5px;font-weight:800;color:var(--muted);display:flex;align-items:center;gap:7px}
+  .sub2 .rf{margin-left:auto;color:var(--teal);cursor:pointer;font-size:16px}
+  .sub2 .rf.spin{animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  .job{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid #f4f5f7}
+  .job .n{min-width:0;flex:1}
+  .job .pr{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .job .meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .job .tag{font-size:9.5px;font-weight:800;color:var(--amber);background:var(--amber-soft);padding:2px 6px;border-radius:10px;white-space:nowrap}
+  .job .add{flex:0 0 auto;width:30px;height:30px;border-radius:8px;border:1.5px solid #cdebe0;background:#eafaf2;color:var(--green);display:grid;place-items:center;cursor:pointer;font-size:19px}
+  .job.nogeo,.job.other{opacity:.6}
+  .job.nogeo .add,.job.other .add{border-color:var(--line);background:#f4f5f7;color:var(--faint);cursor:not-allowed}
+  .job.inroute .add{background:var(--green);color:#fff;border-color:var(--green);font-size:15px}
+
+  /* งานพร้อมส่ง: การ์ดพับได้ตามลูกค้า (PR) */
+  .prcard{border:1px solid var(--line);border-radius:12px;margin:8px 10px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(20,24,40,.04)}
+  .prcard.nogeo{opacity:.62}
+  .prhead{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer}
+  .prhead:hover{background:#fafbfc}
+  .prhead .cv{color:var(--faint);font-size:16px;transition:.2s;flex:0 0 auto}
+  .prcard.open .prhead .cv{transform:rotate(180deg)}
+  .prhead .prdot{width:9px;height:9px;border-radius:50%;background:var(--green);flex:0 0 auto}
+  .prcard.nogeo .prhead .prdot{background:var(--faint)}
+  .prhead .n{min-width:0;flex:1}
+  .prhead .prname{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .prhead .prname .cust{font-weight:400;color:var(--muted);font-size:11.5px}
+  .prhead .inchip{font-size:9.5px;font-weight:800;color:var(--teal);background:#e3f3ef;padding:2px 7px;border-radius:10px}
+  .prhead .prsub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .prhead .prall{flex:0 0 auto;border:1.5px solid #cdebe0;background:#eafaf2;color:var(--green);font-family:inherit;font-weight:800;font-size:11px;border-radius:8px;padding:5px 8px;cursor:pointer;white-space:nowrap}
+  .prbody{display:none;border-top:1px solid var(--line);background:#fbfcfd}
+  .prcard.open .prbody{display:block}
+  .trk{display:flex;align-items:center;gap:9px;padding:8px 12px 8px 30px;border-bottom:1px solid #f1f2f4}
+  .trk:last-child{border-bottom:0}
+  .trk .n{min-width:0;flex:1}
+  .trk .tkno{font-weight:700;font-size:12.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .trk .meta{font-size:11px;color:var(--muted)}
+  .trk .add{flex:0 0 auto;width:28px;height:28px;border-radius:8px;border:1.5px solid #cdebe0;background:#eafaf2;color:var(--green);display:grid;place-items:center;cursor:pointer;font-size:18px}
+  .trk.nogeo,.trk.other{opacity:.55}
+  .trk.nogeo .add,.trk.other .add{border-color:var(--line);background:#f4f5f7;color:var(--faint);cursor:not-allowed}
+  .trk.inroute{background:#f2fbf7}
+  .trk.inroute .add{background:var(--green);color:#fff;border-color:var(--green);font-size:14px}
+  .trk .tag{font-size:9.5px;font-weight:800;color:var(--amber);background:var(--amber-soft);padding:2px 6px;border-radius:10px}
+  /* เส้นทาง: การ์ดต่อ "จุดส่ง" (1 จุด = PR เดียว/ที่เดียว มีได้หลายแทรค) */
+  .stopcard{border:1px solid var(--line);border-radius:12px;margin:8px 10px;overflow:hidden;background:#fff}
+  .stophead{display:flex;align-items:center;gap:9px;padding:9px 11px;background:#f2fbf8}
+  .stophead .n{min-width:0;flex:1}
+  .stophead .pr{font-weight:800;font-size:13px}
+  .stophead .pr .cust{font-weight:400;color:var(--muted);font-size:11px}
+  .stophead .meta{font-size:11px;color:var(--muted)}
+  .sitems{padding:2px 0}
+  .sitem{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 44px;font-size:11.5px;border-top:1px solid #f4f5f7}
+  .sitem:first-child{border-top:0}
+  .sitem .tk{font-weight:700}
+  .sitem .m{color:var(--muted);flex:1;min-width:0}
+  .sitem .xx{color:var(--faint);cursor:pointer;font-size:15px;flex:0 0 auto}
+
+  .stop{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid #f4f5f7}
+  .stop .seq{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--teal);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+  .stop .n{min-width:0;flex:1}
+  .stop .n .pr{font-weight:800;font-size:13px}
+  .stop .n .meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stop .ctl{display:flex;gap:3px;flex:0 0 auto}
+  .stop .ctl button{width:26px;height:26px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;color:var(--muted);display:grid;place-items:center;font-size:15px}
+  .stop .ctl button:disabled{opacity:.35}
+
+  .load{flex:0 0 auto;padding:9px 14px;border-top:1px solid var(--line);background:#fafbfc}
+  .estrow{display:flex;align-items:center;gap:7px}
+  .estrow .lb{font-weight:800;color:var(--ink);font-size:12.5px;white-space:nowrap}
+  .estrow .lbhint{font-size:11px;color:var(--faint)}
+  .estrow input{width:78px;border:1.5px solid var(--line);border-radius:8px;padding:6px 8px;font-family:inherit;font-size:12.5px;background:#fff}
+  .capbar{height:7px;border-radius:5px;background:#e6e8ec;margin-top:6px;overflow:hidden}
+  .capbar>span{display:block;height:100%;background:var(--green);transition:width .2s}
+  .capbar.over>span{background:var(--danger)}
+  .capmsg{font-size:11.5px;margin-top:4px;color:var(--muted)}
+  .capmsg b{color:var(--ink)}
+  .capmsg.over{color:var(--danger);font-weight:700}
+  .foot{flex:0 0 auto;padding:11px 14px;border-top:1px solid var(--line);display:flex;gap:8px}
+
+  /* trucks view */
+  .addtk{padding:12px 14px;border-bottom:1px solid var(--line)}
+  .addtk .row{display:flex;gap:7px}
+  .addtk input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:9px;padding:9px 10px;font-family:inherit;font-size:14px}
+  .addtk button{flex:0 0 auto;border:0;border-radius:9px;background:var(--teal);color:#fff;width:42px;display:grid;place-items:center;cursor:pointer;font-size:20px}
+  .tk{border:1px solid var(--line);border-radius:12px;padding:11px;margin:10px 14px}
+  .tk .th{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px}
+  .tk .th .del{margin-left:auto;color:var(--faint);cursor:pointer;font-size:16px}
+  .tk .grid{display:flex;gap:7px;margin-top:9px}
+  .tk .grid>div{flex:1;min-width:0}
+  .tk label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px}
+  .tk input,.tk select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:7px 8px;font-family:inherit;font-size:13px;background:#fff;min-width:0}
+
+  .setmode{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:1300;background:var(--ink);color:#fff;
+    font-size:12.5px;font-weight:700;padding:9px 15px;border-radius:22px;box-shadow:var(--shadow);display:none;align-items:center;gap:9px}
+  .setmode.on{display:flex}
+  .setmode .x{cursor:pointer;opacity:.8}
+
+  .leaflet-container{background:#e9edf1;font-family:var(--font)}
+  .wh-ic{display:grid;place-items:center;color:#fff;background:var(--red);width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(45deg);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff}
+  .wh-ic svg{transform:rotate(-45deg);font-size:15px}
+  .pl-ic{background:#e08a00;width:26px;height:26px;border-radius:50% 50% 50% 4px;transform:rotate(45deg);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff}
+  .stopnum{background:var(--teal);color:#fff;border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font-weight:800;font-size:13px;border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+  .top .trackbtn{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+  .top .trackbtn.on{background:#fff;color:var(--red)}
+  .top .trackbtn svg{font-size:18px}
+  .truck-ic{display:grid;place-items:center;color:#fff;background:#2563c9;width:30px;height:30px;border-radius:9px;border:2px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.4);font-size:16px}
+  .pop b{color:var(--red)}
+  .pop .a{color:var(--muted);font-size:12px;margin-top:3px;max-width:220px}
+
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(10px);z-index:2000;background:var(--ink);color:#fff;
+    font-size:13px;font-weight:700;padding:10px 16px;border-radius:22px;opacity:0;transition:.22s;pointer-events:none;max-width:88%;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  .scrim{display:none}
+
+  @media (max-width:720px){
+    .menu-btn{display:flex}
+    .panel{position:absolute;inset:0 auto 0 0;width:90%;max-width:350px;transform:translateX(-102%);transition:transform .25s;box-shadow:var(--shadow)}
+    .panel.open{transform:none}
+    .scrim{display:block;position:absolute;inset:0;background:rgba(20,24,40,.4);z-index:1050;opacity:0;pointer-events:none;transition:.2s}
+    .scrim.on{opacity:1;pointer-events:auto}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <button class="menu-btn" id="menuBtn" aria-label="เมนู"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    <div>
+      <div class="ttl">วางแผนจัดส่ง</div>
+      <div class="sub">แค่วางแผน · สั่งงานจริงทำในระบบ Pacred</div>
+    </div>
+    <button class="trackbtn" id="trackBtn" title="ติดตามตำแหน่งรถบนแผนที่"><svg class="i" viewBox="0 0 24 24"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></button>
+    <div class="plan" id="sync"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg><span id="synct">กำลังเชื่อม…</span></div>
+  </div>
+
+  <div class="body">
+    <div class="scrim" id="scrim"></div>
+    <div class="panel" id="panel">
+      <div class="tabs">
+        <button class="tab on" data-v="cust">🗺 ลูกค้า</button>
+        <button class="tab" data-v="trip">🚚 เที่ยวส่ง</button>
+        <button class="tab" data-v="truck">🚛 รถ</button>
+      </div>
+
+      <!-- ลูกค้า -->
+      <div class="view on" id="view-cust">
+        <div class="psec">
+          <div class="h"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg> ลูกค้าบนแผนที่</div>
+          <div class="search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input id="q" placeholder="ค้นรหัส PR / ที่อยู่ลูกค้า…"></div>
+          <div class="count" id="count">กำลังโหลดหมุด…</div>
+          <div class="hint" style="margin-top:7px">พิมพ์ = กรองลูกค้า · กด <b>Enter</b> = ค้นสถานที่ในแผนที่ (ชื่อโกดัง/ห้าง/ที่อยู่)</div>
+        </div>
+        <div class="list" id="list"></div>
+        <div class="psec">
+          <div class="wh" id="whInfo"><span class="pin"><svg class="i" viewBox="0 0 24 24"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/></svg></span><span id="whTxt">—</span></div>
+          <button class="btn btn-ghost full sm" id="setWh"><svg class="i" viewBox="0 0 24 24"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>ย้ายจุดโกดัง PACRED</button>
+        </div>
+      </div>
+
+      <!-- เที่ยวส่ง -->
+      <div class="view" id="view-trip">
+        <div class="trhead">
+          <select id="tripSel"></select>
+          <button class="del" id="tripDel" title="ลบเที่ยวนี้"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"/></svg></button>
+        </div>
+        <div class="trbar">
+          <input id="tripName" placeholder="ชื่อเที่ยว" value="เที่ยวใหม่">
+          <select id="truckSel"><option value="">— ยังไม่เลือกรถ —</option></select>
+        </div>
+        <div class="scroll">
+          <div class="sub2"><svg class="i" viewBox="0 0 24 24" style="font-size:14px;color:var(--green)"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg> งานพร้อมส่ง <span id="jobN"></span><span class="rf" id="jobRefresh" title="ดึงงานใหม่"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg></span></div>
+          <div id="jobs"><div class="empty">กดปุ่มรีเฟรชเพื่อดึงงานพร้อมส่ง</div></div>
+          <div class="sub2" style="border-top:1px solid var(--line)"><svg class="i" viewBox="0 0 24 24" style="font-size:14px;color:var(--teal)"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/></svg> เส้นทางเที่ยวนี้ <span id="stopN"></span></div>
+          <div id="stops"><div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบนเพื่อใส่เข้าเที่ยว</div></div>
+        </div>
+        <div class="load">
+          <div class="estrow"><span class="lb" id="loadBoxes">0 กล่อง</span><span class="lbhint">น้ำหนัก/ปริมาตร รวมจากงานที่เลือกอัตโนมัติ</span></div>
+          <div id="capInfo"></div>
+        </div>
+        <div class="foot" style="flex-direction:column;gap:7px">
+          <div style="display:flex;gap:8px;width:100%">
+            <button class="btn btn-line sm full" id="autoRoute"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>จัดเส้นทาง</button>
+            <button class="btn btn-teal sm full" id="saveTrip"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>บันทึก</button>
+          </div>
+          <button class="btn btn-line sm full" id="driverLink"><svg class="i" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>ลิงก์ให้คนขับเปิดในมือถือ</button>
+        </div>
+      </div>
+
+      <!-- รถ -->
+      <div class="view" id="view-truck">
+        <div class="addtk">
+          <div class="h" style="font-size:12px;font-weight:800;color:var(--muted);margin-bottom:8px">เพิ่มรถใหม่</div>
+          <div class="row"><input id="tkName" placeholder="ชื่อ/ทะเบียน เช่น กระบะ 1"><button id="tkAdd"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+          <div class="hint" style="margin-top:7px">ใส่ชื่อแล้วกด + · ประเภท/พิกัด/คนขับ กดแก้ในการ์ดรถได้</div>
+        </div>
+        <div class="list" id="truckList"><div class="empty">ยังไม่มีรถ — เพิ่มด้านบน</div></div>
+      </div>
+    </div>
+    <div id="map"></div>
+    <div class="setmode" id="setmode"><span>แตะบนแผนที่เพื่อปักจุดโกดัง</span><span class="x" id="setCancel">ยกเลิก</span></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+  var $=function(id){return document.getElementById(id)};
+  var esc=function(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
+  function toast(t){var el=$("toast");el.textContent=t;el.classList.add("on");setTimeout(function(){el.classList.remove("on")},2200)}
+  function setSync(t,c){$("synct").textContent=t;$("sync").style.background=c||"rgba(255,255,255,.17)"}
+  var SYNC_OK="rgba(23,166,106,.5)", SYNC_BAD="rgba(216,53,42,.55)";
+
+  var KEY=(new URLSearchParams(location.search)).get("key")||"";
+  function api(path, body){
+    var opt={headers:{"x-delivery-key":KEY}};
+    if(body!==undefined){opt.method="POST";opt.headers["content-type"]="application/json";opt.body=JSON.stringify(body);}
+    return fetch("/delivery/api"+path,opt).then(function(r){return r.json().catch(function(){return {}}).then(function(j){return r.ok?j:Promise.reject(j||{})})});
+  }
+  function errMsg(e){return (e&&e.error)?e.error:"มีบางอย่างผิดพลาด"}
+
+  // ---- map ----
+  var map=L.map("map",{zoomControl:true}).setView([13.74,100.45],11);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+  var pins=[], pinByPr={}, markers={}, whMarker=null, origin=null;
+
+  function custMarker(p){return L.circleMarker([p.lat,p.lng],{radius:7,color:"#fff",weight:2,fillColor:"#2563c9",fillOpacity:1}).bindPopup('<div class="pop"><b>'+esc(p.pr)+'</b>'+(p.address?'<div class="a">'+esc(p.address)+'</div>':'')+'</div>');}
+  function renderPins(){
+    Object.keys(markers).forEach(function(k){map.removeLayer(markers[k])}); markers={};
+    pins.forEach(function(p,i){var m=custMarker(p);m.addTo(map);markers[i]=m;});
+    renderList(pins); $("count").innerHTML="ทั้งหมด <b>"+pins.length+"</b> จุด · ลูกค้า "+Object.keys(pinByPr).length+" ราย";
+  }
+  function renderList(arr){
+    var el=$("list"); el.innerHTML="";
+    if(!arr.length){el.innerHTML='<div class="empty">ไม่พบ</div>';return;}
+    arr.slice(0,400).forEach(function(p){
+      var idx=pins.indexOf(p); var row=document.createElement("div"); row.className="cust";
+      row.innerHTML='<span class="dot"></span><div class="n"><div class="pr">'+esc(p.pr)+'</div>'+(p.address?'<div class="ad">'+esc(p.address)+'</div>':'<div class="ad" style="color:#c0c5cd">— ไม่มีที่อยู่กำกับ —</div>')+'</div>';
+      row.addEventListener("click",function(){map.flyTo([p.lat,p.lng],16,{duration:.6});if(markers[idx])setTimeout(function(){markers[idx].openPopup()},350);closePanel();});
+      el.appendChild(row);
+    });
+  }
+  $("q").addEventListener("input",function(){var q=this.value.trim().toLowerCase();if(!q){renderList(pins);return;}renderList(pins.filter(function(p){return (p.pr||"").toLowerCase().indexOf(q)>=0||(p.address||"").toLowerCase().indexOf(q)>=0}));});
+  $("q").addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();var v=this.value.trim();if(v)geocode(v);}});
+
+  // ---- geocode ----
+  var placeMarker=null;
+  function placeIcon(){return L.divIcon({className:"",html:'<div class="pl-ic"></div>',iconSize:[26,26],iconAnchor:[13,23],popupAnchor:[0,-22]});}
+  function clearPlace(){if(placeMarker){map.removeLayer(placeMarker);placeMarker=null;}}
+  function geocode(q){
+    $("list").innerHTML='<div class="empty">กำลังค้นหาสถานที่…</div>';
+    fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=th&accept-language=th&q="+encodeURIComponent(q),{headers:{"Accept":"application/json"}})
+      .then(function(r){return r.json()}).then(function(res){renderPlaces(res||[])}).catch(function(){$("list").innerHTML='<div class="empty" style="color:#d8352a">ค้นหาสถานที่ไม่สำเร็จ ลองใหม่</div>'});
+  }
+  function renderPlaces(res){
+    var el=$("list"); el.innerHTML="";
+    var back=document.createElement("div"); back.className="cust"; back.style.color="var(--red)"; back.style.fontWeight="800";
+    back.innerHTML='<svg class="i" viewBox="0 0 24 24" style="font-size:16px;flex:0 0 auto"><path d="M15 6l-6 6 6 6"/></svg><div class="n">กลับไปรายชื่อลูกค้า</div>';
+    back.addEventListener("click",function(){clearPlace();$("q").value="";renderList(pins)}); el.appendChild(back);
+    if(!res.length){var d=document.createElement("div");d.className="empty";d.textContent="ไม่พบสถานที่นี้ ลองพิมพ์ให้ละเอียดขึ้น";el.appendChild(d);return;}
+    res.forEach(function(r){
+      var lat=+r.lat, lng=+r.lon, name=r.display_name||"";
+      var row=document.createElement("div"); row.className="cust";
+      row.innerHTML='<svg class="i" viewBox="0 0 24 24" style="color:#e08a00;font-size:18px;flex:0 0 auto"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg><div class="n"><div style="font-size:13px;font-weight:700;line-height:1.4">'+esc(name)+'</div></div>';
+      row.addEventListener("click",function(){showPlace(lat,lng,name)}); el.appendChild(row);
+    });
+  }
+  function showPlace(lat,lng,name){
+    clearPlace();
+    placeMarker=L.marker([lat,lng],{icon:placeIcon(),zIndexOffset:1200}).addTo(map)
+      .bindPopup('<div class="pop"><b style="color:#e08a00">'+esc((name.split(",")[0]||"สถานที่"))+'</b><div class="a">'+esc(name)+'</div><button id="pset" style="margin-top:9px;width:100%;background:#B30000;color:#fff;border:0;border-radius:9px;padding:9px;font-weight:800;font-family:inherit;cursor:pointer">📍 ตั้งเป็นจุดโกดัง</button></div>');
+    map.flyTo([lat,lng],16,{duration:.6});
+    placeMarker.on("popupopen",function(){var b=$("pset");if(b)b.onclick=function(){setOriginAt(lat,lng)};});
+    setTimeout(function(){placeMarker.openPopup()},450); closePanel();
+  }
+  function setOriginAt(lat,lng){api("/origin",{lat:lat,lng:lng,label:"โกดัง PACRED"}).then(function(r){origin=r.origin;clearPlace();drawOrigin();renderRoute();map.flyTo([origin.lat,origin.lng],15,{duration:.5});toast("ตั้งจุดโกดังแล้ว")}).catch(function(e){toast(errMsg(e))});}
+
+  // ---- warehouse origin ----
+  function whIcon(){return L.divIcon({className:"",html:'<div class="wh-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/></svg></div>',iconSize:[30,30],iconAnchor:[15,27],popupAnchor:[0,-26]});}
+  function drawOrigin(){
+    if(whMarker){map.removeLayer(whMarker);whMarker=null;}
+    if(!origin)return;
+    whMarker=L.marker([origin.lat,origin.lng],{icon:whIcon(),zIndexOffset:1000}).addTo(map).bindPopup('<div class="pop"><b>'+esc(origin.label||"โกดัง PACRED")+'</b><div class="a">จุดเริ่ม-จบทุกเส้นทาง</div></div>');
+    $("whTxt").innerHTML='<b>'+esc(origin.label||"โกดัง PACRED")+'</b> ('+origin.lat.toFixed(4)+', '+origin.lng.toFixed(4)+')';
+  }
+  var setting=false;
+  function setModeFn(on){setting=on;$("setmode").classList.toggle("on",on);map.getContainer().style.cursor=on?"crosshair":"";}
+  $("setWh").addEventListener("click",function(){setModeFn(!setting);if(setting)closePanel();});
+  $("setCancel").addEventListener("click",function(){setModeFn(false)});
+  map.on("click",function(e){if(!setting)return;setModeFn(false);setOriginAt(e.latlng.lat,e.latlng.lng);});
+  function fitAll(){var pts=pins.map(function(p){return [p.lat,p.lng]});if(origin)pts.push([origin.lat,origin.lng]);if(pts.length)map.fitBounds(pts,{padding:[40,40],maxZoom:13});}
+
+  // ==================== รถ ====================
+  var TRUCK_TYPES=["รถกระบะ","6 ล้อเล็ก","6 ล้อใหญ่","อื่นๆ"];
+  var TYPE_CAP={"รถกระบะ":{kg:1800,cbm:6},"6 ล้อเล็ก":{kg:3500,cbm:12},"6 ล้อใหญ่":{kg:5000,cbm:30},"อื่นๆ":{kg:"",cbm:""}};
+  function recVeh(kg,cbm){kg=+kg||0;cbm=+cbm||0;if(kg<=1800&&cbm<=6)return"รถกระบะ";if(kg<=3500&&cbm<=12)return"6 ล้อเล็ก";if(kg<=5000&&cbm<=30)return"6 ล้อใหญ่";return"เกินรถที่กำหนด";}
+  var trucks=[];
+  function typeOpts(sel){return TRUCK_TYPES.map(function(t){return '<option'+(t===sel?' selected':'')+'>'+t+'</option>'}).join("");}
+  function renderTrucks(){
+    var el=$("truckList"); el.innerHTML="";
+    if(!trucks.length){el.innerHTML='<div class="empty">ยังไม่มีรถ — เพิ่มด้านบน</div>';buildTruckSel();return;}
+    trucks.forEach(function(t){
+      var d=document.createElement("div"); d.className="tk";
+      d.innerHTML='<div class="th">🚚 <span>'+esc(t.name||"รถ")+'</span><span class="del" data-del="'+esc(t.id)+'">✕</span></div>'+
+        '<div class="grid"><div><label>ประเภท</label><select data-f="vehicle_type">'+typeOpts(t.vehicle_type)+'</select></div>'+
+        '<div><label>น้ำหนัก(กก.)</label><input data-f="cap_kg" type="number" value="'+esc(t.cap_kg==null?"":t.cap_kg)+'"></div>'+
+        '<div><label>ปริมาตร(คิว)</label><input data-f="cap_cbm" type="number" value="'+esc(t.cap_cbm==null?"":t.cap_cbm)+'"></div></div>'+
+        '<div class="grid"><div><label>คนขับ</label><input data-f="driver_name" value="'+esc(t.driver_name||"")+'"></div>'+
+        '<div><label>ทะเบียนรถ</label><input data-f="plate" value="'+esc(t.plate||"")+'"></div></div>';
+      d.querySelector("[data-del]").addEventListener("click",function(){delTruck(t.id)});
+      d.querySelectorAll("[data-f]").forEach(function(inp){
+        inp.addEventListener("change",function(){
+          var patch={}; patch[inp.dataset.f]=inp.value;
+          if(inp.dataset.f==="vehicle_type"){ // เปลี่ยนประเภท = เซ็ตพิกัดมาตรฐานของประเภทนั้น (ยกเว้น "อื่นๆ" ที่ไม่มีมาตรฐาน)
+            var cap=TYPE_CAP[inp.value]||{};
+            if(cap.kg){
+              var kgI=d.querySelector('[data-f="cap_kg"]'), cbmI=d.querySelector('[data-f="cap_cbm"]');
+              kgI.value=cap.kg; patch.cap_kg=cap.kg; cbmI.value=cap.cbm; patch.cap_cbm=cap.cbm;
+            }
+          }
+          updTruck(t.id,patch);
+        });
+      });
+      el.appendChild(d);
+    });
+    buildTruckSel();
+  }
+  function addTruck(){
+    var v=$("tkName").value.trim(); if(!v)return; $("tkName").value="";
+    var cap=TYPE_CAP["รถกระบะ"];
+    api("/truck/add",{name:v,vehicle_type:"รถกระบะ",cap_kg:cap.kg,cap_cbm:cap.cbm}).then(function(t){trucks.push(t);renderTrucks();toast("เพิ่มรถแล้ว")}).catch(function(e){toast(errMsg(e))});
+  }
+  function updTruck(id,patch){var t=trucks.filter(function(x){return x.id===id})[0];if(t)Object.assign(t,patch);buildTruckSel();renderCap();api("/truck/update",Object.assign({id:id},patch)).catch(function(e){toast(errMsg(e))});}
+  function delTruck(id){trucks=trucks.filter(function(t){return t.id!==id});if(curTruckId===id)curTruckId=null;renderTrucks();renderCap();api("/truck/delete",{id:id}).catch(function(e){toast(errMsg(e))});}
+  $("tkAdd").addEventListener("click",addTruck); $("tkName").addEventListener("keydown",function(e){if(e.key==="Enter")addTruck()});
+
+  // ==================== เที่ยวส่ง + เส้นทาง ====================
+  // route = รายการ "จุดส่ง" · 1 จุด = 1 ลูกค้า(PR)/ที่เดียวกัน · แต่ละจุดมีได้หลายแทรค (ตามหน้า drivers/new)
+  var trips=[], curTripId=null, curTruckId=null, route=[], jobs=[], placedMap={}, routeLayers=[], expanded={};
+  function tripNameById(id){var t=trips.filter(function(x){return x.id===id})[0];return t?t.name:"เที่ยวอื่น";}
+  function haversine(a,b){var R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLng=(b[1]-a[1])*Math.PI/180,s=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLng/2)*Math.sin(dLng/2);return 2*R*Math.asin(Math.sqrt(s));}
+  function routeKm(){if(!origin||!route.length)return 0;var pt=[origin.lat,origin.lng],km=0;route.forEach(function(s){km+=haversine(pt,[s.lat,s.lng]);pt=[s.lat,s.lng];});km+=haversine(pt,[origin.lat,origin.lng]);return km;}
+  function n2(x){return Math.round((+x||0)*100)/100} function n3(x){return Math.round((+x||0)*1000)/1000}
+  function stopKg(s){return s.items.reduce(function(n,it){return n+(+it.weightKg||0)},0)}
+  function stopCbm(s){return s.items.reduce(function(n,it){return n+(+it.cbm||0)},0)}
+  function stopBoxes(s){return s.items.reduce(function(n,it){return n+(+it.boxes||1)},0)}
+  function inRoute(pr,tracking){return route.some(function(s){return tracking?s.items.some(function(it){return it.tracking===tracking}):s.pr===pr})}
+
+  function buildTruckSel(){
+    var sel=$("truckSel"); var cur=curTruckId||"";
+    sel.innerHTML='<option value="">— ยังไม่เลือกรถ —</option>'+trucks.map(function(t){return '<option value="'+esc(t.id)+'"'+(t.id===cur?' selected':'')+'>'+esc(t.name)+' ('+esc(t.vehicle_type||"")+')</option>'}).join("");
+  }
+  function buildTripSel(){
+    var sel=$("tripSel");
+    sel.innerHTML=trips.map(function(t){return '<option value="'+esc(t.id)+'"'+(t.id===curTripId?' selected':'')+'>'+esc(t.name)+'</option>'}).join("")+'<option value="__new"'+(curTripId?'':' selected')+'>＋ เที่ยวใหม่</option>';
+  }
+
+  function renderJobs(){
+    var el=$("jobs"); el.innerHTML=""; $("jobN").textContent=jobs.length?("· "+jobs.length+" แทรค"):"";
+    if(!jobs.length){el.innerHTML='<div class="empty">ไม่มีงานพร้อมส่ง (หรือยังไม่ได้ดึง)</div>';return;}
+    var order=[], byPr={};
+    jobs.forEach(function(j){ if(!byPr[j.pr]){byPr[j.pr]=[];order.push(j.pr);} byPr[j.pr].push(j); });
+    order.forEach(function(pr){
+      var list=byPr[pr], geo=!!list[0].lat, cust=list[0].customer, open=!!expanded[pr];
+      var inN=list.filter(function(j){return inRoute(j.pr,j.tracking)}).length;
+      var box=list.reduce(function(n,j){return n+(j.boxes||1)},0), kg=n2(list.reduce(function(n,j){return n+(+j.weightKg||0)},0));
+      var card=document.createElement("div"); card.className="prcard"+(geo?"":" nogeo")+(open?" open":"");
+      card.innerHTML='<div class="prhead"><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><span class="prdot"></span>'+
+        '<div class="n"><div class="prname">'+esc(pr||"—")+(cust?' <span class="cust">'+esc(cust)+'</span>':'')+(inN?' <span class="inchip">'+inN+'/'+list.length+' เข้าเที่ยว</span>':'')+'</div>'+
+        '<div class="prsub">'+(geo?esc(list[0].address||"มีหมุด"):'ไม่มีหมุด PR นี้ (ปักหมุดก่อนถึงจัดส่งได้)')+' · '+list.length+' แทรค · '+box+' กล่อง'+(kg?' · '+kg+' กก.':'')+'</div></div>'+
+        (geo?'<button class="prall" type="button">'+(inN<list.length?'+ ทั้งหมด':'เอาออก')+'</button>':'')+'</div><div class="prbody"></div>';
+      var body=card.querySelector(".prbody");
+      list.forEach(function(j){
+        var done=inRoute(j.pr,j.tracking);
+        var otherId=j.tracking&&placedMap[j.tracking]&&placedMap[j.tracking]!==curTripId?placedMap[j.tracking]:null;
+        var row=document.createElement("div"); row.className="trk"+(geo?"":" nogeo")+(done?" inroute":"")+(otherId?" other":"");
+        var tag=otherId?'<span class="tag">อยู่: '+esc(tripNameById(otherId))+'</span>':"";
+        row.innerHTML='<div class="n"><div class="tkno">'+esc(j.tracking||"—")+tag+'</div><div class="meta">'+(j.boxes||1)+' กล่อง · '+n2(j.weightKg)+' กก. · '+n3(j.cbm)+' คิว</div></div>'+
+          '<div class="add">'+(done?'<svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>':'+')+'</div>';
+        if(geo&&!otherId) row.querySelector(".add").addEventListener("click",function(ev){ev.stopPropagation(); if(done)removeTracking(j.tracking); else addTracking(j);});
+        body.appendChild(row);
+      });
+      card.querySelector(".prhead").addEventListener("click",function(e){ if(e.target.closest(".prall"))return; expanded[pr]=!open; renderJobs(); });
+      var allb=card.querySelector(".prall");
+      if(allb) allb.addEventListener("click",function(e){ e.stopPropagation();
+        if(inN<list.length){ list.forEach(function(j){ if(!inRoute(j.pr,j.tracking)&&!(j.tracking&&placedMap[j.tracking]&&placedMap[j.tracking]!==curTripId)) addItem(j); }); }
+        else { list.forEach(function(j){ removeItemByTracking(j.tracking); }); }
+        autoArrange(); renderStops(); renderJobs();
+      });
+      el.appendChild(card);
+    });
+  }
+  function renderStops(){
+    var el=$("stops"); el.innerHTML=""; $("stopN").textContent=route.length?("· "+route.length+" จุด"):"";
+    if(!route.length){el.innerHTML='<div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบน (ระบบจัดเส้นทางให้เอง)</div>';renderRoute();renderCap();return;}
+    route.forEach(function(s,i){
+      var card=document.createElement("div"); card.className="stopcard";
+      var h='<div class="stophead"><div class="seq">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+'</div><div class="meta">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง · '+n2(stopKg(s))+' กก. · '+n3(stopCbm(s))+' คิว</div></div>'+
+        '<div class="ctl"><button data-up '+(i===0?"disabled":"")+'>↑</button><button data-dn '+(i===route.length-1?"disabled":"")+'>↓</button><button data-rm title="ลบทั้งจุด">✕</button></div></div>';
+      var items=""; s.items.forEach(function(it){ items+='<div class="sitem"><span class="tk">'+esc(it.tracking||"")+'</span><span class="m">'+(it.boxes||1)+' กล่อง · '+n2(it.weightKg)+' กก. · '+n3(it.cbm)+' คิว</span><span class="xx" data-rmtk="'+esc(it.tracking)+'">×</span></div>'; });
+      card.innerHTML=h+'<div class="sitems">'+items+'</div>';
+      card.querySelector("[data-up]").addEventListener("click",function(){if(i>0){var t=route[i-1];route[i-1]=route[i];route[i]=t;renderStops();}});
+      card.querySelector("[data-dn]").addEventListener("click",function(){if(i<route.length-1){var t=route[i+1];route[i+1]=route[i];route[i]=t;renderStops();}});
+      card.querySelector("[data-rm]").addEventListener("click",function(){route.splice(i,1);renderStops();renderJobs();});
+      card.querySelectorAll("[data-rmtk]").forEach(function(x){x.addEventListener("click",function(){removeTracking(x.getAttribute("data-rmtk"));});});
+      el.appendChild(card);
+    });
+    renderRoute(); renderCap();
+  }
+  function renderCap(){
+    var boxes=route.reduce(function(n,s){return n+stopBoxes(s)},0);
+    var kg=n2(route.reduce(function(n,s){return n+stopKg(s)},0));
+    var cbm=n3(route.reduce(function(n,s){return n+stopCbm(s)},0));
+    $("loadBoxes").textContent=route.length+" จุด · "+boxes+" กล่อง · "+kg+" กก. · "+cbm+" คิว"+(origin&&route.length?" · ~"+routeKm().toFixed(1)+" กม.":"");
+    var tk=trucks.filter(function(t){return t.id===curTruckId})[0], h="";
+    function bar(pct,over){return '<div class="capbar'+(over?' over':'')+'"><span style="width:'+Math.min(100,pct)+'%"></span></div>';}
+    if(tk){
+      var ck=+tk.cap_kg||0, cc=+tk.cap_cbm||0;
+      if(ck){h+=bar(kg/ck*100,kg>ck)+'<div class="capmsg'+(kg>ck?' over':'')+'">น้ำหนัก <b>'+kg+'</b>/'+ck+' กก.'+(kg>ck?' ⚠ เกินพิกัดรถ':'')+'</div>';}
+      if(cc){h+=bar(cbm/cc*100,cbm>cc)+'<div class="capmsg'+(cbm>cc?' over':'')+'">ปริมาตร <b>'+cbm+'</b>/'+cc+' คิว'+(cbm>cc?' ⚠ เกินพิกัดรถ':'')+'</div>';}
+    }
+    if(kg||cbm)h+='<div class="capmsg">แนะนำรถ: <b>'+recVeh(kg,cbm)+'</b>'+(tk?"":" (ยังไม่ได้เลือกรถให้เที่ยวนี้)")+'</div>';
+    else if(route.length)h+='<div class="capmsg">งานที่เลือกยังไม่มีน้ำหนัก/ปริมาตร (งานเก่าอาจยังไม่กรอกใน pacred)</div>';
+    else h+='<div class="capmsg">เลือกงานเข้าเที่ยว แล้วระบบบวกน้ำหนัก/ปริมาตร + แนะนำรถให้เอง</div>';
+    $("capInfo").innerHTML=h;
+  }
+  function addItem(j){ // ใส่แทรคเข้าจุดของ PR (สร้างจุดถ้ายังไม่มี) — ไม่ render (ใช้ตอนเพิ่มทั้งหมด)
+    if(inRoute(j.pr,j.tracking))return;
+    var s=route.filter(function(x){return x.pr===j.pr})[0];
+    if(!s){ s={pr:j.pr,lat:j.lat,lng:j.lng,address:j.address,customer:j.customer,items:[]}; route.push(s); }
+    s.items.push({tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0});
+  }
+  function addTracking(j){ addItem(j); autoArrange(); renderStops(); renderJobs(); }
+  function removeItemByTracking(tracking){
+    route.forEach(function(s){ s.items=s.items.filter(function(it){return it.tracking!==tracking}); });
+    route=route.filter(function(s){return s.items.length});
+  }
+  function removeTracking(tracking){ removeItemByTracking(tracking); renderStops(); renderJobs(); }
+  // จัดเส้นทางอัตโนมัติ (ไล่จุดใกล้สุดจากโกดัง) — เรียกเองทุกครั้งที่เพิ่ม/เอาออก (ไม่ต้องกดปุ่ม)
+  function autoArrange(){
+    if(!origin||route.length<2)return;
+    var rest=route.slice(),out=[],pt=[origin.lat,origin.lng];
+    while(rest.length){var bi=0,bd=1e9;for(var i=0;i<rest.length;i++){var d=haversine(pt,[rest[i].lat,rest[i].lng]);if(d<bd){bd=d;bi=i;}}pt=[rest[bi].lat,rest[bi].lng];out.push(rest.splice(bi,1)[0]);}
+    route=out;
+  }
+  function renderRoute(){
+    routeLayers.forEach(function(l){map.removeLayer(l)}); routeLayers=[];
+    if(!route.length)return;
+    var line=[]; if(origin)line.push([origin.lat,origin.lng]); route.forEach(function(s){line.push([s.lat,s.lng])}); if(origin)line.push([origin.lat,origin.lng]);
+    if(line.length>1){var pl=L.polyline(line,{color:"#0f766e",weight:4,opacity:.75,dashArray:"7,7"}).addTo(map);routeLayers.push(pl);}
+    route.forEach(function(s,i){
+      var m=L.marker([s.lat,s.lng],{icon:L.divIcon({className:"",html:'<div class="stopnum">'+(i+1)+'</div>',iconSize:[26,26],iconAnchor:[13,13]}),zIndexOffset:900}).bindPopup('<div class="pop"><b style="color:#0f766e">จุดที่ '+(i+1)+' · '+esc(s.pr||"")+'</b><div class="a">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง'+(s.address?'<br>'+esc(s.address):'')+'</div></div>');
+      m.addTo(map); routeLayers.push(m);
+    });
+  }
+  function loadJobs(){
+    var rf=$("jobRefresh"); rf.classList.add("spin"); $("jobs").innerHTML='<div class="empty">กำลังดึงงานพร้อมส่ง…</div>';
+    api("/jobs").then(function(r){
+      rf.classList.remove("spin");
+      jobs=(r.jobs||[]).map(function(j){var pin=(pinByPr[j.pr]||[])[0];return {pr:j.pr,tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0,customer:j.customer,lat:pin&&pin.lat,lng:pin&&pin.lng,address:pin&&pin.address};});
+      jobs.sort(function(a,b){return (b.lat?1:0)-(a.lat?1:0)}); renderJobs();
+      if(!r.ok&&r.error)toast(r.error);
+    }).catch(function(e){rf.classList.remove("spin");$("jobs").innerHTML='<div class="empty" style="color:#d8352a">ดึงงานไม่สำเร็จ</div>';toast(errMsg(e));});
+  }
+  $("jobRefresh").addEventListener("click",loadJobs);
+  $("autoRoute").addEventListener("click",function(){ if(!origin){toast("ตั้งจุดโกดังก่อน");return;} if(route.length<2){toast("มีจุดเดียว ไม่ต้องจัด");return;} autoArrange(); renderStops(); toast("จัดเส้นทางใหม่แล้ว (ใกล้สุดจากโกดัง)"); });
+  $("truckSel").addEventListener("change",function(){curTruckId=this.value||null;renderCap();});
+
+  function newTrip(){curTripId=null;curTruckId=null;route=[];$("tripName").value="เที่ยวใหม่";buildTripSel();buildTruckSel();renderStops();renderJobs();}
+  function loadTrip(id){
+    api("/trip?id="+encodeURIComponent(id)).then(function(r){
+      var t=r.trip; if(!t){newTrip();return;}
+      curTripId=t.id; curTruckId=t.truck_id||null; $("tripName").value=t.name||"เที่ยว";
+      var rows=(t.stops||[]).slice().sort(function(a,b){return (a.seq||0)-(b.seq||0)});
+      route=[]; var byPr={};
+      rows.forEach(function(s){ var k=s.pr||s.tracking; if(!byPr[k]){byPr[k]={pr:s.pr,lat:+s.lat,lng:+s.lng,address:s.address,customer:s.customer,items:[]};route.push(byPr[k]);} byPr[k].items.push({tracking:s.tracking,boxes:s.boxes,weightKg:+s.weight_kg||0,cbm:+s.cbm||0}); });
+      buildTripSel(); buildTruckSel(); renderStops(); renderJobs();
+    }).catch(function(e){toast(errMsg(e))});
+  }
+  $("tripSel").addEventListener("change",function(){ if(this.value==="__new")newTrip(); else loadTrip(this.value); });
+  $("tripDel").addEventListener("click",function(){
+    if(!curTripId){newTrip();return;}
+    var id=curTripId; trips=trips.filter(function(t){return t.id!==id});
+    api("/trip/delete",{id:id}).then(function(){toast("ลบเที่ยวแล้ว")}).catch(function(e){toast(errMsg(e))});
+    newTrip();
+  });
+  function refreshTrips(){return api("/trips").then(function(r){trips=r.trips||[];buildTripSel();});}
+  $("saveTrip").addEventListener("click",function(){
+    if(!route.length){toast("ยังไม่มีจุดส่ง");return;}
+    var name=$("tripName").value.trim()||"เที่ยวใหม่";
+    var stops=[]; route.forEach(function(s,i){ s.items.forEach(function(it){ stops.push({seq:i,pr:s.pr,tracking:it.tracking,customer:s.customer,address:s.address,lat:s.lat,lng:s.lng,boxes:it.boxes,weight_kg:+it.weightKg||0,cbm:+it.cbm||0}); }); });
+    var save=curTripId?Promise.resolve({id:curTripId}):api("/trip/create",{name:name});
+    save.then(function(r){
+      curTripId=(r&&r.id)||curTripId; if(!curTripId)throw {error:"สร้างเที่ยวไม่สำเร็จ"};
+      return api("/trip/update",{id:curTripId,name:name,truck_id:curTruckId}).then(function(){return api("/trip/stops",{id:curTripId,stops:stops})});
+    }).then(function(){
+      route.forEach(function(s){s.items.forEach(function(it){if(it.tracking)placedMap[it.tracking]=curTripId;});});
+      return refreshTrips();
+    }).then(function(){buildTripSel();renderJobs();toast("บันทึกเที่ยวแล้ว ✓ (ไปสั่งงานจริงที่ pacred)")}).catch(function(e){toast(errMsg(e))});
+  });
+
+  // ---- ลิงก์ให้คนขับเปิดในมือถือ (ดูเส้นทาง + แชร์ GPS) ----
+  $("driverLink").addEventListener("click",function(){
+    if(!curTripId){ toast("บันทึกเที่ยวก่อน แล้วค่อยขอลิงก์คนขับ"); return; }
+    api("/trip/driver-link",{id:curTripId}).then(function(r){
+      var url=r.url||""; if(!url){ toast("ยังไม่มีที่อยู่เว็บ (ตั้ง RENDER_EXTERNAL_URL)"); return; }
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(function(){toast("ก๊อปลิงก์คนขับแล้ว — ส่งให้คนขับได้เลย")},function(){prompt("ลิงก์คนขับ (ก๊อปแล้วส่ง):",url)});
+      else prompt("ลิงก์คนขับ (ก๊อปแล้วส่ง):",url);
+    }).catch(function(e){toast(errMsg(e))});
+  });
+
+  // ---- ติดตามตำแหน่งรถ (จาก GPS มือถือคนขับ) ----
+  var truckMarkers=[], trackTimer=null;
+  function timeAgo(iso){ if(!iso)return""; var s=Math.floor((Date.now()-new Date(iso).getTime())/1000); if(s<60)return s+" วิที่แล้ว"; if(s<3600)return Math.floor(s/60)+" นาทีที่แล้ว"; return Math.floor(s/3600)+" ชม.ที่แล้ว"; }
+  function truckIcon(){return L.divIcon({className:"",html:'<div class="truck-ic">🚚</div>',iconSize:[30,30],iconAnchor:[15,15]});}
+  function clearTrucks(){ truckMarkers.forEach(function(m){map.removeLayer(m)}); truckMarkers=[]; }
+  function loadPositions(){
+    api("/positions").then(function(r){
+      clearTrucks();
+      (r.positions||[]).forEach(function(p){
+        var m=L.marker([p.lat,p.lng],{icon:truckIcon(),zIndexOffset:2000}).addTo(map).bindPopup('<div class="pop"><b style="color:#2563c9">🚚 '+esc(p.truck||p.name||"รถ")+'</b><div class="a">'+(p.driver?esc(p.driver)+' · ':'')+esc(p.name||"")+'<br>อัปเดต '+esc(timeAgo(p.at))+'</div></div>');
+        truckMarkers.push(m);
+      });
+    }).catch(function(e){toast(errMsg(e))});
+  }
+  $("trackBtn").addEventListener("click",function(){
+    if(trackTimer){ clearInterval(trackTimer); trackTimer=null; clearTrucks(); this.classList.remove("on"); toast("ปิดติดตามรถ"); }
+    else { this.classList.add("on"); loadPositions(); trackTimer=setInterval(loadPositions,20000); toast("ติดตามรถ: อัปเดตตำแหน่งทุก 20 วิ (ให้คนขับเปิดลิงก์+กดแชร์)"); }
+  });
+
+  // ---- tabs ----
+  document.querySelectorAll(".tab").forEach(function(b){
+    b.addEventListener("click",function(){
+      document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("on")}); b.classList.add("on");
+      document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on")}); $("view-"+b.dataset.v).classList.add("on");
+      if(b.dataset.v==="trip"&&!jobs.length&&!route.length)loadJobs();
+      setTimeout(function(){map.invalidateSize()},60);
+    });
+  });
+
+  // ---- panel (mobile) ----
+  function openPanel(){$("panel").classList.add("open");$("scrim").classList.add("on")}
+  function closePanel(){$("panel").classList.remove("open");$("scrim").classList.remove("on")}
+  $("menuBtn").addEventListener("click",function(){$("panel").classList.contains("open")?closePanel():openPanel()});
+  $("scrim").addEventListener("click",closePanel);
+
+  // ---- load ----
+  if(!KEY){setSync("ไม่มีคีย์",SYNC_BAD);toast("เปิดหน้านี้ด้วยลิงก์จากบอทไลน์ (ต้องมีคีย์)");return;}
+  Promise.all([api("/bootstrap"),api("/pins")]).then(function(res){
+    origin=res[0].origin||null; trips=res[0].trips||[]; trucks=res[0].trucks||[];
+    (res[0].placed||[]).forEach(function(p){placedMap[p.tracking]=p.trip_id;});
+    pins=(res[1].pins||[]).filter(function(p){return typeof p.lat==="number"&&typeof p.lng==="number"});
+    pinByPr={}; pins.forEach(function(p){(pinByPr[p.pr]=pinByPr[p.pr]||[]).push(p)});
+    setSync("พร้อมใช้",SYNC_OK);
+    renderPins(); drawOrigin(); fitAll(); buildTripSel(); buildTruckSel(); renderTrucks(); renderStops(); renderJobs();
+    setTimeout(function(){map.invalidateSize()},200);
+  }).catch(function(e){setSync("เชื่อมไม่ได้",SYNC_BAD);toast(errMsg(e));});
+})();
+</script>
+</body>
+</html>

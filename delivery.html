@@ -72,6 +72,9 @@
   .wh .pin{color:var(--red);font-size:17px}
   /* จุดส่งที่ยังไม่มีหมุด — ใส่เข้าเที่ยวได้ แต่ต้องเห็นชัดว่าไม่ขึ้นแผนที่ (ภูม 2026-11-23) */
   .seq.nogeo{background:#94a3b8}
+  /* หมุดคร่าวๆ (กลางตำบล/อำเภอ/จังหวัด) — ใช้วางแผนได้ แต่ไม่ใช่หน้าบ้าน ต้องบอกให้รู้ */
+  .rough{display:inline-block;font-size:10px;font-weight:800;color:#1d4ed8;background:#dbeafe;
+    border-radius:20px;padding:1px 7px;vertical-align:middle;white-space:nowrap}
   .nopin{display:inline-block;font-size:10.5px;font-weight:800;color:#b45309;background:#fef3c7;
     border-radius:20px;padding:1px 7px;vertical-align:middle}
   .hint{font-size:11px;color:var(--faint);line-height:1.5;margin-top:9px}
@@ -431,6 +434,19 @@
      🪤 0,0 ไม่ใช่หมุด แปลว่า "ยังไม่ปัก" (ฐาน pacred ตั้งต้นไว้แบบนั้น 10,286 แถว)
      งานที่ยังไม่มีหมุด **ใส่เข้าเที่ยวได้** แต่ไม่ขึ้นบนแผนที่ ไม่เข้าการจัดเส้นทาง */
   function hasGeo(o){ var la=+(o&&o.lat), ln=+(o&&o.lng); return isFinite(la)&&isFinite(ln)&&!(la===0&&ln===0); }
+  /* คำบอกความแม่นของหมุด — ต้องตรงกับฝั่ง pacred (lib/delivery/area-geo.ts GEO_LEVEL_LABEL) */
+  var GEO_TXT={driver:"หมุดจริง (คนขับปัก)",saved:"หมุดที่บันทึกไว้",tambon:"คร่าวๆ ระดับตำบล",amphoe:"คร่าวๆ ระดับอำเภอ",changwat:"หยาบ ระดับจังหวัด"};
+  function geoTxt(g){ return GEO_TXT[g]||"มีหมุด"; }
+  /* หมุดระดับเขตการปกครอง = ยังไม่ใช่หน้าบ้าน ⇒ จอต้องบอกให้รู้ ไม่ใช่โชว์เหมือนหมุดเป๊ะ */
+  function geoRough(g){ return g==="tambon"||g==="amphoe"||g==="changwat"; }
+  /* บรรทัดใต้ชื่อ PR — มีที่อยู่ก็โชว์ที่อยู่ · หมุดคร่าวๆ ต่อป้ายบอกระดับ
+     🪤 ห้ามโชว์คำเดียวกัน 2 ครั้ง (ไม่มีที่อยู่ + หมุดคร่าวๆ เคยขึ้น "คร่าวๆ ระดับตำบล" ซ้ำ 2 รอบ) */
+  function geoSub(j){
+    var rough=geoRough(j.geo), addr=String(j.address||"").trim();
+    var head=addr||(rough?"":geoTxt(j.geo));
+    var chip=rough?'<span class="rough">'+esc(geoTxt(j.geo))+'</span>':"";
+    return (head?esc(head):"")+(head&&chip?" ":"")+chip;
+  }
   /* ระยะทาง — ไล่เฉพาะจุดที่มีหมุด (จุดไม่มีหมุดคำนวณระยะไม่ได้ ไม่ใช่ระยะ 0) */
   function routeKm(){if(!origin||!route.length)return 0;var pt=[origin.lat,origin.lng],km=0;route.forEach(function(s){if(!hasGeo(s))return;km+=haversine(pt,[s.lat,s.lng]);pt=[s.lat,s.lng];});km+=haversine(pt,[origin.lat,origin.lng]);return km;}
   function n2(x){return Math.round((+x||0)*100)/100} function n3(x){return Math.round((+x||0)*1000)/1000}
@@ -460,7 +476,8 @@
       var card=document.createElement("div"); card.className="prcard"+(geo?"":" nogeo")+(open?" open":"");
       card.innerHTML='<div class="prhead"><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><span class="prdot"></span>'+
         '<div class="n"><div class="prname">'+esc(pr||"—")+(cust?' <span class="cust">'+esc(cust)+'</span>':'')+(inN?' <span class="inchip">'+inN+'/'+list.length+' เข้าเที่ยว</span>':'')+'</div>'+
-        '<div class="prsub">'+(geo?esc(list[0].address||"มีหมุด"):'ยังไม่มีหมุด — ใส่เข้าเที่ยวได้ แต่ไม่ขึ้นบนแผนที่')+' · '+list.length+' แทรค · '+box+' กล่อง'+(kg?' · '+kg+' กก.':'')+'</div></div>'+
+        '<div class="prsub">'+(geo?geoSub(list[0]):'ยังไม่มีหมุด — ใส่เข้าเที่ยวได้ แต่ไม่ขึ้นบนแผนที่')
+          +' · '+list.length+' แทรค · '+box+' กล่อง'+(kg?' · '+kg+' กก.':'')+'</div></div>'+
         '<button class="prall" type="button">'+(inN<list.length?'+ ทั้งหมด':'เอาออก')+'</button>'+'</div><div class="prbody"></div>';
       var body=card.querySelector(".prbody");
       list.forEach(function(j){
@@ -490,7 +507,7 @@
     if(!route.length){el.innerHTML='<div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบน (ระบบจัดเส้นทางให้เอง)</div>';renderRoute();renderCap();return;}
     route.forEach(function(s,i){
       var card=document.createElement("div"); card.className="stopcard";
-      var h='<div class="stophead"><div class="seq'+(hasGeo(s)?'':' nogeo')+'">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+(hasGeo(s)?'':' <span class="nopin">ไม่มีหมุด</span>')+'</div><div class="meta">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง · '+n2(stopKg(s))+' กก. · '+n3(stopCbm(s))+' คิว</div></div>'+
+      var h='<div class="stophead"><div class="seq'+(hasGeo(s)?'':' nogeo')+'">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+(hasGeo(s)?(geoRough(s.geo)?' <span class="rough">'+esc(geoTxt(s.geo))+'</span>':''):' <span class="nopin">ไม่มีหมุด</span>')+'</div><div class="meta">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง · '+n2(stopKg(s))+' กก. · '+n3(stopCbm(s))+' คิว</div></div>'+
         '<div class="ctl"><button data-up '+(i===0?"disabled":"")+'>↑</button><button data-dn '+(i===route.length-1?"disabled":"")+'>↓</button><button data-rm title="ลบทั้งจุด">✕</button></div></div>';
       var items=""; s.items.forEach(function(it){ items+='<div class="sitem"><span class="tk">'+esc(it.tracking||"")+'</span><span class="m">'+(it.boxes||1)+' กล่อง · '+n2(it.weightKg)+' กก. · '+n3(it.cbm)+' คิว</span><span class="xx" data-rmtk="'+esc(it.tracking)+'">×</span></div>'; });
       card.innerHTML=h+'<div class="sitems">'+items+'</div>';
@@ -525,7 +542,7 @@
   function addItem(j){ // ใส่แทรคเข้าจุดของ PR (สร้างจุดถ้ายังไม่มี) — ไม่ render (ใช้ตอนเพิ่มทั้งหมด)
     if(inRoute(j.pr,j.tracking))return;
     var s=route.filter(function(x){return x.pr===j.pr})[0];
-    if(!s){ s={pr:j.pr,lat:j.lat,lng:j.lng,address:j.address,customer:j.customer,items:[]}; route.push(s); }
+    if(!s){ s={pr:j.pr,lat:j.lat,lng:j.lng,geo:j.geo,address:j.address,customer:j.customer,items:[]}; route.push(s); }
     s.items.push({tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0});
   }
   function addTracking(j){ addItem(j); autoArrange(); renderStops(); renderJobs(); }
@@ -558,7 +575,15 @@
     var rf=$("jobRefresh"); rf.classList.add("spin"); $("jobs").innerHTML='<div class="empty">กำลังดึงงานพร้อมส่ง…</div>';
     api("/jobs").then(function(r){
       rf.classList.remove("spin");
-      jobs=(r.jobs||[]).map(function(j){var pin=(pinByPr[j.pr]||[])[0];return {pr:j.pr,tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0,customer:j.customer,lat:pin&&pin.lat,lng:pin&&pin.lng,address:pin&&pin.address};});
+      /* 📍 ลำดับหมุด (ภูม 2026-11-23): หมุดที่คนขับปักเป๊ะ → หมุดที่ภูมเซฟไว้เอง → กลางตำบล/อำเภอ/จังหวัด
+         ⇒ เลิกต้องมานั่งปักหมุดเองทีละราย · ของที่ pacred ส่งมาแล้วใช้เลย */
+      jobs=(r.jobs||[]).map(function(j){
+        var pin=(pinByPr[j.pr]||[])[0];
+        var feed=hasGeo(j)?{lat:+j.lat,lng:+j.lng,geo:j.geo||"tambon"}:null;
+        var use=(feed&&feed.geo==="driver")?feed:(pin?{lat:pin.lat,lng:pin.lng,geo:"saved",address:pin.address}:feed);
+        return {pr:j.pr,tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0,customer:j.customer,
+          lat:use&&use.lat,lng:use&&use.lng,geo:use&&use.geo,address:(pin&&pin.address)||null};
+      });
       jobs.sort(function(a,b){return (b.lat?1:0)-(a.lat?1:0)}); renderJobs();
       if(!r.ok&&r.error)toast(r.error);
     }).catch(function(e){rf.classList.remove("spin");$("jobs").innerHTML='<div class="empty" style="color:#d8352a">ดึงงานไม่สำเร็จ</div>';toast(errMsg(e));});

@@ -199,6 +199,12 @@ function createDelivery(supabase, warehouse) {
         weightKg: Number(j.weightKg) || 0,   // น้ำหนัก/ปริมาตรจริงจาก pacred (ท่อ bot ส่งมาแล้ว)
         cbm: Number(j.cbm) || 0,              // ⇒ planner บวกเอง + แนะนำรถ (ไม่ต้องกรอก)
         customer: j.customer || null,
+        /* 📍 หมุดจาก pacred (ภูม 2026-11-23) — ไม่ต้องมานั่งปักเองทีละราย
+           geo บอกความแม่น: driver (คนขับปักเป๊ะ) · tambon · amphoe · changwat
+           ไม่มี = null ⇒ จอจะบอกว่า "ยังไม่มีหมุด" ไม่ใช่ปักมั่ว */
+        lat: Number.isFinite(Number(j.lat)) ? Number(j.lat) : null,
+        lng: Number.isFinite(Number(j.lng)) ? Number(j.lng) : null,
+        geo: j.geo || null,
       });
     }
     return { ok: live.ok !== false, jobs: out, at: live.at || null };

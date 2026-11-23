@@ -205,8 +205,37 @@ function createDelivery(supabase, warehouse) {
         lat: Number.isFinite(Number(j.lat)) ? Number(j.lat) : null,
         lng: Number.isFinite(Number(j.lng)) ? Number(j.lng) : null,
         geo: j.geo || null,
+        address: j.address || null,     /* เติมของจริงอีกทีในรอบที่ 2 ข้างล่าง */
       });
     }
+    /* 📍 ขอ "ที่อยู่จริง + หมุดที่คนขับปัก" ของเฉพาะงานที่จะจัดรถรอบนี้ (ภูม 2026-11-23)
+     *
+     * ภูม: *"ถ้าไม่เอาที่อยู่จริงๆลูกค้าอะ มันก็ปักผิดจุด ผิดที่ได้เลยนะแบบนี้อะ"* — ถูกต้อง
+     * หมุดกลางตำบลใช้ "จัดโซน" ได้ แต่ไม่ใช่หน้าบ้าน ⇒ คนวางแผนต้องเห็นที่อยู่จริงคู่กัน
+     * ถึงจะรู้ว่าหมุดนั้นตรงหรือเพี้ยน
+     *
+     * 🔒 ใช้ช่องทางเดิมของท่อ (d= = ขอรายละเอียดของกล่องที่ระบุ) ไม่ได้เปิดทางใหม่
+     *    ขอเฉพาะงาน "พร้อมส่ง" รอบนี้ ไม่ใช่ทั้งโกดัง · เก็บแค่ ที่อยู่ + พิกัด
+     *    **ไม่เก็บเบอร์โทร/ชื่อผู้รับ** ต่อเข้าหน้าวางแผน (ไม่ได้ใช้ ยิ่งถือน้อยยิ่งดี)
+     */
+    const want = out.map((j) => j.tracking).filter(Boolean);
+    if (want.length) {
+      const det = await warehouse.jobsFromPacred([], want);
+      const byTk = new Map();
+      for (const d of det.jobs || []) byTk.set(String(d.tracking || "").trim(), d);
+      for (const j of out) {
+        const d = byTk.get(j.tracking);
+        if (!d) continue;
+        j.address = d.address || null;
+        /* หมุดเป๊ะมาเฉพาะรอบนี้ ⇒ ทับของคร่าวๆ ที่ได้มารอบแรก */
+        if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))) {
+          j.lat = Number(d.lat);
+          j.lng = Number(d.lng);
+          j.geo = d.geo || j.geo;
+        }
+      }
+    }
+
     return { ok: live.ok !== false, jobs: out, at: live.at || null };
   }
 

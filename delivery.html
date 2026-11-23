@@ -441,6 +441,7 @@
   function geoRough(g){ return g==="tambon"||g==="amphoe"||g==="changwat"; }
   /* บรรทัดใต้ชื่อ PR — มีที่อยู่ก็โชว์ที่อยู่ · หมุดคร่าวๆ ต่อป้ายบอกระดับ
      🪤 ห้ามโชว์คำเดียวกัน 2 ครั้ง (ไม่มีที่อยู่ + หมุดคร่าวๆ เคยขึ้น "คร่าวๆ ระดับตำบล" ซ้ำ 2 รอบ) */
+  /* บรรทัดใต้ชื่อ PR — ที่อยู่จริงจากระบบมาก่อนเสมอ เพราะคนวางแผนต้องเทียบได้ว่าหมุดตรงไหม */
   function geoSub(j){
     var rough=geoRough(j.geo), addr=String(j.address||"").trim();
     var head=addr||(rough?"":geoTxt(j.geo));
@@ -582,7 +583,7 @@
         var feed=hasGeo(j)?{lat:+j.lat,lng:+j.lng,geo:j.geo||"tambon"}:null;
         var use=(feed&&feed.geo==="driver")?feed:(pin?{lat:pin.lat,lng:pin.lng,geo:"saved",address:pin.address}:feed);
         return {pr:j.pr,tracking:j.tracking,boxes:j.boxes,weightKg:+j.weightKg||0,cbm:+j.cbm||0,customer:j.customer,
-          lat:use&&use.lat,lng:use&&use.lng,geo:use&&use.geo,address:(pin&&pin.address)||null};
+          lat:use&&use.lat,lng:use&&use.lng,geo:use&&use.geo,address:j.address||(pin&&pin.address)||null};
       });
       jobs.sort(function(a,b){return (b.lat?1:0)-(a.lat?1:0)}); renderJobs();
       if(!r.ok&&r.error)toast(r.error);

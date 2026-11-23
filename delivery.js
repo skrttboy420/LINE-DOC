@@ -3,11 +3,13 @@
 //
 // 🔒 แค่วางแผน — ไม่เขียนกลับ pacred · มอบงาน/ปิดงานจริงทำใน pacred เท่านั้น
 // 🔗 งาน "พร้อมส่ง" ดึงจากท่อเดิมของโกดัง (warehouse.jobsFromPacred) แล้วกรอง PICK.READY
-//    พิกัดลูกค้า = จับจากหมุด PR (delivery-pins.json) ไม่ได้มาจาก pacred
+//    พิกัดลูกค้า = หมุดจาก pacred (กลางตำบล/อำเภอ หรือหมุดที่คนขับปักเป๊ะ) + หมุดที่เซฟไว้เอง
+// 🧮 สูตรแนะนำรถ + ตัวจัดรถอัตโนมัติอยู่ trip-plan.js ที่เดียว (จอฝังซอร์สตัวเดียวกัน)
 // ============================================================
 
 const crypto = require("node:crypto");
 const { pickStateOf, PICK } = require("./warehouse");
+const { recommendVehicle, planTrips, PLAN_DEFAULTS } = require("./trip-plan");
 
 /**
  * @param {object} supabase  Supabase ของบอท (service_role)
@@ -37,14 +39,6 @@ function createDelivery(supabase, warehouse) {
      ยังไม่ตั้งเอง = ใช้จุดนี้ · ปักใหม่ในแอปได้ (เก็บทับใน dp_setting) */
   const DEFAULT_ORIGIN = { lat: 13.7109246, lng: 100.3241082, label: "โกดัง PACRED" };
 
-  /* ── สูตรแนะนำรถ (mirror src/lib/admin/vehicle-recommendation.ts ของ pacred) ── */
-  function recommendVehicle(kg, cbm) {
-    const w = Number(kg) || 0, v = Number(cbm) || 0;
-    if (w <= 1800 && v <= 6) return "รถกระบะ";
-    if (w <= 3500 && v <= 12) return "6 ล้อเล็ก";
-    if (w <= 5000 && v <= 30) return "6 ล้อใหญ่";
-    return "มากกว่ารถที่กำหนด";
-  }
 
   /* ── ตั้งค่า / จุดโกดัง ──────────────────────────────────────────── */
   async function getSetting(key) {
@@ -206,6 +200,8 @@ function createDelivery(supabase, warehouse) {
         lng: Number.isFinite(Number(j.lng)) ? Number(j.lng) : null,
         geo: j.geo || null,
         address: j.address || null,     /* เติมของจริงอีกทีในรอบที่ 2 ข้างล่าง */
+        province: j.province || null,   /* 🏷 ไว้ตั้งชื่อโซนของเที่ยว ("นนทบุรี · บางกรวย") */
+        district: j.district || null,   /*    อยู่ในช่อง address อยู่แล้ว — แยกมาให้อ่านง่าย ไม่ใช่ข้อมูลใหม่ */
       });
     }
     /* 📍 ขอ "ที่อยู่จริง + หมุดที่คนขับปัก" ของเฉพาะงานที่จะจัดรถรอบนี้ (ภูม 2026-11-23)
@@ -227,6 +223,8 @@ function createDelivery(supabase, warehouse) {
         const d = byTk.get(j.tracking);
         if (!d) continue;
         j.address = d.address || null;
+        j.province = d.province || null;
+        j.district = d.district || null;
         /* หมุดเป๊ะมาเฉพาะรอบนี้ ⇒ ทับของคร่าวๆ ที่ได้มารอบแรก */
         if (Number.isFinite(Number(d.lat)) && Number.isFinite(Number(d.lng))) {
           j.lat = Number(d.lat);
@@ -307,7 +305,7 @@ function createDelivery(supabase, warehouse) {
   }
 
   return {
-    isReady, recommendVehicle, TRUCK_TYPES,
+    isReady, recommendVehicle, planTrips, PLAN_DEFAULTS, TRUCK_TYPES,
     getSetting, setSetting, getOrigin, setOrigin,
     listTrucks, addTruck, updateTruck, deleteTruck,
     listTrips, getTrip, createTrip, updateTrip, deleteTrip, setStops,

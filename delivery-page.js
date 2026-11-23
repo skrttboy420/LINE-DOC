@@ -29,6 +29,36 @@ function readFileCached(file) {
   return fileCache[file];
 }
 
+/* ── 🚚 ฝังตัวจัดรถลงหน้าเว็บ ───────────────────────────────────────
+ *
+ * 🔑 **สูตรแนะนำรถ · วิธีแบ่งเที่ยว · วิธีเรียงจุด · การจับรถ** อยู่ใน trip-plan.js ที่เดียว
+ *    แล้วยก "ซอร์สจริง" ฝังเข้าหน้าเว็บตอนเสิร์ฟ (แพทเทินเดียวกับ manager-checklist.js)
+ *    ⇒ เลขที่เทสในเครื่อง กับ เลขที่ขึ้นบนจอ **เป็นโค้ดบรรทัดเดียวกัน**
+ *    (ก๊อปไว้ 2 ที่ วันไหนแก้สูตร จอกับเทสจะไม่ตรงกัน แล้วไม่มีใครรู้ว่าอันไหนถูก)
+ * 🪤 หาเครื่องหมายไม่เจอ / แปลงซอร์สไม่ได้ = **พังเสียงดังทันที** ไม่ใช่ปล่อยให้ปุ่มกดไม่ติดเงียบๆ
+ */
+const PLAN_MARK = /\/\*__PLAN_MODULE__\*\/[\s\S]*?\/\*__PLAN_MODULE_END__\*\//;
+const EXPORT_LINE = /^module\.exports\s*=.*$/m;
+
+function planBrowserSource() {
+  const src = fs.readFileSync(path.join(__dirname, "trip-plan.js"), "utf8");
+  if (!EXPORT_LINE.test(src)) {
+    throw new Error("trip-plan.js: หาบรรทัด module.exports ไม่เจอ — แปลงเป็นสคริปต์เบราว์เซอร์ไม่ได้");
+  }
+  const body = src.replace(EXPORT_LINE,
+    "window.DP_PLAN = { VEHICLES, PLAN_DEFAULTS, recommendVehicle, hasGeo, haversineKm, " +
+    "orderByNearest, routeKm, planTrips, truckCaps, assignTrucks };");
+  return "(function(){\n" + body + "\n})();";
+}
+
+function injectPlan(html) {
+  const out = html.replace(PLAN_MARK, () => planBrowserSource());
+  if (out === html) {
+    throw new Error("delivery.html: หาเครื่องหมาย __PLAN_MODULE__ ไม่เจอ — ปุ่มจัดรถอัตโนมัติจะกดไม่ติด");
+  }
+  return out;
+}
+
 function mountDelivery(app, delivery) {
   const express = require("express");
   const json = express.json({ limit: "2mb" });
@@ -38,7 +68,7 @@ function mountDelivery(app, delivery) {
     const k = checkKey(req);
     if (k === "no-key") return res.status(503).type("text/plain; charset=utf-8").send(NO_KEY_MSG);
     if (k === "bad-key") return res.status(401).type("text/plain; charset=utf-8").send("คีย์ไม่ถูกต้อง — ใส่ ?key=<คีย์> ท้าย URL");
-    res.type("html").send(readFileCached("delivery.html"));
+    res.type("html").send(injectPlan(readFileCached("delivery.html")));
   });
 
   /* หมุดลูกค้า (ไฟล์ static · จับคู่กับงานด้วยรหัส PR) */

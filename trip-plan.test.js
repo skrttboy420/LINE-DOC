@@ -1,0 +1,335 @@
+// ============================================================
+// 🧪 trip-plan.js — จัดรถอัตโนมัติ (ภูม 2026-11-23)
+//
+// รัน:  node trip-plan.test.js
+//
+// 🔑 เทสกติกาที่ "เงินกับงานจริง" พึ่งอยู่:
+//    ① **ไม่มีงานหาย** — ทุกจุดที่ใส่เข้าไป ต้องโผล่ใน trips หรือ noPin อย่างละ 1 ครั้งเท่านั้น
+//    ② แบ่งตามทิศจริง (กองคนละฝั่งโกดัง ต้องไม่ปนเที่ยวเดียวกัน)
+//    ③ เต็มพิกัดแล้วขึ้นเที่ยวใหม่ (จำนวนจุด · กก. · คิว)
+//    ④ จุดเดียวใหญ่เกินพิกัด = ขึ้นเที่ยวแล้ว **ติดธง** ไม่ใช่หายหรือวนไม่จบ
+//    ⑤ จุดไม่มีหมุด ไม่เข้าการจัดกลุ่ม (จัดโซนให้ไม่ได้)
+//    ⑥ สูตรแนะนำรถมีที่เดียว — ห้ามมีสำเนาใน delivery.js / delivery.html
+// ============================================================
+
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const P = require("./trip-plan");
+
+let pass = 0, fail = 0;
+function ok(name, fn) {
+  try { fn(); pass++; console.log("  ✓ " + name); }
+  catch (e) { fail++; console.error("  ✗ " + name); console.error("    " + (e.message || e)); }
+}
+
+/* โกดัง PACRED จริง (ค่าตั้งต้นของหน้าวางแผน) */
+const WH = { lat: 13.7109246, lng: 100.3241082 };
+
+/** จุดส่ง 1 จุด — dLat/dLng = ห่างจากโกดังกี่องศา */
+function stop(pr, dLat, dLng, extra) {
+  return Object.assign(
+    { pr: pr, lat: dLat === null ? 0 : WH.lat + dLat, lng: dLng === null ? 0 : WH.lng + dLng,
+      geo: "tambon", items: [{ tracking: "TK" + pr, boxes: 1, weightKg: 10, cbm: 0.1 }] },
+    extra || {},
+  );
+}
+
+console.log("\n🚚 trip-plan — จัดรถอัตโนมัติ");
+
+// ── ① ไม่มีงานหาย (ข้อที่ห้ามพลาดที่สุด) ───────────────────────────
+ok("🔑 ทุกจุดที่ใส่เข้าไป โผล่ครบ 1 ครั้ง — ไม่หาย ไม่ซ้ำ", () => {
+  const stops = [];
+  for (let i = 0; i < 37; i++) {
+    /* กระจายรอบโกดังทุกทิศ + บางจุดไม่มีหมุด */
+    const a = (i / 37) * 2 * Math.PI;
+    stops.push(i % 7 === 0
+      ? stop("PR" + i, null, null)
+      : stop("PR" + i, Math.cos(a) * 0.08, Math.sin(a) * 0.08));
+  }
+  const r = P.planTrips(stops, { origin: WH, maxStops: 5 });
+  const seen = r.trips.reduce((a, t) => a.concat(t.stops.map((s) => s.pr)), []).concat(r.noPin.map((s) => s.pr));
+  assert.equal(seen.length, 37, "จำนวนจุดที่ออกมาต้องเท่าที่ใส่เข้าไป");
+  assert.equal(new Set(seen).size, 37, "ห้ามมีจุดไหนโผล่ 2 เที่ยว");
+  stops.forEach((s) => assert.ok(seen.includes(s.pr), s.pr + " หายไป"));
+});
+
+ok("จุดที่ไม่มีแทรคเลย = ไม่ใช่จุดส่ง (ข้าม)", () => {
+  const r = P.planTrips([stop("A", 0.01, 0.01), { pr: "ว่าง", lat: WH.lat, lng: WH.lng, items: [] }], { origin: WH });
+  const seen = r.trips.reduce((a, t) => a.concat(t.stops.map((s) => s.pr)), []);
+  assert.deepEqual(seen, ["A"]);
+});
+
+// ── ② แบ่งตามทิศจริง ────────────────────────────────────────────
+ok("กองตะวันออก กับ กองตะวันตก ไม่ปนเที่ยวเดียวกัน", () => {
+  const east = [stop("E1", 0.01, 0.1), stop("E2", 0.02, 0.11), stop("E3", -0.01, 0.1)];
+  const west = [stop("W1", 0.01, -0.1), stop("W2", 0.02, -0.11), stop("W3", -0.01, -0.1)];
+  /* สลับเข้าไปให้ลำดับที่กดเพิ่มไม่ช่วยอะไรเลย */
+  const r = P.planTrips([east[0], west[0], east[1], west[1], east[2], west[2]], { origin: WH, maxStops: 3 });
+  assert.equal(r.trips.length, 2, "ต้องได้ 2 เที่ยว");
+  r.trips.forEach((t) => {
+    const letters = new Set(t.stops.map((s) => s.pr[0]));
+    assert.equal(letters.size, 1, "เที่ยวนี้ปนทิศ: " + t.stops.map((s) => s.pr).join(","));
+  });
+});
+
+ok("🪤 กองที่คร่อมทิศเหนือ ต้องไม่ถูกผ่าเป็น 2 เที่ยว (เริ่มกวาดที่ช่องว่างกว้างสุด)", () => {
+  /* มุม ~0 กับ ~2π = ทิศเดียวกัน · เริ่มกวาดที่เหนือเป๊ะแล้วกองนี้จะขาดกลาง */
+  const north = [stop("N1", 0.1, 0.004), stop("N2", 0.1, -0.004), stop("N3", 0.11, 0.001)];
+  const south = [stop("S1", -0.1, 0.004), stop("S2", -0.1, -0.004), stop("S3", -0.11, 0.001)];
+  const r = P.planTrips(north.concat(south), { origin: WH, maxStops: 3 });
+  assert.equal(r.trips.length, 2);
+  r.trips.forEach((t) => assert.equal(new Set(t.stops.map((s) => s.pr[0])).size, 1,
+    "เที่ยวนี้ปนเหนือ-ใต้: " + t.stops.map((s) => s.pr).join(",")));
+});
+
+// ── ③ เต็มพิกัดแล้วขึ้นเที่ยวใหม่ ──────────────────────────────────
+ok("เต็มจำนวนจุด → เที่ยวใหม่", () => {
+  const stops = [];
+  for (let i = 0; i < 10; i++) stops.push(stop("P" + i, 0.01 * i, 0.05));
+  const r = P.planTrips(stops, { origin: WH, maxStops: 4 });
+  assert.deepEqual(r.trips.map((t) => t.stopCount), [4, 4, 2]);
+});
+
+ok("เต็มน้ำหนัก → เที่ยวใหม่ (ไม่ต้องรอให้ครบจำนวนจุด)", () => {
+  const stops = [];
+  for (let i = 0; i < 6; i++) {
+    const s = stop("P" + i, 0.01 * i, 0.05);
+    s.items = [{ tracking: "T" + i, boxes: 2, weightKg: 400, cbm: 0.5 }];
+    stops.push(s);
+  }
+  const r = P.planTrips(stops, { origin: WH, maxStops: 99, maxKg: 1000, maxCbm: 999 });
+  assert.deepEqual(r.trips.map((t) => t.stopCount), [2, 2, 2], "400×2 = 800 ใส่ที่ 3 ไม่ได้ (1,200)");
+  r.trips.forEach((t) => assert.ok(t.kg <= 1000, "เที่ยวเกินพิกัดน้ำหนัก"));
+});
+
+ok("เต็มปริมาตร → เที่ยวใหม่", () => {
+  const stops = [];
+  for (let i = 0; i < 5; i++) {
+    const s = stop("P" + i, 0.01 * i, 0.05);
+    s.items = [{ tracking: "T" + i, boxes: 1, weightKg: 1, cbm: 4 }];
+    stops.push(s);
+  }
+  const r = P.planTrips(stops, { origin: WH, maxStops: 99, maxKg: 99999, maxCbm: 10 });
+  assert.deepEqual(r.trips.map((t) => t.stopCount), [2, 2, 1]);
+});
+
+ok("ไม่ส่งพิกัดมา = ใช้ค่าตั้งต้น (12 จุด · รถใหญ่สุด)", () => {
+  const r = P.planTrips([stop("A", 0.01, 0.01)], { origin: WH });
+  assert.equal(r.caps.maxStops, 12);
+  assert.equal(r.caps.maxKg, 5000);
+  assert.equal(r.caps.maxCbm, 30);
+});
+
+ok("พิกัด 0 / ติดลบ / ขยะ = ใช้ค่าตั้งต้น ไม่ใช่แบ่งทีละจุด", () => {
+  [0, -5, "", null, "abc", NaN].forEach((bad) => {
+    const r = P.planTrips([stop("A", 0.01, 0.01)], { origin: WH, maxStops: bad, maxKg: bad, maxCbm: bad });
+    assert.equal(r.caps.maxStops, 12, "maxStops=" + bad);
+    assert.equal(r.caps.maxKg, 5000);
+  });
+});
+
+// ── ④ จุดเดียวใหญ่เกินพิกัด ────────────────────────────────────────
+ok("🪤 จุดเดียวหนักเกินพิกัด = ขึ้นเที่ยวแล้วติดธง (ไม่หาย ไม่วนไม่จบ)", () => {
+  const big = stop("ใหญ่", 0.01, 0.05);
+  big.items = [{ tracking: "BIG", boxes: 50, weightKg: 9000, cbm: 80 }];
+  const r = P.planTrips([big, stop("เล็ก", 0.02, 0.05)], { origin: WH, maxKg: 1000, maxCbm: 6 });
+  const seen = r.trips.reduce((a, t) => a.concat(t.stops.map((s) => s.pr)), []);
+  assert.deepEqual(seen.sort(), ["เล็ก", "ใหญ่"], "ของใหญ่ต้องยังอยู่");
+  const t = r.trips.filter((x) => x.stops.some((s) => s.pr === "ใหญ่"))[0];
+  assert.equal(t.stopCount, 1, "ของใหญ่ต้องได้เที่ยวของตัวเอง");
+  assert.equal(t.over.kg, true, "ต้องติดธงว่าเกินพิกัดน้ำหนัก");
+  assert.equal(t.over.cbm, true);
+  assert.equal(t.vehicle, "มากกว่ารถที่กำหนด");
+});
+
+// ── ⑤ จุดไม่มีหมุด ────────────────────────────────────────────────
+ok("จุดไม่มีหมุด (รวม 0,0) ไปกองรอจัดมือ ไม่เข้าเที่ยว", () => {
+  const r = P.planTrips([stop("มี", 0.01, 0.05), stop("ไม่มี", null, null), { pr: "ว่าง2", items: [{ tracking: "X", boxes: 1 }] }], { origin: WH });
+  assert.deepEqual(r.trips[0].stops.map((s) => s.pr), ["มี"]);
+  assert.deepEqual(r.noPin.map((s) => s.pr).sort(), ["ว่าง2", "ไม่มี"]);
+});
+
+ok("ยังไม่ตั้งจุดโกดัง = จัดให้ไม่ได้ ทุกจุดกองรอจัดมือ (ไม่เดา)", () => {
+  const stops = [stop("A", 0.01, 0.05), stop("B", 0.02, 0.05)];
+  [null, undefined, { lat: 0, lng: 0 }].forEach((bad) => {
+    const r = P.planTrips(stops, { origin: bad });
+    assert.equal(r.trips.length, 0);
+    assert.equal(r.noPin.length, 2);
+  });
+});
+
+// ── ⑥ สูตรแนะนำรถ: ที่เดียวของระบบ ────────────────────────────────
+ok("สูตรแนะนำรถตรงกับ pacred ทุกขอบ", () => {
+  assert.equal(P.recommendVehicle(0, 0), "รถกระบะ");
+  assert.equal(P.recommendVehicle(1800, 6), "รถกระบะ");
+  assert.equal(P.recommendVehicle(1801, 6), "6 ล้อเล็ก");
+  assert.equal(P.recommendVehicle(1800, 6.1), "6 ล้อเล็ก");
+  assert.equal(P.recommendVehicle(3500, 12), "6 ล้อเล็ก");
+  assert.equal(P.recommendVehicle(3501, 12), "6 ล้อใหญ่");
+  assert.equal(P.recommendVehicle(5000, 30), "6 ล้อใหญ่");
+  assert.equal(P.recommendVehicle(5001, 30), "มากกว่ารถที่กำหนด");
+  assert.equal(P.recommendVehicle(100, 31), "มากกว่ารถที่กำหนด");
+});
+
+ok("🧪 ยาม: ห้ามมีสำเนาสูตรแนะนำรถใน delivery.js / delivery.html", () => {
+  ["delivery.js", "delivery.html"].forEach((f) => {
+    const src = fs.readFileSync(path.join(__dirname, f), "utf8");
+    assert.ok(!/1800[\s\S]{0,80}6 ล้อเล็ก/.test(src),
+      f + ": เขียนบันไดพิกัดรถซ้ำ — ต้องเรียก trip-plan.recommendVehicle ตัวเดียว");
+  });
+});
+
+// ── เลขที่จอโชว์ ──────────────────────────────────────────────────
+ok("บวกกล่อง/กก./คิว/แทรค ถูกทุกช่อง", () => {
+  const a = stop("A", 0.01, 0.05);
+  a.items = [{ tracking: "T1", boxes: 3, weightKg: 12.5, cbm: 0.25 }, { tracking: "T2", boxes: 2, weightKg: 7.5, cbm: 0.125 }];
+  const b = stop("B", 0.02, 0.05);
+  b.items = [{ tracking: "T3", boxes: 1, weightKg: 5, cbm: 0.5 }];
+  const t = P.planTrips([a, b], { origin: WH }).trips[0];
+  assert.equal(t.stopCount, 2);
+  assert.equal(t.trackings, 3);
+  assert.equal(t.boxes, 6);
+  assert.equal(t.kg, 25);
+  assert.equal(t.cbm, 0.875);
+  assert.ok(t.km > 0, "ต้องคิดระยะทางได้");
+  assert.equal(t.vehicle, "รถกระบะ");
+});
+
+ok("กล่องที่ไม่ได้กรอกจำนวน = นับ 1 (ไม่ใช่ 0)", () => {
+  const a = stop("A", 0.01, 0.05);
+  a.items = [{ tracking: "T1" }, { tracking: "T2", boxes: 0 }];
+  assert.equal(P.planTrips([a], { origin: WH }).trips[0].boxes, 2);
+});
+
+ok("นับจุดที่ยังไม่มีหมุดในเที่ยว = 0 (เพราะไม่เคยถูกจัดเข้าเที่ยว)", () => {
+  const r = P.planTrips([stop("A", 0.01, 0.05), stop("B", null, null)], { origin: WH });
+  assert.equal(r.trips[0].noPin, 0);
+});
+
+// ── เรียงลำดับในเที่ยว ────────────────────────────────────────────
+ok("ในเที่ยวเรียงใกล้สุดก่อน", () => {
+  const far = stop("ไกล", 0.09, 0.0);
+  const near = stop("ใกล้", 0.01, 0.0);
+  const mid = stop("กลาง", 0.04, 0.0);
+  assert.deepEqual(P.orderByNearest([far, mid, near], WH).map((s) => s.pr), ["ใกล้", "กลาง", "ไกล"]);
+});
+
+ok("จุดไม่มีหมุดต่อท้าย ตามลำดับที่กดเพิ่ม (วัดระยะไม่ได้ ≠ ระยะ 0)", () => {
+  const out = P.orderByNearest([stop("x1", null, null), stop("ไกล", 0.09, 0), stop("x2", null, null), stop("ใกล้", 0.01, 0)], WH);
+  assert.deepEqual(out.map((s) => s.pr), ["ใกล้", "ไกล", "x1", "x2"]);
+});
+
+ok("ระยะทางนับรอบวง (กลับโกดังด้วย) — ไกลกว่าไปทางเดียวเสมอ", () => {
+  const one = [stop("A", 0.09, 0)];
+  const km = P.routeKm(one, WH);
+  assert.ok(Math.abs(km - 2 * P.haversineKm(WH, one[0])) < 1e-6, "ไป-กลับ = 2 เท่า");
+});
+
+// ── ทิศ / ชื่อโซน ─────────────────────────────────────────────────
+ok("มุมจากโกดัง: เหนือ=0 · ตะวันออก=90° · ใต้=180° · ตะวันตก=270°", () => {
+  const deg = (p) => Math.round((P.bearingFrom(WH, p) * 180) / Math.PI);
+  assert.equal(deg({ lat: WH.lat + 0.1, lng: WH.lng }), 0);
+  assert.equal(deg({ lat: WH.lat, lng: WH.lng + 0.1 }), 90);
+  assert.equal(deg({ lat: WH.lat - 0.1, lng: WH.lng }), 180);
+  assert.equal(deg({ lat: WH.lat, lng: WH.lng - 0.1 }), 270);
+});
+
+ok("ทิศเป็นคำไทย", () => {
+  assert.equal(P.compassOf(0), "เหนือ");
+  assert.equal(P.compassOf(Math.PI / 2), "ตะวันออก");
+  assert.equal(P.compassOf(Math.PI), "ใต้");
+  assert.equal(P.compassOf((3 * Math.PI) / 2), "ตะวันตก");
+  assert.equal(P.compassOf(2 * Math.PI), "เหนือ", "ครบวงต้องกลับมาเหนือ ไม่ใช่พัง");
+});
+
+ok("ชื่อโซน: จังหวัดเดียว อำเภอเดียว = บอกทั้งคู่", () => {
+  const s = [stop("A", 0.01, 0.01, { province: "นนทบุรี", district: "บางกรวย" }),
+             stop("B", 0.02, 0.01, { province: "นนทบุรี", district: "บางกรวย" })];
+  assert.equal(P.zoneOf(s, WH), "นนทบุรี · บางกรวย");
+});
+
+ok("🪤 จังหวัดเดียว หลายอำเภอ = บอกจำนวน ไม่ใช่หยิบอำเภอเดียวมาหลอก", () => {
+  const s = [stop("A", 0.01, 0.01, { province: "นนทบุรี", district: "บางกรวย" }),
+             stop("B", 0.02, 0.01, { province: "นนทบุรี", district: "บางใหญ่" }),
+             stop("C", 0.03, 0.01, { province: "นนทบุรี", district: "ไทรน้อย" })];
+  assert.equal(P.zoneOf(s, WH), "นนทบุรี (3 อำเภอ)");
+});
+
+ok("ชื่อโซน: 2 จังหวัด = เขียนทั้ง 2 · 3 จังหวัดขึ้นไป = บอกจำนวน", () => {
+  const two = [stop("A", 0.01, 0.01, { province: "นนทบุรี" }), stop("B", 0.02, 0.01, { province: "ปทุมธานี" })];
+  assert.equal(P.zoneOf(two, WH), "นนทบุรี · ปทุมธานี");
+  const three = two.concat([stop("C", 0.03, 0.01, { province: "สมุทรปราการ" })]);
+  assert.equal(P.zoneOf(three, WH), "นนทบุรี +2 จังหวัด");
+});
+
+ok("ไม่มีชื่อพื้นที่เลย (งานเก่า) = บอกทิศ + ระยะ ไม่ใช่ช่องว่าง", () => {
+  const z = P.zoneOf([stop("A", 0.09, 0)], WH);
+  assert.match(z, /^ทางเหนือ ~\d+ กม\.$/, "ได้: " + z);
+});
+
+// ── จับรถให้เที่ยว ─────────────────────────────────────────────────
+const TRUCKS = [
+  { id: "p1", name: "กระบะ 1", vehicle_type: "รถกระบะ" },
+  { id: "s1", name: "หกล้อเล็ก 1", vehicle_type: "6 ล้อเล็ก" },
+  { id: "b1", name: "หกล้อใหญ่ 1", vehicle_type: "6 ล้อใหญ่" },
+];
+const tripOf = (kg, cbm) => ({ kg: kg, cbm: cbm });
+
+ok("ได้คันเล็กสุดที่รับไหว (ไม่เอาคันใหญ่มาวิ่งของเบา)", () => {
+  const r = P.assignTrucks([tripOf(500, 2)], TRUCKS);
+  assert.equal(r[0].truck.id, "p1");
+});
+
+ok("🔑 เที่ยวหนักได้คันใหญ่ก่อน (ไม่ใช่เที่ยวแรกคว้าไป)", () => {
+  /* เที่ยวแรกเบา เที่ยวสองหนัก — ถ้าไล่ตามลำดับ เที่ยวแรกจะคว้ากระบะ แล้วเที่ยวสองได้หกล้อ ก็ยังถูก
+     เคสที่พังจริงคือมีรถคันเดียว: เที่ยวเบาคว้าไป เที่ยวหนักเหลือ null ทั้งที่คันนั้นรับไหวทั้งคู่ */
+  const one = [{ id: "b1", name: "หกล้อใหญ่ 1", vehicle_type: "6 ล้อใหญ่" }];
+  const r = P.assignTrucks([tripOf(100, 0.5), tripOf(4800, 25)], one);
+  assert.equal(r[1].truck.id, "b1", "ของหนักต้องได้รถ");
+  assert.equal(r[0].truck, null, "ของเบารอรอบหน้า");
+  assert.equal(r[0].truckNote, "ไม่มีรถว่างที่รับไหว");
+});
+
+ok("🪤 รถคันเดียวห้ามถูกจับ 2 เที่ยว", () => {
+  const r = P.assignTrucks([tripOf(100, 1), tripOf(120, 1), tripOf(130, 1)], [TRUCKS[0]]);
+  const ids = r.map((x) => x.truck && x.truck.id).filter(Boolean);
+  assert.equal(ids.length, 1);
+  assert.equal(new Set(ids).size, 1);
+});
+
+ok("พิกัดที่กรอกเองชนะพิกัดมาตรฐานของประเภทรถ", () => {
+  assert.deepEqual(P.truckCaps({ vehicle_type: "รถกระบะ" }), { kg: 1800, cbm: 6 });
+  assert.deepEqual(P.truckCaps({ vehicle_type: "รถกระบะ", cap_kg: 900, cap_cbm: 3 }), { kg: 900, cbm: 3 });
+  assert.deepEqual(P.truckCaps({ vehicle_type: "อื่นๆ" }), { kg: 0, cbm: 0 }, "ประเภทอื่นๆ ไม่มีพิกัดมาตรฐาน");
+});
+
+ok("รถที่ปิดใช้งาน ไม่ถูกจับ", () => {
+  const r = P.assignTrucks([tripOf(100, 1)], [{ id: "x", name: "พัก", vehicle_type: "6 ล้อใหญ่", active: false }]);
+  assert.equal(r[0].truck, null);
+});
+
+ok("ยังไม่ได้ลงทะเบียนรถ = บอกตรงๆ (ไม่ใช่เงียบ)", () => {
+  const r = P.assignTrucks([tripOf(100, 1)], []);
+  assert.equal(r[0].truck, null);
+  assert.equal(r[0].truckNote, "ยังไม่ได้ลงทะเบียนรถ");
+});
+
+ok("จับรถแล้วเลขของเที่ยวไม่เปลี่ยน + ลำดับเที่ยวไม่สลับ", () => {
+  const plan = P.planTrips([stop("A", 0.01, 0.05), stop("B", 0.02, -0.05)], { origin: WH, maxStops: 1 });
+  const withT = P.assignTrucks(plan.trips, TRUCKS);
+  assert.deepEqual(withT.map((x) => x.seq), plan.trips.map((x) => x.seq));
+  assert.deepEqual(withT.map((x) => x.stops.map((s) => s.pr)), plan.trips.map((x) => x.stops.map((s) => s.pr)));
+});
+
+ok("🧪 ยาม: จอต้องผูก “เที่ยวที่กำลังทำ” กับใบที่เพิ่งเก็บ ด้วยเลขแทรค ไม่ใช่ลำดับ", () => {
+  /* ไม่ผูก = กดเก็บแล้วกดบันทึกต่อ ได้ใบงาน 2 ใบของงานชุดเดียวกัน (รถ 2 คันไปจุดเดียวกัน)
+     ผูกด้วยลำดับ = กดจัดรถใหม่ทีไรลำดับเปลี่ยน แล้วไปผูกผิดเที่ยว */
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/function sameAsRoute\(/.test(html), "หาตัวเทียบ sameAsRoute ไม่เจอ");
+  assert.ok(/if\(sameAsRoute\(t\)\)\{ curTripId=id;/.test(html), "เก็บเที่ยวแล้วต้องผูก curTripId");
+  assert.ok(!/lookedIdx/.test(html), "ยังเทียบด้วยลำดับอยู่ (lookedIdx) — ลำดับเปลี่ยนทุกครั้งที่จัดใหม่");
+});
+
+console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
+process.exit(fail ? 1 : 0);

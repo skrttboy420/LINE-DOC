@@ -331,5 +331,63 @@ ok("🧪 ยาม: จอต้องผูก “เที่ยวที่�
   assert.ok(!/lookedIdx/.test(html), "ยังเทียบด้วยลำดับอยู่ (lookedIdx) — ลำดับเปลี่ยนทุกครั้งที่จัดใหม่");
 });
 
+// ── ⑦ งานไหน "รถเราวิ่งเอง" (ภูม 2026-11-24) ───────────────────────────
+//
+// ภูม: *"รถขนส่งของเราที่วิ่งมันวิ่งเฉพาะเหมาๆ … อันนี้เหมือนแกดึงมาหมดเลย ถูกไหม"*
+// ของเดิมกรองออกแค่ "รับเองหน้าโกดัง" ⇒ Flash / Lalamove / J&T / ไปรษณีย์ หลุดเข้ามา
+// กินน้ำหนัก/คิวในรถ + ถูกจัดเป็นจุดส่ง ทั้งที่คนขับเราไม่ได้ไปส่ง (วัด prod 24/11 = 203 งาน)
+
+ok("เหมาๆ (PRF · PCSF) = รถเราวิ่ง", () => {
+  assert.equal(P.carrierKindOf("PRF"), "own");
+  assert.equal(P.carrierKindOf("PCSF"), "own");
+});
+
+ok("Pacred Express (PRE · PCSE) = รถเราวิ่ง (ภูมเคาะ 24/11 ให้เอาด้วย)", () => {
+  assert.equal(P.carrierKindOf("PRE"), "own");
+  assert.equal(P.carrierKindOf("PCSE"), "own");
+});
+
+ok("เจ้าอื่นไปส่ง = ไม่เอามาจัดรถ", () => {
+  /* รหัสจริงจากตัวตัดสินของ Pacred — 2 Flash · 58 Lalamove · 24 J&T · 11 ไปรษณีย์ · PCS รับเอง
+     13 / 7 / 21 / plpn = เจ้าที่พบจริงบน prod (นับได้ 118 แถว) */
+  for (const c of ["2", "58", "24", "11", "PCS", "13", "7", "21", "plpn"]) {
+    assert.equal(P.carrierKindOf(c), "other", "รหัส " + c + " ต้องไม่ใช่รถเรา");
+  }
+});
+
+ok("🪤 ไม่มีรหัส = unknown ไม่ใช่ other (ห้ามตัดทิ้งเงียบ)", () => {
+  /* prod 24/11 มี 32 แถวที่ช่องนี้ว่าง — ถ้าเหมาว่า "ไม่ใช่รถเรา" แล้วตัดทิ้ง
+     งานที่ลูกค้าจ่ายเงินแล้วจะหายจากหน้าวางแผนโดยไม่มีใครรู้
+     = รูปเดียวกับ "แทรคตกหล่น" ที่เพิ่งไล่กันเมื่อเช้า */
+  for (const c of [null, undefined, "", "   "]) {
+    assert.equal(P.carrierKindOf(c), "unknown", "ค่า " + JSON.stringify(c) + " ต้องเป็น unknown");
+  }
+});
+
+ok("ตัวพิมพ์เล็ก / มีช่องว่างติดมา ก็ยังอ่านออก", () => {
+  assert.equal(P.carrierKindOf(" prf "), "own");
+  assert.equal(P.carrierKindOf("pcse"), "own");
+});
+
+ok("ยาม: readyJobs ถามตัวตัดสินตัวเดียว ไม่เขียนลิสต์รหัสเอง", () => {
+  const js = fs.readFileSync(path.join(__dirname, "delivery.js"), "utf8");
+  assert.ok(/carrierKindOf/.test(js), "delivery.js ต้องใช้ carrierKindOf");
+  assert.ok(/const kind = carrierKindOf\(j\.carrier\)/.test(js), "ต้องถามตัวตัดสินด้วย j.carrier");
+  /* ห้ามใครก๊อปลิสต์รหัสไปไว้ที่อื่น (รอยเดิมของบ้านเรา: ลิสต์ role 2 ก๊อป) */
+  assert.ok(!/PCSF/.test(js), "delivery.js ห้ามเขียนรหัส PCSF เอง — ต้องอ่านจาก trip-plan.js");
+});
+
+ok("ยาม: งานที่ตัดออกต้องถูกรายงาน ไม่ใช่หายเงียบ", () => {
+  const js = fs.readFileSync(path.join(__dirname, "delivery.js"), "utf8");
+  assert.ok(/const skipped = \{ other: 0, unknown: \[\] \}/.test(js), "ต้องนับของที่ตัดออก");
+  assert.ok(/skipped\.other \+= 1/.test(js), "เจ้าอื่นส่ง = นับไว้");
+  assert.ok(/skipped\.unknown\.push/.test(js), "ไม่มีรหัส = จดเลขแทรคไว้ให้ตามต่อ");
+  assert.ok(/jobs: out, at: live\.at \|\| null, skipped/.test(js), "ต้องคืน skipped ออกไปให้จอ");
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/jobSkip=r\.skipped/.test(html), "จอต้องรับ skipped มาเก็บ");
+  assert.ok(/jobSkip\.other/.test(html), "จอต้องบอกว่าซ่อนไปกี่งาน");
+  assert.ok(/ตัดสินไม่ได้/.test(html), "จอต้องเตือนงานที่ไม่มีรหัสขนส่ง");
+});
+
 console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
 process.exit(fail ? 1 : 0);

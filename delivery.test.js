@@ -126,9 +126,16 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
   });
 
   // ── งานพร้อมส่ง ──
-  const READY = { memberCode: "PR022", tracking: "T1", boxes: 3, weightKg: 420, cbm: 1.8, status: 6, paid: true, arrivedAt: "2026-11-01", boxesTotal: 1, boxesIn: 1 };
+  const READY = { memberCode: "PR022", tracking: "T1", boxes: 3, weightKg: 420, cbm: 1.8, status: 6, paid: true, carrier: "PRF", arrivedAt: "2026-11-01", boxesTotal: 1, boxesIn: 1 };
   const NOTPAID = { memberCode: "PR050", tracking: "T2", boxes: 1, status: 5, paid: false, arrivedAt: "2026-11-01" };
-  const SELF = Object.assign({}, READY, { memberCode: "PR066", tracking: "T3", selfPickup: true });
+  const SELF = Object.assign({}, READY, { memberCode: "PR066", tracking: "T3", selfPickup: true, carrier: "PCS" });
+  /* 🚚 ภูม 2026-11-24 — รถเราวิ่งเฉพาะเหมาๆ (PRF/PCSF) + Pacred Express (PRE/PCSE)
+     ของเดิมกรองออกแค่ selfPickup ⇒ Flash / Lalamove / J&T หลุดเข้ามากินที่ในรถ */
+  const EXPRESS = Object.assign({}, READY, { memberCode: "PR077", tracking: "T4", carrier: "PRE" });
+  const FLASH   = Object.assign({}, READY, { memberCode: "PR088", tracking: "T5", carrier: "2" });
+  const JT      = Object.assign({}, READY, { memberCode: "PR099", tracking: "T6", carrier: "24" });
+  const NOCODE  = Object.assign({}, READY, { memberCode: "PR111", tracking: "T7", carrier: null });
+
   await ok("readyJobs: เอาเฉพาะ 'พร้อมส่ง' (จ่าย+ถึงไทย) · ตัดรับเองหน้าโกดัง", async () => {
     const d = createDelivery(mk({}), fakeWh([READY, NOTPAID, SELF]));
     const r = await d.readyJobs();
@@ -139,6 +146,22 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     assert.equal(r.jobs[0].boxes, 3);
     assert.equal(r.jobs[0].weightKg, 420, "ส่งน้ำหนักจาก pacred ผ่าน");
     assert.equal(r.jobs[0].cbm, 1.8, "ส่งปริมาตรจาก pacred ผ่าน");
+  });
+
+  await ok("🚚 readyJobs: เหมาๆ + Pacred Express เข้า · Flash/J&T ไม่เข้า", async () => {
+    const d = createDelivery(mk({}), fakeWh([READY, EXPRESS, FLASH, JT]));
+    const r = await d.readyJobs();
+    assert.deepEqual(r.jobs.map((j) => j.pr).sort(), ["PR022", "PR077"], "ต้องเหลือแค่รถเราวิ่ง");
+    assert.equal(r.skipped.other, 2, "Flash + J&T = 2 งานที่เจ้าอื่นไปส่ง");
+  });
+
+  await ok("🪤 readyJobs: งานไม่มีรหัสขนส่ง ไม่เงียบ — รายงานเลขแทรคกลับมา", async () => {
+    /* ตัดทิ้งเฉยๆ = งานที่จ่ายเงินแล้วหายจากหน้าวางแผนโดยไม่มีใครรู้ */
+    const d = createDelivery(mk({}), fakeWh([READY, NOCODE]));
+    const r = await d.readyJobs();
+    assert.deepEqual(r.jobs.map((j) => j.pr), ["PR022"]);
+    assert.deepEqual(r.skipped.unknown, ["T7"], "ต้องบอกเลขแทรคที่ตัดสินไม่ได้");
+    assert.equal(r.skipped.other, 0, "ไม่มีรหัส ≠ เจ้าอื่นส่ง");
   });
   await ok("readyJobs: ไม่มีท่อโกดัง = บอกตรงๆ (ไม่พัง)", async () => {
     const r = await createDelivery(mk({}), null).readyJobs();

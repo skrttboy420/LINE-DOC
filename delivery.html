@@ -487,6 +487,7 @@
   // ==================== เที่ยวส่ง + เส้นทาง ====================
   // route = รายการ "จุดส่ง" · 1 จุด = 1 ลูกค้า(PR)/ที่เดียวกัน · แต่ละจุดมีได้หลายแทรค (ตามหน้า drivers/new)
   var trips=[], curTripId=null, curTruckId=null, route=[], jobs=[], placedMap={}, routeLayers=[], expanded={};
+  var jobSkip=null;   /* งานที่ไม่ได้เอามาจัดรถ (เจ้าอื่นส่ง / ไม่มีรหัสขนส่ง) — ภูม 2026-11-24 */
   /* 🧮 ตัวคิดกลาง — ซอร์สจริงของ trip-plan.js ถูกฝังไว้ด้านบน (ดู __PLAN_MODULE__)
      ⇒ สูตรแนะนำรถ · ระยะทาง · วิธีเรียงจุด · วิธีแบ่งเที่ยว **บนจอกับในเทสเป็นโค้ดบรรทัดเดียวกัน** */
   var PLAN=window.DP_PLAN;
@@ -528,7 +529,15 @@
   }
 
   function renderJobs(){
-    var el=$("jobs"); el.innerHTML=""; $("jobN").textContent=jobs.length?("· "+jobs.length+" แทรค"):"";
+    var el=$("jobs"); el.innerHTML="";
+    /* 🚚 บอกตรงๆ ว่าตัดอะไรออกไป — งานหายเงียบคือสิ่งที่เราเพิ่งโดนมา (ภูม 24/11) */
+    var skipTxt="";
+    if(jobSkip){
+      if(jobSkip.other)skipTxt+=" · ซ่อน "+jobSkip.other+" งานที่เจ้าอื่นไปส่ง";
+      if(jobSkip.unknown&&jobSkip.unknown.length)skipTxt+=" · ⚠ "+jobSkip.unknown.length+" งานไม่มีรหัสขนส่ง (ตัดสินไม่ได้)";
+    }
+    $("jobN").textContent=(jobs.length?("· "+jobs.length+" แทรค"):"")+skipTxt;
+    $("jobN").title=(jobSkip&&jobSkip.unknown&&jobSkip.unknown.length)?("ไม่มีรหัสขนส่ง: "+jobSkip.unknown.join(", ")):"";
     if(!jobs.length){el.innerHTML='<div class="empty">ไม่มีงานพร้อมส่ง (หรือยังไม่ได้ดึง)</div>';return;}
     var order=[], byPr={};
     jobs.forEach(function(j){ if(!byPr[j.pr]){byPr[j.pr]=[];order.push(j.pr);} byPr[j.pr].push(j); });
@@ -638,6 +647,7 @@
       rf.classList.remove("spin");
       /* 📍 ลำดับหมุด (ภูม 2026-11-23): หมุดที่คนขับปักเป๊ะ → หมุดที่ภูมเซฟไว้เอง → กลางตำบล/อำเภอ/จังหวัด
          ⇒ เลิกต้องมานั่งปักหมุดเองทีละราย · ของที่ pacred ส่งมาแล้วใช้เลย */
+      jobSkip=r.skipped||null;
       jobs=(r.jobs||[]).map(function(j){
         var pin=(pinByPr[j.pr]||[])[0];
         var feed=hasGeo(j)?{lat:+j.lat,lng:+j.lng,geo:j.geo||"tambon"}:null;

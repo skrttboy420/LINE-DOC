@@ -21,6 +21,33 @@
 //    (ที่ไทย 1 องศาลองจิจูด ≈ 0.97 ของละติจูด · ไม่คูณแล้วซี่พัดจะบิด)
 // ============================================================
 
+/* ── 🚚 งานไหน "รถของเราวิ่งเอง" (ภูม 2026-11-24) ──────────────────────────
+ * ภูม: *"รถขนส่งของเราที่วิ่งมันวิ่งเฉพาะเหมาๆ … มันมีแยกส่งตั้งหลายแบบนะ
+ *       อันนี้เหมือนแกดึงมาหมดเลย ถูกไหม"* — **ถูก** ของเดิมกรองออกแค่
+ *       "รับเองหน้าโกดัง" อย่างเดียว ⇒ งานที่ Flash / Lalamove / J&T / ไปรษณีย์
+ *       ไปส่ง ถูกนับเป็นจุดส่ง **และกินน้ำหนัก/คิวในรถเรา** ตอนแนะนำรถ
+ *
+ * 📏 วัด prod 24/11 — งานบนชั้นที่ถึงไทยแล้ว 892 แถว:
+ *      เหมาๆ 407 · รับเองหน้าโกดัง 282 · ขนส่งเอกชนเจ้าอื่น 118 · Pacred Express 75 · Flash 10
+ *      ⇒ หน้าวางแผนเคยเห็น 610 งาน ทั้งที่รถเราวิ่งจริง 482
+ *
+ * 🔑 รหัสยกมาจากตัวตัดสินของ Pacred เอง (`isPacredDriver` ใน /admin/drivers/new)
+ *      เหมาๆ = PCSF · PRF     Pacred Express = PCSE · PRE
+ *    ภูมเคาะ 24/11: **เอาทั้ง 2 กลุ่ม** (ทั้งคู่คนขับเราขับเอง ต่างกันแค่วิธีคิดราคา)
+ *
+ * 🪤 **"ไม่มีรหัส" ไม่ใช่ "ไม่ใช่รถเรา"** — prod มี 32 แถวที่ช่องนี้ว่าง
+ *    ถ้าเหมาว่าไม่ใช่แล้วตัดทิ้งเงียบๆ = งานที่ลูกค้าจ่ายเงินแล้วหายจากหน้าวางแผน
+ *    โดยไม่มีใครรู้ (รูปเดียวกับ "แทรคตกหล่น" ที่เพิ่งไล่กันวันนี้)
+ *    ⇒ แยกเป็น "unknown" คืนให้จอบอกคน **ไม่ให้โค้ดเดาแทน** */
+const OWN_TRUCK_CARRIERS = ["PCSF", "PRF", "PCSE", "PRE"];
+
+/** "own" = รถเราวิ่ง · "other" = เจ้าอื่นไปส่ง · "unknown" = ไม่มีรหัส ตัดสินไม่ได้ */
+function carrierKindOf(code) {
+  const c = String(code == null ? "" : code).trim().toUpperCase();
+  if (!c) return "unknown";
+  return OWN_TRUCK_CARRIERS.indexOf(c) >= 0 ? "own" : "other";
+}
+
 /* ── พิกัดรถของบ้านเรา — ตรงกับ src/lib/admin/vehicle-recommendation.ts ของ pacred ──
    🔑 ที่เดียวของระบบบอท: delivery.js กับหน้าจอ **อ่านตัวนี้** ไม่เขียนสูตรเอง */
 const VEHICLES = [
@@ -286,4 +313,4 @@ function assignTrucks(trips, trucks) {
   }));
 }
 
-module.exports = { VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };
+module.exports = { OWN_TRUCK_CARRIERS, carrierKindOf, VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };

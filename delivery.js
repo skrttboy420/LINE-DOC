@@ -9,7 +9,7 @@
 
 const crypto = require("node:crypto");
 const { pickStateOf, PICK } = require("./warehouse");
-const { recommendVehicle, planTrips, PLAN_DEFAULTS } = require("./trip-plan");
+const { recommendVehicle, planTrips, PLAN_DEFAULTS, carrierKindOf } = require("./trip-plan");
 
 /**
  * @param {object} supabase  Supabase ของบอท (service_role)
@@ -182,10 +182,17 @@ function createDelivery(supabase, warehouse) {
     if (!warehouse || !warehouse.jobsFromPacred) return { ok: false, jobs: [], error: "ไม่ได้ต่อท่อโกดัง" };
     const live = await warehouse.jobsFromPacred([], []); // ของบนชั้นที่ถึงไทยทั้งหมด (แค่ธง ไม่เอารายละเอียดส่วนตัว)
     const out = [];
+    /* 🚚 ที่ไม่ได้เอามาจัดรถ — ไว้ให้จอบอก ไม่ให้หายเงียบ (ภูม 2026-11-24) */
+    const skipped = { other: 0, unknown: [] };
     for (const j of live.jobs || []) {
       const st = pickStateOf(j, true);
       if (st.pick !== PICK.READY) continue;       // 🟢 พร้อมส่ง = จ่ายแล้ว + ถึงไทย
       if (j.selfPickup) continue;                  // รับเองหน้าโกดัง ไม่ต้องจัดรถส่ง
+      /* 🚚 เอาเฉพาะงานที่ "รถเราวิ่งเอง" — เหมาๆ + Pacred Express (ภูม 2026-11-24)
+         เจ้าอื่นไปส่ง = นับไว้เฉยๆ · ไม่มีรหัส = จดเลขแทรคไว้ให้คนตามต่อ */
+      const kind = carrierKindOf(j.carrier);
+      if (kind === "other") { skipped.other += 1; continue; }
+      if (kind === "unknown") { skipped.unknown.push(String(j.tracking || "").trim()); continue; }
       out.push({
         pr: String(j.memberCode || "").trim(),
         tracking: String(j.tracking || "").trim(),
@@ -234,7 +241,7 @@ function createDelivery(supabase, warehouse) {
       }
     }
 
-    return { ok: live.ok !== false, jobs: out, at: live.at || null };
+    return { ok: live.ok !== false, jobs: out, at: live.at || null, skipped };
   }
 
   /** แทรค+เที่ยว ของจุดส่งทุกเที่ยว — ไว้ติดธง "งานนี้อยู่ในเที่ยวอื่นแล้ว" (กันใส่ซ้ำ 2 คัน) */

@@ -69,7 +69,19 @@ function recommendVehicle(kg, cbm) {
    📍 12 จุด/เที่ยว = ค่าเริ่มต้นที่ **ปรับได้บนจอ** (ภูม 2026-11-23: *"มันบอกไม่ได้ว่าเที่ยวนึงมีกี่จุด"*)
       ⇒ ไม่ฝังเป็นกฎ · ตั้งไว้ให้พอดีงานกล่องแถวปริมณฑล แล้วเลื่อนเองตอนใช้จริง */
 const BIG = VEHICLES[VEHICLES.length - 1];
-const PLAN_DEFAULTS = { maxStops: 12, maxKg: BIG.kg, maxCbm: BIG.cbm };
+/* ⏱ เพดานเวลาต่อเที่ยว (ภูม 2026-11-24 *"ถ้าวิ่งแบบนี้ คิดว่าคนขับไม่วิ่งแทบทั้งวันเลยหรอ
+   ไหนจะรถติดอีก"* — เลือก **ไม่เกิน 8 ชม./เที่ยว**)
+
+   🪤 ของเดิมคุมแค่ จำนวนจุด · กก. · คิว ⇒ **ไม่มีอะไรห้ามเที่ยวยืดออกไปเรื่อยๆ**
+      วัดงานจริง 24/11: เที่ยวนึงจบที่ บางบ่อ **ห่างโกดัง 55.7 กม.** แล้ววิ่งกลับเปล่าอีก 55.7
+      รวม 155 กม. (เส้นตรง) · 12 จุด
+
+   🛣 **ต้องคิดบนระยะถนนจริง ไม่ใช่เส้นตรง** — เส้นตรงหลอกตัวเอง ถนนจริงแถบ กทม./ปริมณฑล
+      ยาวกว่าราว 1.3–1.4 เท่า (ทางเลี้ยว · สะพาน · ทางเดียว) ⇒ ใช้ 1.35
+   🚦 ความเร็วเฉลี่ย 25 กม./ชม. = ในเมืองที่มีรถติด (ไม่ใช่ความเร็วบนทางโล่ง)
+      **ปรับได้บนจอ** เพราะรถติดแต่ละวัน/แต่ละเส้นไม่เท่ากัน — ไม่ฝังเป็นกฎตายตัว */
+const ROAD_FACTOR = 1.35;
+const PLAN_DEFAULTS = { maxStops: 12, maxKg: BIG.kg, maxCbm: BIG.cbm, maxHours: 8, kmh: 25, minPerStop: 10 };
 
 const RAD = Math.PI / 180;
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -190,15 +202,37 @@ function capsOf(opts) {
     maxStops: pick(o.maxStops, PLAN_DEFAULTS.maxStops),
     maxKg: pick(o.maxKg, PLAN_DEFAULTS.maxKg),
     maxCbm: pick(o.maxCbm, PLAN_DEFAULTS.maxCbm),
+    maxHours: pick(o.maxHours, PLAN_DEFAULTS.maxHours),
+    kmh: pick(o.kmh, PLAN_DEFAULTS.kmh),
+    minPerStop: pick(o.minPerStop, PLAN_DEFAULTS.minPerStop),
   };
 }
 
+/**
+ * ⏱ เที่ยวนี้กินเวลาคนขับกี่ชั่วโมง — **ตัวเดียวของระบบ** (จอกับตัวจัดรถอ่านตัวนี้)
+ * @param km    ระยะ **เส้นตรง** ไป-กลับโกดัง (routeKm) — ฟังก์ชันนี้คูณเป็นถนนจริงให้เอง
+ * @param stops จำนวนจุดส่ง (เวลาจอด/ยกของ/เซ็นรับ)
+ */
+function estHours(km, stops, caps) {
+  const c = capsOf(caps);
+  const drive = (num(km) * ROAD_FACTOR) / c.kmh;
+  const serve = (num(stops) * c.minPerStop) / 60;
+  return drive + serve;
+}
+
 /** ใส่จุดนี้เพิ่มในเที่ยวได้ไหม (เที่ยวว่างต้องรับได้เสมอ ไม่งั้นวนไม่จบ) */
-function fits(acc, s, caps) {
+function fits(acc, s, caps, origin) {
   if (!acc.stops.length) return true;
   if (acc.stops.length >= caps.maxStops) return false;
   if (acc.kg + stopKg(s) > caps.maxKg + 1e-9) return false;
   if (acc.cbm + stopCbm(s) > caps.maxCbm + 1e-9) return false;
+  /* ⏱ เพดานเวลา — วัดบน **เส้นทางที่จะวิ่งจริง** (เรียงใกล้สุดก่อน เหมือนตอนสรุปเที่ยว)
+     ไม่ใช่ลำดับที่บังเอิญกวาดมาได้ ⇒ เลขที่ใช้ตัดสิน = เลขเดียวกับที่โชว์บนการ์ด */
+  if (origin && hasGeo(origin) && caps.maxHours > 0) {
+    const trial = acc.stops.concat([s]);
+    const km = routeKm(orderByNearest(trial, origin), origin);
+    if (estHours(km, trial.length, caps) > caps.maxHours + 1e-9) return false;
+  }
   return true;
 }
 
@@ -216,11 +250,17 @@ function summarize(stops, origin, caps, seq) {
     kg: kg,
     cbm: cbm,
     km: n2(routeKm(ordered, origin)),
+    /* ⏱ เวลาที่คนขับต้องใช้จริง (ระยะถนน ÷ ความเร็วในเมือง + เวลาต่อจุด) */
+    hours: n2(estHours(routeKm(ordered, origin), ordered.length, caps)),
     zone: zoneOf(ordered, origin),
     vehicle: recommendVehicle(kg, cbm),
     noPin: ordered.filter((s) => !hasGeo(s)).length,
-    /* 🪤 จุดเดียวที่หนักเกินพิกัดต้อง "ขึ้นเที่ยวแล้วติดธง" ไม่ใช่หายไปเงียบๆ */
-    over: { kg: kg > caps.maxKg + 1e-9, cbm: cbm > caps.maxCbm + 1e-9 },
+    /* 🪤 จุดเดียวที่หนัก/ไกลเกินพิกัดต้อง "ขึ้นเที่ยวแล้วติดธง" ไม่ใช่หายไปเงียบๆ */
+    over: {
+      kg: kg > caps.maxKg + 1e-9,
+      cbm: cbm > caps.maxCbm + 1e-9,
+      hours: estHours(routeKm(ordered, origin), ordered.length, caps) > caps.maxHours + 1e-9,
+    },
   };
 }
 
@@ -265,7 +305,7 @@ function planTrips(stops, opts) {
   let acc = { stops: [], kg: 0, cbm: 0 };
   const close = () => { if (acc.stops.length) trips.push(acc.stops); acc = { stops: [], kg: 0, cbm: 0 }; };
   for (const s of sorted) {
-    if (!fits(acc, s, caps)) close();
+    if (!fits(acc, s, caps, origin)) close();
     acc.stops.push(s);
     acc.kg += stopKg(s);
     acc.cbm += stopCbm(s);
@@ -313,4 +353,4 @@ function assignTrucks(trips, trucks) {
   }));
 }
 
-module.exports = { OWN_TRUCK_CARRIERS, carrierKindOf, VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };
+module.exports = { OWN_TRUCK_CARRIERS, carrierKindOf, ROAD_FACTOR, estHours, VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };

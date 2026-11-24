@@ -389,5 +389,79 @@ ok("ยาม: งานที่ตัดออกต้องถูกรา�
   assert.ok(/ตัดสินไม่ได้/.test(html), "จอต้องเตือนงานที่ไม่มีรหัสขนส่ง");
 });
 
+// ── ⑧ เพดานเวลาต่อเที่ยว (ภูม 2026-11-24) ──────────────────────────────
+//
+// ภูม: *"ที่แกทำมา มันกลายเป็นรถคนขับวิ่งไกลโคตรเลยอะ เห็นไหม · ถ้าวิ่งแบบนี้
+//        คิดว่าคนขับไม่วิ่งแทบทั้งวันเลยหรอ ไหนจะรถติดอีก"*
+//
+// วัดงานจริง 24/11 (45 จุด) ด้วยสูตรเดียวกันทั้งก่อน-หลัง:
+//   ก่อน = 6 เที่ยว · ยาวสุด 10.4 ชม. · เกิน 8 ชม. 3 เที่ยว
+//   หลัง = 8 เที่ยว · ยาวสุด 7.9 ชม. · เกิน 0 เที่ยว
+
+ok("estHours: คิดบนถนนจริง (x1.35) ไม่ใช่เส้นตรง + บวกเวลาต่อจุด", () => {
+  /* 100 กม.เส้นตรง → ถนน 135 กม. ÷ 25 กม./ชม. = 5.4 ชม. + 6 จุด × 10 นาที = 1 ชม. */
+  const h = P.estHours(100, 6, { kmh: 25, minPerStop: 10 });
+  assert.ok(Math.abs(h - 6.4) < 0.01, "ได้ " + h + " ควรได้ 6.4");
+  assert.ok(P.ROAD_FACTOR > 1, "ถนนจริงต้องยาวกว่าเส้นตรง");
+});
+
+ok("estHours: รถติดลงแล้วเวลาเพิ่ม (ปรับได้ ไม่ฝังตาย)", () => {
+  const ok25 = P.estHours(100, 0, { kmh: 25 });
+  const jam = P.estHours(100, 0, { kmh: 18 });
+  assert.ok(jam > ok25, "รถติดกว่า = ใช้เวลานานกว่า");
+});
+
+ok("🔑 เที่ยวถูกตัดเมื่อชนเพดานเวลา (ไม่ใช่รอให้เต็มคันก่อน)", () => {
+  /* 6 จุดเรียงไกลขึ้นเรื่อยๆ ทางเดียวกัน · น้ำหนักเบามาก ⇒ ของเดิมจะยัดเที่ยวเดียวหมด */
+  const far = [];
+  for (let i = 1; i <= 6; i++) far.push(stop("P" + i, 0.08 * i, 0.01 * i));
+  const loose = P.planTrips(far, { origin: WH, maxHours: 999 });
+  const tight = P.planTrips(far, { origin: WH, maxHours: 3 });
+  assert.equal(loose.trips.length, 1, "ไม่มีเพดาน = เที่ยวเดียว");
+  assert.ok(tight.trips.length > 1, "มีเพดาน = ต้องแตกเที่ยว (ได้ " + tight.trips.length + ")");
+  for (const t of tight.trips) {
+    assert.ok(t.hours <= 3 + 1e-6 || t.stops.length === 1, "เที่ยวหลายจุดห้ามเกินเพดาน: " + t.hours);
+  }
+});
+
+ok("🪤 จุดเดียวที่ไกลเกินเพดาน = ขึ้นเที่ยวแล้วติดธง ไม่ใช่หายไป", () => {
+  /* คนขับต้องรู้ว่ามีงานนี้อยู่ ถึงจะตัดสินใจได้ว่าจะทำยังไง — หายเงียบคือสิ่งที่ห้ามที่สุด */
+  const r = P.planTrips([stop("ใกล้", 0.01, 0.01), stop("ไกลมาก", 2.5, 0.5)], { origin: WH, maxHours: 2 });
+  const prs = r.trips.flatMap((t) => t.stops.map((s) => s.pr)).concat(r.noPin.map((s) => s.pr));
+  assert.deepEqual(prs.sort(), ["ไกลมาก", "ใกล้"].sort(), "ห้ามมีจุดไหนหาย");
+  const t = r.trips.filter((x) => x.stops.some((s) => s.pr === "ไกลมาก"))[0];
+  assert.ok(t, "จุดไกลต้องอยู่ในเที่ยวใดเที่ยวหนึ่ง");
+  assert.equal(t.over.hours, true, "ต้องติดธงว่าเกินเวลา");
+});
+
+ok("🔑 ไม่มีงานหายแม้เพดานแคบมาก (ข้อที่ห้ามพลาดที่สุด)", () => {
+  const many = [];
+  for (let i = 0; i < 25; i++) many.push(stop("Q" + i, 0.02 * (i % 7) + 0.01, 0.03 * (i % 5) - 0.06));
+  const r = P.planTrips(many, { origin: WH, maxHours: 1.2 });
+  const seen = r.trips.flatMap((t) => t.stops.map((s) => s.pr)).concat(r.noPin.map((s) => s.pr));
+  assert.equal(seen.length, 25, "จำนวนจุดต้องเท่าเดิม (ได้ " + seen.length + ")");
+  assert.equal(new Set(seen).size, 25, "ห้ามมีจุดไหนโผล่ 2 เที่ยว");
+});
+
+ok("summarize คืนชั่วโมงให้จอโชว์ (ตัวเดียวกับที่ใช้ตัดสิน)", () => {
+  const r = P.planTrips([stop("A", 0.05, 0.02), stop("B", 0.06, 0.03)], { origin: WH });
+  const t = r.trips[0];
+  assert.ok(t.hours > 0, "ต้องมีช่อง hours");
+  assert.ok(Math.abs(t.hours - P.estHours(t.km, t.stopCount, P.PLAN_DEFAULTS)) < 0.02,
+    "เลขบนการ์ดต้องมาจาก estHours ตัวเดียวกัน");
+});
+
+ok("ยาม: จอมีปุ่มตั้งชั่วโมง/ความเร็ว และอ่านไปใช้จริง", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/id="maxHours"/.test(html), "ต้องมีช่องตั้งชั่วโมงบนจอ");
+  assert.ok(/id="planKmh"/.test(html), "ต้องมีช่องตั้งความเร็ว (รถติดปรับได้)");
+  assert.ok(/maxHours:\(isFinite\(h\)&&h>0\)\?h:/.test(html), "planCaps ต้องอ่านค่าชั่วโมงไปใช้");
+  assert.ok(/kmh:\(isFinite\(v\)&&v>0\)\?v:/.test(html), "planCaps ต้องอ่านค่าความเร็วไปใช้");
+  assert.ok(/t\.hours\+' ชม\./.test(html), "การ์ดเที่ยวต้องโชว์ชั่วโมง");
+  assert.ok(/t\.over&&t\.over\.hours/.test(html), "ต้องเตือนเที่ยวที่เกินเวลา");
+  /* สูตรเวลาต้องมีที่เดียว — ห้ามจอคิดเอง */
+  assert.ok(!/1\.35/.test(html), "delivery.html ห้ามเขียนตัวคูณระยะถนนเอง");
+});
+
 console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
 process.exit(fail ? 1 : 0);

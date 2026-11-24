@@ -307,6 +307,9 @@
           <button class="btn btn-ghost sm full" id="autoPlan"><svg class="i" viewBox="0 0 24 24"><path d="M3 17h2l1.5-5h11L19 17h2"/><circle cx="7.5" cy="17.5" r="1.8"/><circle cx="16.5" cy="17.5" r="1.8"/><path d="M8 9V5h8v4"/></svg>จัดรถอัตโนมัติ (ทุกงานที่ยังไม่เข้าเที่ยว)</button>
           <div class="knob">จุดต่อเที่ยวไม่เกิน <input id="maxStops" type="number" min="1" max="60" step="1" value="12">
             <span>จุด · น้ำหนัก/ปริมาตรยึดพิกัดรถที่เลือก</span></div>
+          <!-- ⏱ ภูม 2026-11-24: *"คิดว่าคนขับไม่วิ่งแทบทั้งวันเลยหรอ ไหนจะรถติดอีก"* -->
+          <div class="knob">คนขับวิ่งไม่เกิน <input id="maxHours" type="number" min="1" max="14" step="0.5" value="8">
+            <span>ชม./เที่ยว · ที่ <input id="planKmh" type="number" min="5" max="90" step="5" value="25" style="width:52px"> กม./ชม. (รถติดปรับลง)</span></div>
           <div style="display:flex;gap:8px;width:100%">
             <button class="btn btn-line sm full" id="autoRoute"><svg class="i" viewBox="0 0 24 24"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>จัดเส้นทาง</button>
             <button class="btn btn-teal sm full" id="saveTrip"><svg class="i" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>บันทึก</button>
@@ -688,13 +691,20 @@
   /* จำค่าจุดต่อเที่ยวที่ภูมตั้งไว้ (ภูม: *"มันบอกไม่ได้ว่าเที่ยวนึงมีกี่จุด"* ⇒ ตั้งเองได้ แล้วระบบจำให้) */
   try{ var mem=localStorage.getItem("dp_max_stops"); if(mem)$("maxStops").value=mem; }catch(e){}
   $("maxStops").addEventListener("change",function(){ try{localStorage.setItem("dp_max_stops",this.value)}catch(e){} });
+  [["maxHours","dp_max_hours"],["planKmh","dp_plan_kmh"]].forEach(function(p){
+    try{ var m=localStorage.getItem(p[1]); if(m)$(p[0]).value=m; }catch(e){}
+    $(p[0]).addEventListener("change",function(){ try{localStorage.setItem(p[1],this.value)}catch(e){} });
+  });
 
   /** พิกัดที่ใช้ตัดเที่ยว — รถที่เลือกไว้ชนะ · ไม่เลือกรถ = ตัวคิดใช้พิกัดคันใหญ่สุด */
   function planCaps(){
     var tk=trucks.filter(function(t){return t.id===curTruckId})[0];
     var c=tk?PLAN.truckCaps(tk):null, n=parseInt($("maxStops").value,10);
+    var h=parseFloat($("maxHours").value), v=parseFloat($("planKmh").value);
     return {maxStops:(isFinite(n)&&n>0)?n:PLAN.PLAN_DEFAULTS.maxStops,
-            maxKg:(c&&c.kg)||0, maxCbm:(c&&c.cbm)||0};
+            maxKg:(c&&c.kg)||0, maxCbm:(c&&c.cbm)||0,
+            maxHours:(isFinite(h)&&h>0)?h:PLAN.PLAN_DEFAULTS.maxHours,
+            kmh:(isFinite(v)&&v>0)?v:PLAN.PLAN_DEFAULTS.kmh};
   }
 
   /** งานพร้อมส่งที่ "ยังไม่ถูกจัดเข้าเที่ยวไหนเลย" → รวมเป็นจุดต่อ PR
@@ -746,6 +756,9 @@
         '<div class="zone">'+esc(t.zone)+'</div>'+
         '<div class="mt">'+t.stopCount+' จุด · '+t.trackings+' แทรค · '+t.boxes+' กล่อง<br>'+
         t.kg+' กก. · '+t.cbm+' คิว · ~'+t.km+' กม. (ไป-กลับโกดัง)'+
+        /* ⏱ เวลาที่คนขับต้องใช้ — ของจริงที่ภูมถาม ไม่ใช่แค่ระยะทาง */
+        (t.hours?'<br>⏱ ~'+t.hours+' ชม. (ถนนจริง + เวลาต่อจุด)':'')+
+        (t.over&&t.over.hours?'<br><b style="color:var(--danger)">⚠ จุดนี้จุดเดียวก็เกินเวลาที่ตั้งไว้แล้ว — อยู่ไกลมาก</b>':'')+
         (over?'<br><b style="color:var(--danger)">⚠ เกินพิกัด'+(t.over.kg?'น้ำหนัก':'')+(t.over.kg&&t.over.cbm?'/':'')+(t.over.cbm?'ปริมาตร':'')+' ที่ตั้งไว้ — จุดเดียวของมันใหญ่เกินรถ</b>':'')+
         '</div>'+veh+'</div></div>'+
         '<div class="prs">'+t.stops.map(function(s){return '<span>'+esc(s.pr||"—")+'</span>'}).join("")+'</div>'+

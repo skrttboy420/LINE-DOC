@@ -15,6 +15,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const EOL = String.fromCharCode(10);
 const P = require("./trip-plan");
 
 let pass = 0, fail = 0;
@@ -586,6 +587,33 @@ ok("ของที่ require ได้ ต้องเท่ากับขอ
 // ภูม: *"ไม่ใช่แค่ให้เพิ่ม dropdown ตรงนี้ แต่ให้เพิ่มตรง PR ของลูกค้า เหมือนชุดด้านบนด้วยไง"*
 // ⇒ ยกทรงมาจากการ์ดงานด้านบน (.prcard) ให้เหมือนกันทั้ง 2 ชุด · ตั้งต้น "พับ" เหมือนกัน
 
+/* 📱 ภูม 2026-11-25 (ภาพจอ Samsung A55 360px): *"พอเป็น ver. มือถือ มันทับกันเห็นไหม
+   มันจะกดไม่ได้นะ แก้ไขด้วยนะ"*
+
+   วัดบนจอจริงตอนยังไม่แก้: กางลิ้นชักแล้วแตะกลางแท็บ 3 จาก 4 แท็บไปโดนสวิตช์หมุด
+   (เที่ยวส่ง → .sw · รถ → #pinswT · มอบหมายแล้ว → #pinswN) เพราะสวิตช์ z-index 1200
+   ลอยทับลิ้นชัก z-index 1100. ยามนี้กันไม่ให้หลุดกลับไปอีก. */
+ok("📱 มือถือ: กางลิ้นชักแล้วสวิตช์หมุดต้องไม่ทับแถบแท็บ", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+
+  // สวิตช์ยังต้องลอยอยู่เหนือแผนที่เหมือนเดิม (ไม่ได้แก้ด้วยการถอดทิ้ง)
+  assert.ok(html.includes(".pinsw{position:absolute"), "สวิตช์ต้องยังลอยอยู่มุมขวาบนของแผนที่");
+
+  // กติกาซ่อนต้องอยู่ "ใน" บล็อกมือถือเท่านั้น — จอคอมไม่มีลิ้นชัก ซ่อนทิ้งจะหาสวิตช์ไม่เจอ
+  const at = html.indexOf("@media (max-width:720px){");
+  assert.ok(at >= 0, "ต้องมีบล็อก @media (max-width:720px)");
+  const mobileBlock = html.slice(at, html.indexOf(EOL + "  }", at));
+  assert.ok(
+    mobileBlock.includes(".panel.open ~ .pinsw{display:none}"),
+    "กางลิ้นชักบนมือถือต้องซ่อนสวิตช์หมุด ไม่งั้นมันทับแท็บจนกดไม่ได้",
+  );
+
+  // 🪤 ลำดับใน DOM ต้องเป็น .panel มาก่อน .pinsw ไม่งั้นตัวเลือก ~ ไม่ทำงานเลย (เงียบๆ)
+  assert.ok(
+    html.indexOf('class="panel"') < html.indexOf('class="pinsw"'),
+    "ตัวเลือก ~ ใช้ได้เฉพาะเมื่อ .pinsw อยู่หลัง .panel ใน DOM",
+  );
+});
 ok("การ์ดจุดส่งพับได้ ทรงเดียวกับการ์ดงานด้านบน", () => {
   const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
   assert.ok(html.includes('card.className="stopcard"+(sop?" open":"")'), "การ์ดต้องมีคลาส open ตามสถานะ");

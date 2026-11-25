@@ -257,6 +257,13 @@
     .panel.open{transform:none}
     .scrim{display:block;position:absolute;inset:0;background:rgba(20,24,40,.4);z-index:1050;opacity:0;pointer-events:none;transition:.2s}
     .scrim.on{opacity:1;pointer-events:auto}
+
+    /* 🔴 ภูม 2026-11-25: *"พอเป็น ver. มือถือ มันทับกันเห็นไหม มันจะกดไม่ได้นะ"*
+       สวิตช์หมุดลอยอยู่มุมขวาบนของ .body (z-index 1200) ส่วนแผงซ้ายบนมือถือเป็น
+       ลิ้นชัก (z-index 1100) ⇒ สวิตช์ทับแถบแท็บเต็มๆ วัดแล้วกดไม่ได้ 3 จาก 4 แท็บ
+       (เที่ยวส่ง / รถ / มอบหมายแล้ว — แตะแล้วไปโดน .sw · #pinswT · #pinswN)
+       สวิตช์ตัวนี้คุม "แผนที่" ซึ่งตอนกางลิ้นชักก็ถูกบังอยู่แล้ว ⇒ กางลิ้นชัก = ซ่อนสวิตช์ */
+    .panel.open ~ .pinsw{display:none}
   }
   /* 🚚 แผ่นเสนอ "จัดรถอัตโนมัติ" — โชว์ก่อน ยังไม่เก็บอะไร */
   .psheet{position:fixed;inset:0;z-index:3000;background:rgba(18,22,34,.52);display:none;align-items:flex-end;justify-content:center;padding:0}

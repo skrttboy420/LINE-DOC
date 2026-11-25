@@ -163,6 +163,36 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     assert.deepEqual(r.skipped.unknown, ["T7"], "ต้องบอกเลขแทรคที่ตัดสินไม่ได้");
     assert.equal(r.skipped.other, 0, "ไม่มีรหัส ≠ เจ้าอื่นส่ง");
   });
+  /* 📋 ภูม 2026-11-25 — งานที่มอบให้คนขับไปแล้ว ห้ามเอามาวางแผนซ้ำ
+     (ไม่งั้นรถ 2 คันวิ่งไปส่งกล่องเดียวกัน) */
+  const whWithRuns = (jobs, runs) => Object.assign(fakeWh(jobs), {
+    driverRunsFromPacred: async () => runs,
+  });
+
+  await ok("📋 readyJobs: งานที่คนขับรับไปแล้ว ไม่เอามาวางแผนซ้ำ", async () => {
+    const d = createDelivery(mk({}), whWithRuns([READY, EXPRESS], { ok: true, runs: [], assigned: ["T1"] }));
+    const r = await d.readyJobs();
+    assert.deepEqual(r.jobs.map((j) => j.tracking), ["T4"], "T1 อยู่กับคนขับแล้ว ต้องหายไป");
+    assert.equal(r.skipped.assigned, 1);
+    assert.equal(r.skipped.assignedUnknown, false);
+  });
+
+  await ok("🪤 readyJobs: อ่านรอบมอบไม่ได้ = ไม่กันสักอัน แต่ต้องทัก", async () => {
+    /* เดาว่า "ไม่มีงานมอบ" แล้วเงียบ = วางแผนทับของที่ออกไปแล้วโดยไม่มีใครรู้ */
+    const d = createDelivery(mk({}), whWithRuns([READY], { ok: false, runs: [], assigned: null, error: "เน็ตหลุด" }));
+    const r = await d.readyJobs();
+    assert.deepEqual(r.jobs.map((j) => j.tracking), ["T1"], "อ่านไม่ได้ก็ยังวางแผนต่อได้ (พฤติกรรมเดิม)");
+    assert.equal(r.skipped.assigned, 0);
+    assert.equal(r.skipped.assignedUnknown, true, "ต้องติดธงให้จอทัก");
+  });
+
+  await ok("ท่อโกดังรุ่นเก่าที่ยังไม่มีตัวอ่านรอบมอบ = ใช้งานได้เหมือนเดิม", async () => {
+    const d = createDelivery(mk({}), fakeWh([READY]));
+    const r = await d.readyJobs();
+    assert.deepEqual(r.jobs.map((j) => j.tracking), ["T1"]);
+    assert.equal(r.skipped.assignedUnknown, true);
+  });
+
   await ok("readyJobs: ไม่มีท่อโกดัง = บอกตรงๆ (ไม่พัง)", async () => {
     const r = await createDelivery(mk({}), null).readyJobs();
     assert.equal(r.ok, false);

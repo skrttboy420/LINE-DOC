@@ -145,6 +145,14 @@
   .stophead .pr .cust{font-weight:400;color:var(--muted);font-size:11px}
   .stophead .meta{font-size:11px;color:var(--muted)}
   .sitems{padding:2px 0;display:none}
+  /* 📋 การ์ดรอบมอบงาน */
+  .runcard{border:1px solid var(--line);border-radius:12px;margin:8px 10px;padding:10px 12px;background:#fff}
+  .runcard .t{display:flex;align-items:center;gap:8px}
+  .runcard .nm{font-weight:800;font-size:13px;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .runcard .st{font-size:9.5px;font-weight:800;color:#fff;background:var(--faint);padding:2px 8px;border-radius:10px;white-space:nowrap}
+  .runcard.s1 .st{background:var(--amber)} .runcard.s2 .st{background:var(--green)} .runcard.s3 .st{background:var(--danger)}
+  .runcard .m{font-size:11px;color:var(--muted);margin-top:3px}
+  .runcard .dv{font-size:11.5px;color:var(--ink);font-weight:700}
   .stopcard.open .sitems{display:block}
   .sitem{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 44px;font-size:11.5px;border-top:1px solid #f4f5f7}
   .sitem:first-child{border-top:0}
@@ -290,6 +298,8 @@
         <button class="tab on" data-v="cust">🗺 ลูกค้า</button>
         <button class="tab" data-v="trip">🚚 เที่ยวส่ง</button>
         <button class="tab" data-v="truck">🚛 รถ</button>
+        <!-- 📋 ภูม 2026-11-25: *"ดึงงานจากหน้า /admin/drivers นี้มาแสดงด้วย อย่างวันนี้มีงานที่มอบหมายไปแล้วด้วยนะ"* -->
+        <button class="tab" data-v="runs">📋 มอบหมายแล้ว</button>
       </div>
 
       <!-- ลูกค้า -->
@@ -351,6 +361,17 @@
           <div class="hint" style="margin-top:7px">ใส่ชื่อแล้วกด + · ประเภท/พิกัด/คนขับ กดแก้ในการ์ดรถได้</div>
         </div>
         <div class="list" id="truckList"><div class="empty">ยังไม่มีรถ — เพิ่มด้านบน</div></div>
+      </div>
+
+      <!-- 📋 รอบมอบงานคนขับ — ดึงจาก /admin/drivers ของ Pacred (อ่านอย่างเดียว) -->
+      <div class="view" id="view-runs">
+        <div class="trbar">
+          <input id="runDay" type="date">
+          <button class="btn btn-line sm" id="runRefresh" type="button">ดึงใหม่</button>
+        </div>
+        <div class="sub2">รอบที่มอบให้คนขับ <span id="runN"></span></div>
+        <div class="scroll"><div id="runs"><div class="empty">กด “ดึงใหม่” เพื่อดูรอบของวันนี้</div></div></div>
+        <div class="load"><div class="estrow"><span class="lbhint">ดูอย่างเดียว · สั่งงานจริงทำในระบบ Pacred</span></div></div>
       </div>
     </div>
     <div id="map"></div>
@@ -588,6 +609,10 @@
     if(jobSkip){
       if(jobSkip.other)skipTxt+=" · ซ่อน "+jobSkip.other+" งานที่เจ้าอื่นไปส่ง";
       if(jobSkip.unknown&&jobSkip.unknown.length)skipTxt+=" · ⚠ "+jobSkip.unknown.length+" งานไม่มีรหัสขนส่ง (ตัดสินไม่ได้)";
+      /* 📋 ออกไปกับคนขับแล้ว — ดูได้ที่แท็บ "มอบหมายแล้ว" */
+      if(jobSkip.assigned)skipTxt+=" · 📋 มอบหมายแล้ว "+jobSkip.assigned+" งาน";
+      /* 🪤 อ่านรอบมอบไม่ได้ = ไม่ได้กันสักอัน ⇒ ต้องทัก ไม่ใช่เงียบ */
+      if(jobSkip.assignedUnknown)skipTxt+=" · ⚠ อ่านรอบมอบงานไม่ได้ (อาจมีงานที่คนขับรับไปแล้วปนอยู่)";
     }
     $("jobN").textContent=(jobs.length?("· "+jobs.length+" แทรค"):"")+skipTxt;
     $("jobN").title=(jobSkip&&jobSkip.unknown&&jobSkip.unknown.length)?("ไม่มีรหัสขนส่ง: "+jobSkip.unknown.join(", ")):"";
@@ -966,6 +991,7 @@
       document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("on")}); b.classList.add("on");
       document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on")}); $("view-"+b.dataset.v).classList.add("on");
       if(b.dataset.v==="trip"&&!jobs.length&&!route.length)loadJobs();
+      if(b.dataset.v==="runs"&&!$("runs").querySelector(".runcard"))loadRuns();
       setTimeout(function(){map.invalidateSize()},60);
     });
   });
@@ -991,6 +1017,32 @@
     });
     paint();
   })();
+  // ==================== 📋 รอบมอบงานคนขับ ====================
+  // ภูม 2026-11-25: *"ดึงงานจากหน้า /admin/drivers นี้มาแสดงด้วย"*
+  // 🔒 ดูอย่างเดียว — มอบงานจริงยังทำในระบบ Pacred เหมือนเดิม
+  function renderRuns(r){
+    var el=$("runs"); el.innerHTML="";
+    if(r&&r.ok===false){ el.innerHTML='<div class="empty">อ่านรอบมอบงานไม่ได้ — '+esc(r.error||"ลองกดดึงใหม่")+'</div>'; $("runN").textContent=""; return; }
+    var list=(r&&r.runs)||[];
+    $("runN").textContent=list.length?("· "+list.length+" รอบ"):"";
+    if(!list.length){ el.innerHTML='<div class="empty">วันนี้ยังไม่มีรอบที่มอบให้คนขับ</div>'; return; }
+    list.forEach(function(x){
+      var c=document.createElement("div"); c.className="runcard s"+esc(String(x.status||""));
+      c.innerHTML='<div class="t"><span class="nm">'+esc(x.name||"")+'</span><span class="st">'+esc(x.statusText||"")+'</span></div>'+
+        '<div class="m"><span class="dv">'+esc(x.driver||x.driverCode||"— ไม่ระบุคนขับ")+'</span>'+
+        ' · ส่งแล้ว '+(x.doneStops||0)+'/'+(x.stops||0)+' จุด</div>'+
+        '<div class="m">'+(x.trackings||0)+' แทรค · '+(x.boxes||0)+' กล่อง</div>';
+      el.appendChild(c);
+    });
+  }
+  function loadRuns(){
+    $("runs").innerHTML='<div class="empty">กำลังดึงรอบมอบงาน…</div>';
+    var d=$("runDay").value||"";
+    api("/runs"+(d?("?day="+encodeURIComponent(d)):"")).then(renderRuns)
+      .catch(function(e){ renderRuns({ok:false,error:errMsg(e)}); });
+  }
+  $("runRefresh").addEventListener("click",loadRuns);
+
   $("menuBtn").addEventListener("click",function(){$("panel").classList.contains("open")?closePanel():openPanel()});
   $("scrim").addEventListener("click",closePanel);
 

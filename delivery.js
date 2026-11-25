@@ -178,12 +178,23 @@ function createDelivery(supabase, warehouse) {
   }
 
   /* ── งานพร้อมส่ง (ดึงท่อเดิมของโกดัง แล้วกรอง "พร้อมส่ง") ──────────── */
+  /** 📋 รอบมอบงานคนขับ (ภูม 2026-11-25) — แท็บใหม่บนหน้าวางแผนอ่านตัวนี้ */
+  async function driverRuns(day) {
+    if (!warehouse || !warehouse.driverRunsFromPacred) return { ok: false, runs: [], error: "ไม่ได้ต่อท่อโกดัง" };
+    return warehouse.driverRunsFromPacred(day);
+  }
+
   async function readyJobs() {
     if (!warehouse || !warehouse.jobsFromPacred) return { ok: false, jobs: [], error: "ไม่ได้ต่อท่อโกดัง" };
     const live = await warehouse.jobsFromPacred([], []); // ของบนชั้นที่ถึงไทยทั้งหมด (แค่ธง ไม่เอารายละเอียดส่วนตัว)
+    /* 📋 งานที่มอบให้คนขับไปแล้ว — ห้ามเอามาวางแผนซ้ำ (ภูม 2026-11-25)
+       🪤 อ่านไม่ได้ = **ไม่กันสักอัน** แล้วบอกบนจอ · เดาว่า "ไม่มีงานมอบ" แล้วปล่อยผ่าน
+          ก็คือพฤติกรรมเดิมอยู่แล้ว · ที่ห้ามคือเงียบ ⇒ ส่ง assignedUnknown ให้จอทัก */
+    const runs = (warehouse.driverRunsFromPacred ? await warehouse.driverRunsFromPacred(null) : { ok: false });
+    const assignedSet = new Set((runs.assigned || []).map((t) => String(t || "").trim()).filter(Boolean));
     const out = [];
     /* 🚚 ที่ไม่ได้เอามาจัดรถ — ไว้ให้จอบอก ไม่ให้หายเงียบ (ภูม 2026-11-24) */
-    const skipped = { other: 0, unknown: [] };
+    const skipped = { other: 0, unknown: [], assigned: 0, assignedUnknown: runs.ok === false };
     for (const j of live.jobs || []) {
       const st = pickStateOf(j, true);
       if (st.pick !== PICK.READY) continue;       // 🟢 พร้อมส่ง = จ่ายแล้ว + ถึงไทย
@@ -193,6 +204,8 @@ function createDelivery(supabase, warehouse) {
       const kind = carrierKindOf(j.carrier);
       if (kind === "other") { skipped.other += 1; continue; }
       if (kind === "unknown") { skipped.unknown.push(String(j.tracking || "").trim()); continue; }
+      /* 📋 ออกไปกับคนขับแล้ว = ไม่ใช่งานที่ต้องวางแผน */
+      if (assignedSet.has(String(j.tracking || "").trim())) { skipped.assigned += 1; continue; }
       out.push({
         pr: String(j.memberCode || "").trim(),
         tracking: String(j.tracking || "").trim(),
@@ -316,7 +329,7 @@ function createDelivery(supabase, warehouse) {
     getSetting, setSetting, getOrigin, setOrigin,
     listTrucks, addTruck, updateTruck, deleteTruck,
     listTrips, getTrip, createTrip, updateTrip, deleteTrip, setStops,
-    readyJobs, placedTrackings,
+    readyJobs, placedTrackings, driverRuns,
     driverTripToken, getTripForDriver, driverPing, listTripPositions,
   };
 }

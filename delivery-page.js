@@ -130,6 +130,8 @@ function mountDelivery(app, delivery) {
 
   /* งานพร้อมส่ง (จากท่อ pacred เดิม — แค่อ่าน) */
   api("get", "/delivery/api/jobs", async () => delivery.readyJobs());
+  /* 📋 รอบมอบงานคนขับของวันนั้น (ภูม 2026-11-25) — ?day=YYYY-MM-DD · ไม่ส่ง = วันนี้ */
+  api("get", "/delivery/api/runs", async (req) => delivery.driverRuns(String(req.query.day || "").trim() || null));
 
   /* ── หน้าคนขับ + ติดตามรถ (เฟส 4) ─────────────────────────────── */
   /* แอดมิน (ต้องมีคีย์): ตำแหน่งรถล่าสุด + ขอลิงก์ให้คนขับของเที่ยว */

@@ -379,7 +379,9 @@ ok("ยาม: readyJobs ถามตัวตัดสินตัวเดี�
 
 ok("ยาม: งานที่ตัดออกต้องถูกรายงาน ไม่ใช่หายเงียบ", () => {
   const js = fs.readFileSync(path.join(__dirname, "delivery.js"), "utf8");
-  assert.ok(/const skipped = \{ other: 0, unknown: \[\] \}/.test(js), "ต้องนับของที่ตัดออก");
+  assert.ok(js.indexOf("const skipped = { other: 0, unknown: [], assigned: 0, assignedUnknown:") >= 0, "ต้องนับของที่ตัดออก");
+  assert.ok(js.indexOf("skipped.assigned += 1") >= 0, "งานที่มอบให้คนขับแล้ว = นับไว้");
+  assert.ok(js.indexOf("assignedUnknown: runs.ok === false") >= 0, "อ่านรอบมอบไม่ได้ = ต้องบอก ไม่ใช่เงียบ");
   assert.ok(/skipped\.other \+= 1/.test(js), "เจ้าอื่นส่ง = นับไว้");
   assert.ok(/skipped\.unknown\.push/.test(js), "ไม่มีรหัส = จดเลขแทรคไว้ให้ตามต่อ");
   assert.ok(/jobs: out, at: live\.at \|\| null, skipped/.test(js), "ต้องคืน skipped ออกไปให้จอ");

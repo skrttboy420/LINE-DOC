@@ -435,6 +435,22 @@ function createWarehouse(supabase, pacredGet) {
     }
   }
 
+  /**
+   * 📋 รอบมอบงานคนขับจากหน้า /admin/drivers (ภูม 2026-11-25)
+   *   `runs`     = รอบของวันนั้น ไว้โชว์เป็นตาราง
+   *   `assigned` = เลขแทรคที่ยังอยู่กับคนขับ ไว้กันหน้าวางแผนจัดรถซ้ำ
+   * 🔒 อ่านอย่างเดียว · อ่านไม่ได้ = บอกตรงๆ ไม่เดาว่า "ไม่มีงานมอบ"
+   *    (เดาแบบนั้น = จัดรถซ้ำกับของที่ออกไปแล้ว = รถ 2 คันไปจุดเดียวกัน)
+   */
+  async function driverRunsFromPacred(day) {
+    try {
+      const r = await pacredGet("driver-runs", day ? { day: day } : undefined);
+      return { ok: true, day: (r && r.day) || null, runs: (r && r.runs) || [], assigned: (r && r.assigned) || [] };
+    } catch (e) {
+      return { ok: false, runs: [], assigned: null, error: e.message };
+    }
+  }
+
   /** ภาพรวมทั้งโกดังสำหรับหน้า 3D — ทีละโกดัง (ภูม 13/11: มีมากกว่า 1 โกดังแล้ว) */
   async function view(whIn) {
     /* 🔴 ภูม 2026-11-17 — ตำแหน่งของมาจาก **Pacred ที่เดียว** (เลิกอ่าน wh_placement)
@@ -592,7 +608,7 @@ function createWarehouse(supabase, pacredGet) {
   }
 
   return {
-    isReady, listPlacements, jobsFromPacred, view, place, remove, history, find,
+    isReady, listPlacements, jobsFromPacred, driverRunsFromPacred, view, place, remove, history, find,
     listCages, allCages, putCage, removeCage, findCages,
   };
 }

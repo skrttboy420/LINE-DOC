@@ -162,6 +162,13 @@ function mountDelivery(app, delivery) {
     try { res.json(await delivery.driverPing(req.body.trip, req.body.t, req.body.lat, req.body.lng)); }
     catch (e) { res.status(400).json({ error: (e && e.message) || "ส่งตำแหน่งไม่ได้" }); }
   });
+  /* 📍 คนขับยืนหน้าบ้านลูกค้าแล้วกดปักหมุดกลับเข้าระบบ Pacred (ภูม 2026-11-25) */
+  app.post("/delivery/api/driver/pin", json, async (req, res) => {
+    const b = req.body || {};
+    try {
+      res.json(await delivery.driverPinStop(b.trip, b.t, b.trackings, b.lat, b.lng, b.accuracyM));
+    } catch (e) { res.status(400).json({ error: (e && e.message) || "ปักหมุดไม่สำเร็จ" }); }
+  });
 
   console.log(
     keyOf("ADMIN_KEY") || keyOf("MANAGER_KEY")

@@ -252,7 +252,7 @@ function worstOf(picks) {
  * @param {object} supabase ลูกค้า Supabase **ของบอท** (ไม่ใช่ของ Pacred)
  * @param {(q:string, extra?:object)=>Promise<any>} pacredGet ท่ออ่านเว็บ Pacred
  */
-function createWarehouse(supabase, pacredGet) {
+function createWarehouse(supabase, pacredGet, pacredPost) {
   /** ยังไม่ได้ลง SQL = บอกตรงๆ ไม่ใช่พังเงียบ */
   async function isReady() {
     const { error } = await supabase.from("wh_placement").select("tracking").limit(1);
@@ -455,6 +455,31 @@ function createWarehouse(supabase, pacredGet) {
     }
   }
 
+  /**
+   * 📍 คนขับปักหมุดหน้าบ้านลูกค้ากลับเข้าระบบ Pacred (ภูม 2026-11-25)
+   *
+   * 🔑 **ไม่เก็บหมุดไว้ที่เราเอง** — ยิงเข้าตัวเขียนเดิมของ Pacred ตัวเดียวกับปุ่ม
+   *    ในเว็บ ⇒ หมุดมีแหล่งเดียว ที่อยู่ลูกค้าได้พิกัดจริงไปใช้รอบหน้าด้วย
+   * 🔒 ด่านทั้งหมด (อยู่ในรอบที่กำลังวิ่ง · ลูกค้ารายเดียว · รถเราเอง · ในกรอบไทย)
+   *    ตรวจที่ฝั่ง Pacred — ที่นี่ไม่ตัดสินเอง จะได้ไม่มีกติกา 2 ชุดที่เถียงกัน
+   */
+  async function pinInPacred(opts) {
+    if (!pacredPost) return { ok: false, error: "ยังไม่ได้ต่อท่อเขียนเข้าระบบ Pacred" };
+    const o = opts || {};
+    try {
+      const r = await pacredPost("pin", {
+        trackings: o.trackings || [],
+        lat: o.lat,
+        lng: o.lng,
+        accuracyM: o.accuracyM == null ? null : Number(o.accuracyM),
+        via: o.via || null,
+      });
+      return { ok: true, lat: r && r.lat, lng: r && r.lng, rows: (r && r.updatedForwarders) || 0 };
+    } catch (e) {
+      return { ok: false, error: (e && e.message) || "บันทึกพิกัดไม่สำเร็จ" };
+    }
+  }
+
   /** ภาพรวมทั้งโกดังสำหรับหน้า 3D — ทีละโกดัง (ภูม 13/11: มีมากกว่า 1 โกดังแล้ว) */
   async function view(whIn) {
     /* 🔴 ภูม 2026-11-17 — ตำแหน่งของมาจาก **Pacred ที่เดียว** (เลิกอ่าน wh_placement)
@@ -612,7 +637,7 @@ function createWarehouse(supabase, pacredGet) {
   }
 
   return {
-    isReady, listPlacements, jobsFromPacred, driverRunsFromPacred, view, place, remove, history, find,
+    isReady, listPlacements, jobsFromPacred, driverRunsFromPacred, pinInPacred, view, place, remove, history, find,
     listCages, allCages, putCage, removeCage, findCages,
   };
 }

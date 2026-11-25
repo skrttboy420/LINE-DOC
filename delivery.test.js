@@ -10,6 +10,8 @@
 
 const assert = require("node:assert/strict");
 const { createDelivery } = require("./delivery");
+const fs = require("node:fs");
+const path = require("node:path");
 
 let pass = 0, fail = 0;
 async function ok(name, fn) {
@@ -34,6 +36,7 @@ function mk(cfg) {
     }
     const b = {
       select() { return b; }, eq(c, v) { st.filters[c] = v; return b; },
+      in(c, v) { st.filters[c] = v; return b; },
       order() { return b; }, limit() { return result(false); },
       maybeSingle() { return result(true); }, single() { return result(true); },
       insert(row) { st.op = "insert"; st.payload = row; return b; },
@@ -208,6 +211,88 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     driverRunsFromPacred: async () => ({ ok: true, runs: [], assigned: [], items: items }),
   });
 
+  // ── 📍 คนขับปักหมุดหน้าบ้านลูกค้า (ภูม 2026-11-25) ──
+  //
+  // ภูม: *"พวกหมุดคล่าวๆ พวกนี้มันยังไม่ตรงบ้านลูกค้าถูกไหม ถ้าคนขับไปถึงบ้านลูกค้า
+  //        จริงๆแล้ว ทำปุ่มให้คนขับปักหมุดกลับมาด้วยได้ไหม"*
+  //
+  // 🔴 พิกัดนี้ไป **ทับที่อยู่ของลูกค้า** ในระบบ Pacred และถูกใช้นำทางรอบถัดๆ ไป
+  //    ⇒ ลิงก์ใบหนึ่งต้องแตะได้เฉพาะของในเที่ยวของตัวเอง และพลาดต้องไม่เขียนอะไรเลย
+
+  const TRIP_ROW = { id: "t-1", name: "2026-11-25-08-AD036", share_token: "tok-1" };
+  const STOPS = [
+    { id: "s-1", pr: "PR863", tracking: "TK1" },
+    { id: "s-2", pr: "PR863", tracking: "TK2" },
+    { id: "s-3", pr: "PR900", tracking: "TK9" },
+  ];
+  /** โกดังปลอมที่จดไว้ว่าถูกเรียกด้วยอะไรบ้าง (หรือสั่งให้ตีกลับ) */
+  const whPin = (fail) => {
+    const seen = [];
+    return {
+      seen,
+      jobsFromPacred: async () => ({ ok: true, jobs: [] }),
+      pinInPacred: async (o) => { seen.push(o); return fail ? { ok: false, error: fail } : { ok: true, rows: 2 }; },
+    };
+  };
+
+  await ok("📍 ปักหมุดได้ — ยิงเลขแทรค + ชื่อเที่ยวเข้า Pacred แล้วอัปสำเนาบนเที่ยว", async () => {
+    const db = mk({ row: TRIP_ROW, rows: STOPS });
+    const wh = whPin();
+    const r = await createDelivery(db, wh).driverPinStop("t-1", "tok-1", ["TK1"], 13.72, 100.56, 12);
+    assert.equal(r.ok, true);
+    assert.equal(wh.seen.length, 1, "ต้องยิงเข้า Pacred ครั้งเดียว");
+    assert.deepEqual(wh.seen[0].trackings, ["TK1"]);
+    assert.equal(wh.seen[0].via, "2026-11-25-08-AD036", "ส่งชื่อเที่ยวไปลง audit ด้วย");
+    assert.equal(wh.seen[0].accuracyM, 12);
+    /* สำเนาบนเที่ยวต้องขยับทั้งบ้านหลังนั้น (PR863 มี 2 แทรค) ไม่ลามไป PR900 */
+    const up = db.calls.find((c) => c.table === "dp_stop" && c.op === "update");
+    assert.ok(up, "ต้องอัปสำเนาบนเที่ยวให้จอเห็นทันที");
+    assert.deepEqual(up.filters.id, ["s-1", "s-2"]);
+  });
+
+  await ok("🔒 โทเคนไม่ตรง = ไม่ยิงเข้า Pacred เลยสักครั้ง", async () => {
+    const wh = whPin();
+    const d = createDelivery(mk({ row: TRIP_ROW, rows: STOPS }), wh);
+    await assert.rejects(() => d.driverPinStop("t-1", "tok-ปลอม", ["TK1"], 13.72, 100.56), /ลิงก์/);
+    assert.equal(wh.seen.length, 0, "ยังไม่ผ่านด่าน ห้ามแตะระบบ Pacred");
+  });
+
+  await ok("🔒 ของที่ไม่ได้อยู่ในเที่ยวของลิงก์นี้ = ตีกลับ", async () => {
+    const wh = whPin();
+    const d = createDelivery(mk({ row: TRIP_ROW, rows: STOPS }), wh);
+    await assert.rejects(() => d.driverPinStop("t-1", "tok-1", ["TK999"], 13.72, 100.56), /ไม่ได้อยู่ในเที่ยว/);
+    assert.equal(wh.seen.length, 0);
+  });
+
+  await ok("🔒 พิกัดนอกไทย / ไม่ใช่ตัวเลข = ตีกลับก่อนแตะฐาน", async () => {
+    const wh = whPin();
+    const db = mk({ row: TRIP_ROW, rows: STOPS });
+    const d = createDelivery(db, wh);
+    await assert.rejects(() => d.driverPinStop("t-1", "tok-1", ["TK1"], 35.68, 139.69), /นอกประเทศไทย/);
+    await assert.rejects(() => d.driverPinStop("t-1", "tok-1", ["TK1"], "x", 100.5), /นอกประเทศไทย/);
+    assert.equal(db.calls.length, 0, "ยังไม่ต้องอ่านฐานด้วยซ้ำ");
+    assert.equal(wh.seen.length, 0);
+  });
+
+  await ok("🪤 Pacred ตีกลับ = ส่งข้อความเดิมต่อ และห้ามอัปสำเนาให้ดูเหมือนสำเร็จ", async () => {
+    /* เคสจริง: ขนส่งเอกชน — คนขับยืนหน้าสาขา ไม่ใช่บ้านลูกค้า */
+    const db = mk({ row: TRIP_ROW, rows: STOPS });
+    const wh = whPin("งานนี้ส่งผ่าน KPN — ไม่ใช่จุดที่คุณยืนอยู่ตอนนี้");
+    await assert.rejects(() => createDelivery(db, wh).driverPinStop("t-1", "tok-1", ["TK1"], 13.72, 100.56), /KPN/);
+    assert.ok(!db.calls.some((c) => c.table === "dp_stop" && c.op === "update"), "ปักไม่ผ่าน จอต้องไม่ขยับ");
+  });
+
+  await ok("🔒 ยาม: จอคนขับต้องไม่เก็บหมุดไว้เอง — ยิงผ่านท่อเดียว", async () => {
+    const html = fs.readFileSync(path.join(__dirname, "driver.html"), "utf8");
+    assert.ok(html.includes("/delivery/api/driver/pin"), "ต้องมีปุ่มปักหมุดบนลิงก์คนขับ");
+    assert.ok(html.includes("pinsheet"), "ต้องมีแผ่นยืนยันก่อนเขียน (กันกดลั่นทับที่อยู่ลูกค้า)");
+    assert.ok(
+      html.indexOf("getCurrentPosition") < html.indexOf("/delivery/api/driver/pin"),
+      "ต้องขอพิกัดมาให้ดูก่อน แล้วค่อยยิง — ห้ามกดปุ่มเดียวแล้วเขียนเลย",
+    );
+    const js = fs.readFileSync(path.join(__dirname, "delivery.js"), "utf8");
+    assert.ok(js.includes("warehouse.pinInPacred"), "หมุดต้องไปลงที่ Pacred ไม่ใช่เก็บไว้ที่เรา");
+  });
   await ok("🔗 รอบที่มอบแล้ว ขอลิงก์คนขับได้ — ยุบเป็นจุดต่อ PR", async () => {
     const db = mk({ rows: [], row: { id: "id-1", share_token: "tok-1" } });
     const r = await createDelivery(db, whRun(RUN_ITEMS)).linkForRun(6637, "2026-11-25-11-AD033");

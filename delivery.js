@@ -355,6 +355,70 @@ function createDelivery(supabase, warehouse) {
     return { ok: true };
   }
 
+  /**
+   * 📍 คนขับกดปักหมุดหน้าบ้านลูกค้าจากลิงก์ (ภูม 2026-11-25)
+   *
+   * ภูม: *"พวกหมุดคร่าวๆ พวกนี้มันยังไม่ตรงบ้านลูกค้าถูกไหม ถ้าคนขับไปถึงบ้านลูกค้า
+   * จริงๆแล้ว ทำปุ่มให้คนขับปักหมุดกลับมาด้วยได้ไหม ถ้าหมุดไหนมันไม่ตรง"*
+   *
+   * 🔑 หมุด**ไม่ได้เก็บที่เรา** — ยิงเข้าตัวเขียนเดิมของ Pacred (ตัวเดียวกับปุ่มในเว็บ)
+   *    ที่นี่มีหน้าที่เดียวคือพิสูจน์ว่า *ลิงก์ใบนี้* มีสิทธิ์แตะของชิ้นนี้
+   * 🔒 โทเคนของเที่ยวหนึ่ง ห้ามไปปักหมุดให้ของในเที่ยวอื่น
+   */
+  async function driverPinStop(id, token, trackings, lat, lng, accuracyM) {
+    const la = Number(lat), ln = Number(lng);
+    if (!Number.isFinite(la) || !Number.isFinite(ln) || !inThai(la, ln)) {
+      throw new Error("พิกัดที่ได้อยู่นอกประเทศไทย — น่าจะ GPS เพี้ยน ลองออกมาที่โล่งแล้วกดใหม่");
+    }
+    const want = (Array.isArray(trackings) ? trackings : [])
+      .map((t) => String(t == null ? "" : t).trim()).filter(Boolean);
+    if (!want.length) throw new Error("ไม่รู้ว่าจะปักหมุดให้ของชิ้นไหน");
+
+    /* ① ลิงก์ต้องเปิดเที่ยวนี้ได้จริง */
+    const tid = clip(id, 40), tk = clip(token, 40);
+    if (!tk) throw new Error("ลิงก์ไม่ถูกต้อง");
+    const { data: trip, error } = await supabase
+      .from("dp_trip").select("id,name,share_token").eq("id", tid).maybeSingle();
+    if (error) boom(error);
+    if (!trip || !trip.share_token || trip.share_token !== tk) {
+      throw new Error("ลิงก์หมดอายุหรือไม่ถูกต้อง");
+    }
+
+    /* ② ปักได้เฉพาะของที่อยู่ในเที่ยวของลิงก์นี้ */
+    const stopsR = await supabase
+      .from("dp_stop").select("id,pr,tracking").eq("trip_id", tid).limit(500);
+    if (stopsR.error) boom(stopsR.error);
+    const rows = stopsR.data || [];
+    const keyOfTrack = (v) => String(v == null ? "" : v).trim().toUpperCase();
+    const mine = new Set(rows.map((r) => keyOfTrack(r.tracking)).filter(Boolean));
+    if (want.some((t) => !mine.has(keyOfTrack(t)))) {
+      throw new Error("ของชิ้นนี้ไม่ได้อยู่ในเที่ยวของลิงก์นี้");
+    }
+
+    /* ③ เขียนเข้า Pacred — ด่านจริง (อยู่ในรอบที่วิ่ง · ลูกค้ารายเดียว · รถเราเอง) อยู่ที่นั่น */
+    const r = await warehouse.pinInPacred({
+      trackings: want, lat: la, lng: ln, accuracyM: accuracyM,
+      via: trip.name || null,
+    });
+    if (!r.ok) throw new Error(r.error || "บันทึกพิกัดไม่สำเร็จ");
+
+    /* ④ อัปสำเนาบนเที่ยวให้ตรงกันทันที — **ไม่ใช่แหล่งข้อมูล** แค่ภาพที่คนขับกับ
+       หัวหน้าเห็นอยู่ตอนนี้ (ดึงรอบใหม่เมื่อไหร่ก็ทับด้วยค่าจาก Pacred เหมือนเดิม)
+       พลาดตรงนี้ไม่ทำให้ทั้งงานล้ม — หมุดจริงลงระบบไปแล้ว */
+    const prs = new Set(rows.filter((x) => mine.has(keyOfTrack(x.tracking))
+      && want.some((t) => keyOfTrack(t) === keyOfTrack(x.tracking))).map((x) => x.pr));
+    const sameStop = rows.filter((x) => prs.has(x.pr)).map((x) => x.id);
+    if (sameStop.length) {
+      try {
+        await supabase.from("dp_stop")
+          .update({ lat: +la.toFixed(7), lng: +ln.toFixed(7) })
+          .in("id", sameStop);
+      } catch (e) { /* ภาพบนจอเท่านั้น — ไม่ต้องให้คนขับเห็น error */ }
+    }
+
+    return { ok: true, lat: la, lng: ln, stops: sameStop.length };
+  }
+
   /** เที่ยวที่มีตำแหน่งรถล่าสุด — ไว้โชว์บนแผนที่แอดมิน */
   async function listTripPositions() {
     const { data, error } = await supabase
@@ -375,7 +439,7 @@ function createDelivery(supabase, warehouse) {
     listTrucks, addTruck, updateTruck, deleteTruck,
     listTrips, getTrip, createTrip, updateTrip, deleteTrip, setStops,
     readyJobs, placedTrackings, driverRuns, linkForRun,
-    driverTripToken, getTripForDriver, driverPing, listTripPositions,
+    driverTripToken, getTripForDriver, driverPing, driverPinStop, listTripPositions,
   };
 }
 

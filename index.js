@@ -47,6 +47,26 @@ async function pacredGet(q, extra) {
   return res.data;
 }
 
+/**
+ * ✍️ ท่อ **เขียน** กลับเว็บ Pacred — ตอนนี้มีทางเดียวคือ q=pin
+ * (คนขับปักหมุดหน้าบ้านลูกค้า · ภูม 2026-11-25)
+ *
+ * เว็บ Pacred ตีกลับเป็น 400 + {error:"..."} ที่เขียนไว้ให้คนขับอ่านรู้เรื่อง
+ * ⇒ ต้องส่งข้อความนั้นต่อขึ้นจอ ไม่ใช่กลืนแล้วบอกแค่ว่า "ผิดพลาด"
+ */
+async function pacredPost(q, body) {
+  if (!PACRED_API_URL || !PACRED_API_SECRET) throw new Error("ยังไม่ได้ตั้ง PACRED_API_URL / PACRED_API_SECRET");
+  try {
+    const res = await axios.post(`${PACRED_API_URL}/api/bot`, body || {}, {
+      params: { q }, headers: { Authorization: `Bearer ${PACRED_API_SECRET}` }, timeout: 15000,
+    });
+    return res.data;
+  } catch (e) {
+    const msg = e && e.response && e.response.data && e.response.data.error;
+    throw new Error(msg || (e && e.message) || "ติดต่อระบบ Pacred ไม่ได้");
+  }
+}
+
 // ============================================================
 // 👥 ทะเบียนพนักงาน + ด่านสิทธิ์ (ภูม 2026-10-20) — ดู staff.js
 // ============================================================
@@ -76,7 +96,7 @@ const { mountWarehouse, warehouseLink } = require("./warehouse-page");
 const { createManager } = require("./manager");
 const { mountManager, managerLink } = require("./manager-page");
 const staffRegistry = createStaffRegistry(supabase, pacredGet);
-const warehouse = createWarehouse(supabase, pacredGet);
+const warehouse = createWarehouse(supabase, pacredGet, pacredPost);
 const manager = createManager(supabase);
 /* 🚚 Delivery Planner (ภูม 2026-11-22) — วางแผนจัดส่ง · ดึงงานพร้อมส่งผ่านท่อโกดังเดิม · ไม่แตะ Pacred */
 const { createDelivery } = require("./delivery");

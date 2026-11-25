@@ -34,6 +34,35 @@
   .stop .tks{font-size:11.5px;color:var(--teal);margin-top:5px;font-weight:700}
   .stop .nav{display:inline-flex;align-items:center;gap:6px;margin-top:9px;font-size:12.5px;font-weight:800;color:#fff;background:var(--blue);border-radius:10px;padding:8px 12px;text-decoration:none}
   .stop .nav svg{font-size:15px}
+  /* 📍 ปุ่มปักหมุด (ภูม 2026-11-25) — แดง = จุดนี้ยังไม่มีหมุด · เทา = มีแล้วแต่แก้ได้ */
+  .stop .acts{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+  .stop .acts .nav{margin-top:0}
+  .stop .pinbtn{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:10px;padding:8px 12px;
+    font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer}
+  .stop .pinbtn.need{background:#d8352a;color:#fff}
+  .stop .pinbtn.has{background:#eef0f4;color:var(--muted)}
+  .stop .pinbtn svg{font-size:15px}
+  .stop .warn{margin-top:6px;font-size:11.5px;font-weight:800;color:#d8352a}
+
+  /* แผ่นยืนยัน — กันกดลั่นแล้วทับที่อยู่ลูกค้า (ทรงเดียวกับ popup ของปุ่มในเว็บ Pacred) */
+  .sheet{position:fixed;inset:0;z-index:3000;background:rgba(18,22,34,.55);display:none;align-items:flex-end;justify-content:center}
+  .sheet.on{display:flex}
+  .sheet .box{background:#fff;width:min(560px,100%);max-height:88dvh;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}
+  .sheet .hd{flex:0 0 auto;padding:13px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;font-weight:800}
+  .sheet .hd .x{margin-left:auto;border:0;background:var(--bg);color:var(--muted);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:17px;line-height:1}
+  .sheet .bd{flex:1 1 auto;overflow:auto;padding:13px 15px;font-size:13.5px;line-height:1.6}
+  .sheet .bd .k{color:var(--muted);font-size:12px}
+  .sheet .bd .v{font-weight:800}
+  .sheet .bd .row{padding:7px 0;border-bottom:1px solid #f4f5f7}
+  .sheet .bd .row:last-child{border-bottom:0}
+  .sheet .bd .acc{font-size:12px;color:var(--muted)}
+  .sheet .bd .acc.bad{color:#d8352a;font-weight:800}
+  .sheet .ft{flex:0 0 auto;padding:11px 15px calc(env(safe-area-inset-bottom,0px) + 13px);border-top:1px solid var(--line);display:flex;gap:9px}
+  .sheet .ft button{flex:1;border:0;border-radius:12px;padding:13px;font-family:inherit;font-size:14.5px;font-weight:800;cursor:pointer}
+  .sheet .ft .go{background:var(--teal);color:#fff}
+  .sheet .ft .go:disabled{opacity:.55}
+  .sheet .ft .no{background:var(--bg);color:var(--muted);flex:0 0 100px}
+  .sheet a.chk{display:inline-block;margin-top:8px;color:var(--blue);font-weight:800;font-size:12.5px}
   .note{margin:4px 12px 10px;font-size:11.5px;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:11px;padding:10px 12px;line-height:1.5}
   .note b{color:var(--ink)}
 
@@ -65,6 +94,14 @@
     <div class="gpshint" id="gpshint">เปิดแล้วหัวหน้าจะเห็นรถคุณบนแผนที่ · ปิดได้ทุกเมื่อ</div>
   </div>
 <div class="toast" id="toast"></div>
+<!-- 📍 ภูม 2026-11-25: *"ถ้าคนขับไปถึงบ้านลูกค้าจริงๆแล้ว ทำปุ่มให้คนขับปักหมุดกลับมาด้วยได้ไหม"* -->
+<div class="sheet" id="pinsheet">
+  <div class="box">
+    <div class="hd"><span>📍 ปักหมุดหน้าบ้านลูกค้า</span><button class="x" id="pinX" type="button">✕</button></div>
+    <div class="bd" id="pinBd"></div>
+    <div class="ft"><button class="no" id="pinNo" type="button">ยกเลิก</button><button class="go" id="pinGo" type="button">ยืนยันปักหมุดตรงนี้</button></div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
@@ -80,6 +117,76 @@
 
   function navUrl(lat,lng){return "https://www.google.com/maps/dir/?api=1&destination="+lat+","+lng;}
 
+  /**
+   * วาดเนื้อการ์ด 1 จุด — แยกออกมาเพราะต้องวาดใหม่หลังปักหมุดเสร็จ
+   * (ไม่ต้องรีโหลดหน้า คนขับจะได้ไม่ต้องเปิดแชร์ตำแหน่งใหม่)
+   */
+  function drawStop(s){
+    var n=s.card.querySelector(".n");
+    var nav = s.lat ? '<a class="nav" target="_blank" rel="noopener" href="'+navUrl(s.lat,s.lng)+'"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l19-9-9 19-2-8-8-2Z"/></svg>นำทาง</a>' : "";
+    /* ยังไม่มีหมุด = ปุ่มแดงเด่น · มีแล้ว = ปุ่มเทา (กดแก้ได้ถ้าหมุดพาไปผิดบ้าน) */
+    var pin = '<button type="button" class="pinbtn '+(s.lat?"has":"need")+'" data-pin="'+s.seq+'">'+
+      '<svg class="i" viewBox="0 0 24 24"><path d="M12 21s-7-5.2-7-11a7 7 0 0 1 14 0c0 5.8-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>'+
+      (s.lat?"หมุดไม่ตรง? ปักใหม่":"ปักหมุดที่นี่")+'</button>';
+    n.innerHTML='<div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+'</div>'+
+      (s.address?'<div class="ad">'+esc(s.address)+'</div>':'')+
+      '<div class="tks">แทรค: '+esc(s.tks.filter(Boolean).join(", ")||"-")+'</div>'+
+      (s.lat?"":'<div class="warn">⚠ จุดนี้ยังไม่มีหมุด — ถึงหน้าบ้านแล้วช่วยกดปักให้ด้วยนะครับ</div>')+
+      '<div class="acts">'+nav+pin+'</div>';
+    n.querySelector("[data-pin]").addEventListener("click",function(){ openPin(s); });
+  }
+
+  /* ── 📍 ปักหมุด: ขอ GPS → โชว์ให้ดูก่อน → กดยืนยันถึงบันทึก ──────────
+     ลำดับนี้จงใจให้เหมือนปุ่มในเว็บ Pacred — ไม่มีทางที่กดปุ่มเดียวแล้ว
+     เขียนทับที่อยู่ลูกค้าเลย เพราะพิกัดนี้จะถูกใช้นำทางในรอบถัดๆ ไปด้วย */
+  var pinStop=null, pinFix=null;
+  function closePin(){ $("pinsheet").classList.remove("on"); pinStop=null; pinFix=null; }
+  function openPin(s){
+    pinStop=s; pinFix=null;
+    $("pinsheet").classList.add("on");
+    $("pinGo").disabled=true;
+    $("pinBd").innerHTML='<div class="row">กำลังอ่านตำแหน่งจาก GPS…</div>';
+    if(!navigator.geolocation){ $("pinBd").innerHTML='<div class="row">มือถือนี้ไม่รองรับ GPS</div>'; return; }
+    navigator.geolocation.getCurrentPosition(function(p){
+      pinFix={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+      var acc=Math.round(pinFix.acc||0), bad=acc>50;
+      $("pinBd").innerHTML=
+        '<div class="row"><div class="k">ปักให้</div><div class="v">'+esc(s.pr||"")+(s.customer?" · "+esc(s.customer):"")+'</div></div>'+
+        '<div class="row"><div class="k">ที่อยู่ที่ระบบมีตอนนี้</div><div>'+esc(s.address||"— ไม่มี —")+'</div></div>'+
+        '<div class="row"><div class="k">พิกัดที่คุณยืนอยู่</div><div class="v">'+pinFix.lat.toFixed(6)+", "+pinFix.lng.toFixed(6)+'</div>'+
+          '<div class="acc'+(bad?" bad":"")+'">แม่นยำประมาณ '+acc+' เมตร'+(bad?" — ยังไม่ค่อยแม่น ลองออกมาที่โล่งแล้วกดใหม่ได้":"")+'</div>'+
+          '<a class="chk" target="_blank" rel="noopener" href="https://www.google.com/maps/search/'+pinFix.lat+","+pinFix.lng+'">เปิด Google Maps ดูก่อนว่าใช่บ้านนี้ไหม →</a></div>'+
+        '<div class="row" style="color:#6b7280;font-size:12px">กดยืนยันแล้ว ที่อยู่ของลูกค้ารายนี้จะใช้พิกัดนี้นำทางในรอบถัดไปด้วย</div>';
+      $("pinGo").disabled=false;
+    },function(err){
+      $("pinBd").innerHTML='<div class="row">'+(err&&err.code===1?"ไม่ได้อนุญาตให้ใช้ตำแหน่ง — เปิดสิทธิ์ตำแหน่งให้เบราว์เซอร์ก่อนนะครับ":"อ่านตำแหน่งไม่ได้ ลองออกมาที่โล่งแล้วกดใหม่")+'</div>';
+    },{enableHighAccuracy:true,maximumAge:0,timeout:20000});
+  }
+  $("pinX").addEventListener("click",closePin);
+  $("pinNo").addEventListener("click",closePin);
+  $("pinsheet").addEventListener("click",function(e){ if(e.target===this) closePin(); });
+  $("pinGo").addEventListener("click",function(){
+    if(!pinStop||!pinFix)return;
+    var s=pinStop, fix=pinFix, btn=this;
+    btn.disabled=true; btn.textContent="กำลังบันทึก…";
+    fetch("/delivery/api/driver/pin",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({trip:TRIP,t:TK,trackings:s.tks.filter(Boolean),lat:fix.lat,lng:fix.lng,accuracyM:fix.acc})})
+      .then(function(r){return r.json().then(function(j){return r.ok?j:Promise.reject(j)})})
+      .then(function(){
+        btn.disabled=false; btn.textContent="ยืนยันปักหมุดตรงนี้";
+        /* อัปของบนจอทันที — การ์ด + หมุดบนแผนที่ (ไม่ต้องรีโหลด) */
+        s.lat=fix.lat; s.lng=fix.lng;
+        if(s.marker) s.marker.setLatLng([s.lat,s.lng]);
+        else s.marker=L.marker([s.lat,s.lng],{icon:L.divIcon({className:"",html:'<div class="stopnum">'+s.seq+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map).bindPopup('<b>จุดที่ '+s.seq+'</b>');
+        drawStop(s);
+        closePin(); toast("ปักหมุดให้ "+(s.pr||"จุดนี้")+" แล้ว ✓");
+      })
+      .catch(function(e){
+        btn.disabled=false; btn.textContent="ยืนยันปักหมุดตรงนี้";
+        toast((e&&e.error)||"ปักหมุดไม่สำเร็จ");
+      });
+  });
+
   function render(trip){
     // จัดกลุ่มรายแทรคเป็นจุด (ตาม seq) — PR เดียว/ที่เดียว = 1 จุด
     var stops=[], byKey={};
@@ -94,16 +201,14 @@
     var pts=[], line=[]; var o=trip.origin;
     if(o&&o.lat){ L.marker([o.lat,o.lng],{icon:whIcon(),zIndexOffset:1000}).addTo(map).bindPopup("โกดัง PACRED (จุดเริ่ม)"); pts.push([o.lat,o.lng]); line.push([o.lat,o.lng]); }
     stops.forEach(function(s,i){
-      if(s.lat){ L.marker([s.lat,s.lng],{icon:L.divIcon({className:"",html:'<div class="stopnum">'+(i+1)+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map).bindPopup('<b>จุดที่ '+(i+1)+' · '+esc(s.pr||"")+'</b>'); pts.push([s.lat,s.lng]); line.push([s.lat,s.lng]); }
-      var card=document.createElement("div"); card.className="stop";
-      card.innerHTML='<div class="seq">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+'</div>'+
-        (s.address?'<div class="ad">'+esc(s.address)+'</div>':'')+
-        '<div class="tks">แทรค: '+esc(s.tks.filter(Boolean).join(", ")||"-")+'</div>'+
-        (s.lat?'<a class="nav" target="_blank" rel="noopener" href="'+navUrl(s.lat,s.lng)+'"><svg class="i" viewBox="0 0 24 24"><path d="M3 11l19-9-9 19-2-8-8-2Z"/></svg>นำทาง</a>':'')+'</div>';
+      if(s.lat){ s.marker=L.marker([s.lat,s.lng],{icon:L.divIcon({className:"",html:'<div class="stopnum">'+(i+1)+'</div>',iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map).bindPopup('<b>จุดที่ '+(i+1)+' · '+esc(s.pr||"")+'</b>'); pts.push([s.lat,s.lng]); line.push([s.lat,s.lng]); }
+      var card=document.createElement("div"); card.className="stop"; s.card=card; s.seq=i+1;
+      card.innerHTML='<div class="seq">'+(i+1)+'</div><div class="n"></div>';
+      drawStop(s);
       el.appendChild(card);
     });
     var note=document.createElement("div"); note.className="note";
-    note.innerHTML='📍 นี่คือ<b>เส้นทางที่หัวหน้าวางไว้</b> (ดูอย่างเดียว) · การ<b>อัปเดตสถานะส่ง / แนบรูปหลักฐาน</b> ให้ทำในระบบ Pacred ตามปกติ';
+    note.innerHTML='📍 นี่คือ<b>เส้นทางที่หัวหน้าวางไว้</b> · ถึงหน้าบ้านลูกค้าแล้วกด <b>ปักหมุดที่นี่</b> ได้เลย ระบบจะจำที่อยู่จริงไว้ให้รอบหน้า · การ<b>อัปเดตสถานะส่ง / แนบรูปหลักฐาน</b> ให้ทำในระบบ Pacred ตามปกติ';
     el.appendChild(note);
     if(o&&o.lat&&line.length>1){line.push([o.lat,o.lng]); L.polyline(line,{color:"#0f766e",weight:4,opacity:.7,dashArray:"7,7"}).addTo(map);}
     if(pts.length)setTimeout(function(){map.invalidateSize();map.fitBounds(pts,{padding:[40,40],maxZoom:14})},200);

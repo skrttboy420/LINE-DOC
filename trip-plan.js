@@ -319,6 +319,37 @@ function planTrips(stops, opts) {
   };
 }
 
+/**
+ * 📍 หมุดที่ควรขึ้นบนแผนที่ (ภูม 2026-11-25)
+ *
+ * ภูม: *"ในแผนที่ตอนนี้จะขึ้นหมุดของทุกเจ้าที่เรามีเลย … ซึ่งมันเยอะไปอะ
+ *       อยากให้มันขึ้นแค่หมุดของลูกค้าที่มีของต้องส่งแค่นั้น"*
+ *
+ * ตั้งต้น = เฉพาะงานที่ต้องส่งรอบนี้ · สมุดหมุดทั้งเล่มเปิดดูได้จากสวิตช์มุมขวาบน (`all`)
+ *
+ * 🔑 โหมดงานใช้หมุดที่ **ตัวงานถืออยู่** ไม่ใช่สมุดหมุด ⇒ ลูกค้าที่ไม่เคยปักหมุดเองก็ขึ้น
+ *    (หมุดระดับตำบล/อำเภอมาจาก pacred แล้ว · ลำดับหมุดตัดสินที่ `loadJobs` ที่เดียว)
+ * 🔑 งานที่อยู่ในเที่ยวแล้วไม่ปักซ้ำ — มันมีหมุดเลขจุดของตัวเองอยู่แล้ว
+ * 🪤 งานที่ยังไม่มีหมุดเลย **ไม่ปักมั่ว** — ขึ้นในรายการซ้ายมือว่า "ยังไม่มีหมุด" แทน
+ *
+ * @param o { all, pins, jobs, routePrs }
+ */
+function pinsForMap(o) {
+  const opt = o || {};
+  if (opt.all) return (opt.pins || []).slice();
+  const placed = {};
+  for (const pr of opt.routePrs || []) placed[String(pr == null ? "" : pr).trim()] = true;
+  const seen = {};
+  const out = [];
+  for (const j of opt.jobs || []) {
+    const pr = String((j && j.pr) == null ? "" : j.pr).trim();
+    if (!pr || !hasGeo(j) || placed[pr] || seen[pr]) continue;
+    seen[pr] = true;
+    out.push({ pr: pr, lat: num(j.lat), lng: num(j.lng), address: j.address || null });
+  }
+  return out;
+}
+
 /** พิกัดของรถคันนั้น — กรอกเองมาก่อน ไม่ได้กรอกค่อยใช้พิกัดมาตรฐานของประเภทรถ */
 function truckCaps(t) {
   const std = VEHICLES.filter((v) => v.type === String((t && t.vehicle_type) || "").trim())[0];
@@ -353,4 +384,4 @@ function assignTrucks(trips, trucks) {
   }));
 }
 
-module.exports = { OWN_TRUCK_CARRIERS, carrierKindOf, ROAD_FACTOR, estHours, VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };
+module.exports = { OWN_TRUCK_CARRIERS, carrierKindOf, ROAD_FACTOR, estHours, pinsForMap, VEHICLES, OVER_VEHICLE, PLAN_DEFAULTS, COMPASS, recommendVehicle, hasGeo, haversineKm, bearingFrom, compassOf, orderByNearest, routeKm, zoneOf, planTrips, truckCaps, assignTrucks };

@@ -186,6 +186,25 @@
   .setmode.on{display:flex}
   .setmode .x{cursor:pointer;opacity:.8}
 
+  /* 📍 สวิตช์หมุด (ภูม 2026-11-25) — ตั้งต้นโชว์เฉพาะงานที่ต้องส่ง · กดดูสมุดหมุดทั้งเล่มได้ */
+  .pinsw{position:absolute;right:12px;top:12px;z-index:1200;background:var(--card);border:1px solid var(--line);
+    border-radius:11px;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px;padding:8px 12px;
+    font-size:12.5px;font-weight:800;color:var(--ink);cursor:pointer;user-select:none}
+  .pinsw:hover{border-color:#d9dde5}
+  .pinsw .sw{width:31px;height:18px;border-radius:9px;background:#cbd2dc;position:relative;transition:.18s;flex:0 0 auto}
+  .pinsw .sw::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:.18s}
+  .pinsw.on .sw{background:var(--blue)}
+  .pinsw.on .sw::after{transform:translateX(13px)}
+  .pinsw .n{color:var(--muted);font-weight:600}
+  @media(max-width:860px){.pinsw{right:9px;top:9px;padding:7px 10px;font-size:11.5px}}
+
+  /* ▾ หัวข้อที่พับได้ (ภูม 2026-11-25: *"ทำ dropdown ด้วยได้ไหม ตอนนี้มันกางค้างไว้เลย"*) */
+  .sub2.fold{cursor:pointer;user-select:none}
+  .sub2.fold:hover{color:var(--ink)}
+  .sub2 .cv{margin-left:auto;opacity:.5;transition:transform .18s}
+  .sub2.closed .cv{transform:rotate(-90deg)}
+  .foldbody.closed{display:none}
+
   .leaflet-container{background:#e9edf1;font-family:var(--font)}
   .wh-ic{display:grid;place-items:center;color:#fff;background:var(--red);width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(45deg);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff}
   .wh-ic svg{transform:rotate(-45deg);font-size:15px}
@@ -295,8 +314,8 @@
         <div class="scroll">
           <div class="sub2"><svg class="i" viewBox="0 0 24 24" style="font-size:14px;color:var(--green)"><path d="M12 3 5 6v5c0 4.2 2.8 7.8 7 9 4.2-1.2 7-4.8 7-9V6l-7-3Z"/><path d="M9 12l2 2 4-4"/></svg> งานพร้อมส่ง <span id="jobN"></span><span class="rf" id="jobRefresh" title="ดึงงานใหม่"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg></span></div>
           <div id="jobs"><div class="empty">กดปุ่มรีเฟรชเพื่อดึงงานพร้อมส่ง</div></div>
-          <div class="sub2" style="border-top:1px solid var(--line)"><svg class="i" viewBox="0 0 24 24" style="font-size:14px;color:var(--teal)"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/></svg> เส้นทางเที่ยวนี้ <span id="stopN"></span></div>
-          <div id="stops"><div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบนเพื่อใส่เข้าเที่ยว</div></div>
+          <div class="sub2 fold" id="stopsHd" style="border-top:1px solid var(--line)"><svg class="i" viewBox="0 0 24 24" style="font-size:14px;color:var(--teal)"><path d="M3 10.2 12 3l9 7.2"/><path d="M5 9v11h14V9"/></svg> เส้นทางเที่ยวนี้ <span id="stopN"></span><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div id="stops" class="foldbody"><div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบนเพื่อใส่เข้าเที่ยว</div></div>
         </div>
         <div class="load">
           <div class="estrow"><span class="lb" id="loadBoxes">0 กล่อง</span><span class="lbhint">น้ำหนัก/ปริมาตร รวมจากงานที่เลือกอัตโนมัติ</span></div>
@@ -329,6 +348,10 @@
       </div>
     </div>
     <div id="map"></div>
+    <!-- 📍 ภูม 2026-11-25: *"ในแผนที่ตอนนี้จะขึ้นหมุดของทุกเจ้าที่เรามีเลย … ซึ่งมันเยอะไปอะ"* -->
+    <div class="pinsw" id="pinsw" title="สลับ: เฉพาะงานที่ต้องส่ง ⇄ หมุดลูกค้าทั้งหมด">
+      <span class="sw"></span><span id="pinswT">เฉพาะงานที่ต้องส่ง</span><span class="n" id="pinswN"></span>
+    </div>
     <div class="setmode" id="setmode"><span>แตะบนแผนที่เพื่อปักจุดโกดัง</span><span class="x" id="setCancel">ยกเลิก</span></div>
   </div>
 </div>
@@ -373,20 +396,41 @@
   var map=L.map("map",{zoomControl:true}).setView([13.74,100.45],11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
   var pins=[], pinByPr={}, markers={}, whMarker=null, origin=null;
+  /* 📍 โหมดหมุดบนแผนที่ (ภูม 2026-11-25) — false = เฉพาะงานที่ต้องส่ง (ตั้งต้น) · true = สมุดหมุดทั้งเล่ม */
+  var pinsAll=false;
+  try{ pinsAll = localStorage.getItem("dp_pins_all")==="1"; }catch(e){}
+  /* คีย์ของหมุด 1 จุด — ใช้ผูกแถวในรายการซ้ายมือกับหมุดบนแผนที่
+     🪤 เดิมผูกด้วย "ลำดับใน pins" ⇒ พอแผนที่โชว์ไม่ครบทุกหมุด ลำดับจะเพี้ยน กดแถวแล้วเปิดหมุดผิดจุด */
+  function pinKey(p){ return (p.pr||"")+"|"+p.lat+"|"+p.lng; }
 
   function custMarker(p){return L.circleMarker([p.lat,p.lng],{radius:7,color:"#fff",weight:2,fillColor:"#2563c9",fillOpacity:1}).bindPopup('<div class="pop"><b>'+esc(p.pr)+'</b>'+(p.address?'<div class="a">'+esc(p.address)+'</div>':'')+'</div>');}
+  /* 📍 หมุดที่ควรขึ้นบนแผนที่ (ภูม 2026-11-25 *"อยากให้มันขึ้นแค่หมุดของลูกค้าที่มีของต้องส่งแค่นั้น"*)
+     🔑 โหมดงาน ใช้หมุดที่ **ตัวงานถืออยู่** ไม่ใช่สมุดหมุด ⇒ ลูกค้าที่ไม่เคยปักหมุดเองก็ขึ้น
+        (ได้หมุดระดับตำบล/อำเภอจาก pacred มาแล้ว · ลำดับหมุดคิดที่ loadJobs ที่เดียว)
+     🔑 งานที่อยู่ในเที่ยวแล้วไม่ต้องปักซ้ำ — มันมีหมุดเลขจุดของตัวเองใน renderRoute */
+  function mapPins(){
+    return PLAN.pinsForMap({ all:pinsAll, pins:pins, jobs:jobs||[],
+      routePrs:(route||[]).map(function(s){return s.pr}) });
+  }
   function renderPins(){
     Object.keys(markers).forEach(function(k){map.removeLayer(markers[k])}); markers={};
-    pins.forEach(function(p,i){var m=custMarker(p);m.addTo(map);markers[i]=m;});
-    renderList(pins); $("count").innerHTML="ทั้งหมด <b>"+pins.length+"</b> จุด · ลูกค้า "+Object.keys(pinByPr).length+" ราย";
+    var src=mapPins();
+    src.forEach(function(p){var m=custMarker(p);m.addTo(map);markers[pinKey(p)]=m;});
+    renderList(pins);   /* รายการซ้ายมือยังเป็นสมุดหมุดทั้งเล่ม — ไว้ค้นหา/บินไปดู */
+    $("count").innerHTML="ทั้งหมด <b>"+pins.length+"</b> จุด · ลูกค้า "+Object.keys(pinByPr).length+" ราย";
+    $("pinsw").classList.toggle("on",pinsAll);
+    $("pinswT").textContent = pinsAll ? "หมุดลูกค้าทั้งหมด" : "เฉพาะงานที่ต้องส่ง";
+    $("pinswN").textContent = pinsAll ? ("· "+src.length+" จุด")
+      : (jobs.length ? ("· "+src.length+" จุด") : "· ยังไม่ได้ดึงงาน");
   }
   function renderList(arr){
     var el=$("list"); el.innerHTML="";
     if(!arr.length){el.innerHTML='<div class="empty">ไม่พบ</div>';return;}
     arr.slice(0,400).forEach(function(p){
-      var idx=pins.indexOf(p); var row=document.createElement("div"); row.className="cust";
+      var mk=pinKey(p); var row=document.createElement("div"); row.className="cust";
       row.innerHTML='<span class="dot"></span><div class="n"><div class="pr">'+esc(p.pr)+'</div>'+(p.address?'<div class="ad">'+esc(p.address)+'</div>':'<div class="ad" style="color:#c0c5cd">— ไม่มีที่อยู่กำกับ —</div>')+'</div>';
-      row.addEventListener("click",function(){map.flyTo([p.lat,p.lng],16,{duration:.6});if(markers[idx])setTimeout(function(){markers[idx].openPopup()},350);closePanel();});
+      /* หมุดอาจถูกซ่อนอยู่ (โหมด "เฉพาะงานที่ต้องส่ง") ⇒ บินไปที่จุดได้เสมอ · เปิดป้ายเฉพาะตอนมีหมุด */
+      row.addEventListener("click",function(){map.flyTo([p.lat,p.lng],16,{duration:.6});if(markers[mk])setTimeout(function(){markers[mk].openPopup()},350);closePanel();});
       el.appendChild(row);
     });
   }
@@ -579,6 +623,7 @@
   }
   function renderStops(){
     var el=$("stops"); el.innerHTML=""; $("stopN").textContent=route.length?("· "+route.length+" จุด"):"";
+    renderPins();   /* งานที่เข้า/ออกเที่ยว = หมุดฟ้าบนแผนที่ต้องตามทันที */
     if(!route.length){el.innerHTML='<div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบน (ระบบจัดเส้นทางให้เอง)</div>';renderRoute();renderCap();return;}
     route.forEach(function(s,i){
       var card=document.createElement("div"); card.className="stopcard";
@@ -917,6 +962,24 @@
   // ---- panel (mobile) ----
   function openPanel(){$("panel").classList.add("open");$("scrim").classList.add("on")}
   function closePanel(){$("panel").classList.remove("open");$("scrim").classList.remove("on")}
+  /* 📍 สลับโหมดหมุด (ภูม 2026-11-25) — จำไว้ในเครื่อง ไม่ต้องกดใหม่ทุกครั้ง */
+  $("pinsw").addEventListener("click",function(){
+    pinsAll=!pinsAll;
+    try{localStorage.setItem("dp_pins_all",pinsAll?"1":"0")}catch(e){}
+    renderPins();
+  });
+  /* ▾ พับ/กาง "เส้นทางเที่ยวนี้" — จำสถานะไว้ */
+  (function(){
+    var hd=$("stopsHd"), bd=$("stops"), closed=false;
+    try{ closed = localStorage.getItem("dp_stops_closed")==="1"; }catch(e){}
+    function paint(){ hd.classList.toggle("closed",closed); bd.classList.toggle("closed",closed); }
+    hd.addEventListener("click",function(){
+      closed=!closed;
+      try{localStorage.setItem("dp_stops_closed",closed?"1":"0")}catch(e){}
+      paint();
+    });
+    paint();
+  })();
   $("menuBtn").addEventListener("click",function(){$("panel").classList.contains("open")?closePanel():openPanel()});
   $("scrim").addEventListener("click",closePanel);
 

@@ -463,5 +463,82 @@ ok("ยาม: จอมีปุ่มตั้งชั่วโมง/คว�
   assert.ok(!/1\.35/.test(html), "delivery.html ห้ามเขียนตัวคูณระยะถนนเอง");
 });
 
+// ── ⑨ หมุดบนแผนที่ (ภูม 2026-11-25) ─────────────────────────────────────
+//
+// ภูม: *"ในแผนที่ตอนนี้จะขึ้นหมุดของทุกเจ้าที่เรามีเลยถูกไหม ซึ่งมันเยอะไปอะ
+//        อยากให้มันขึ้นแค่หมุดของลูกค้าที่มีของต้องส่งแค่นั้นอะ"*
+
+const JOB = (pr, dLat, dLng) => ({ pr: pr, lat: WH.lat + dLat, lng: WH.lng + dLng, geo: "tambon", address: "บ้าน " + pr });
+const BOOK = [
+  { pr: "PR001", lat: 13.7, lng: 100.5, address: "ก" },
+  { pr: "PR002", lat: 13.8, lng: 100.6, address: "ข" },
+  { pr: "PR999", lat: 13.9, lng: 100.7, address: "ค" },
+];
+
+ok("ตั้งต้น: ขึ้นเฉพาะลูกค้าที่มีของต้องส่ง ไม่ใช่สมุดหมุดทั้งเล่ม", () => {
+  const r = P.pinsForMap({ pins: BOOK, jobs: [JOB("PR001", 0.02, 0.01)] });
+  assert.deepEqual(r.map((p) => p.pr), ["PR001"], "สมุดมี 3 ราย แต่มีของต้องส่งรายเดียว");
+});
+
+ok("กดสวิตช์ (all) = ได้สมุดหมุดทั้งเล่มเหมือนเดิมทุกจุด", () => {
+  const r = P.pinsForMap({ all: true, pins: BOOK, jobs: [] });
+  assert.deepEqual(r.map((p) => p.pr), ["PR001", "PR002", "PR999"]);
+  assert.notEqual(r, BOOK, "ต้องคืนสำเนา ไม่ใช่ตัวเดิม (กันใครเผลอแก้สมุด)");
+});
+
+ok("ลูกค้ารายเดียวมีหลายแทรค = หมุดเดียว ไม่ซ้อนกัน", () => {
+  const r = P.pinsForMap({ pins: [], jobs: [JOB("PR050", 0.01, 0.01), JOB("PR050", 0.01, 0.01), JOB("PR060", 0.02, 0.02)] });
+  assert.deepEqual(r.map((p) => p.pr), ["PR050", "PR060"]);
+});
+
+ok("งานที่อยู่ในเที่ยวแล้วไม่ปักซ้ำ (มันมีหมุดเลขจุดของตัวเอง)", () => {
+  const jobs = [JOB("PR001", 0.01, 0.01), JOB("PR002", 0.02, 0.02)];
+  const r = P.pinsForMap({ pins: [], jobs: jobs, routePrs: ["PR001"] });
+  assert.deepEqual(r.map((p) => p.pr), ["PR002"]);
+});
+
+ok("🪤 งานที่ยังไม่มีหมุด = ไม่ปักมั่ว", () => {
+  /* ปักที่ 0,0 หรือที่โกดัง = คนวางแผนเชื่อว่ารู้ที่อยู่แล้ว ทั้งที่ยังไม่รู้ */
+  const noPin = { pr: "PR777", address: "ยังไม่เคยปัก" };
+  const zero = { pr: "PR888", lat: 0, lng: 0 };
+  const r = P.pinsForMap({ pins: BOOK, jobs: [noPin, zero, JOB("PR001", 0.01, 0.01)] });
+  assert.deepEqual(r.map((p) => p.pr), ["PR001"]);
+});
+
+ok("ยังไม่ได้ดึงงาน = แผนที่ว่าง (ไม่ตกไปโชว์ทั้งเล่มเอง)", () => {
+  assert.deepEqual(P.pinsForMap({ pins: BOOK, jobs: [] }), []);
+  assert.deepEqual(P.pinsForMap({ pins: BOOK }), []);
+  assert.deepEqual(P.pinsForMap(), []);
+});
+
+ok("ยาม: จอเรียกตัวตัดสินตัวเดียว ไม่เขียนสูตรกรองหมุดเอง", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/PLAN\.pinsForMap\(/.test(html), "mapPins ต้องเรียก PLAN.pinsForMap");
+  assert.ok(!/if\(pinsAll\) return pins;/.test(html), "จอห้ามตัดสินเองว่าโหมดไหนใช้หมุดชุดไหน");
+});
+
+ok("ยาม: มีสวิตช์หมุดมุมขวาบน · ตั้งต้นเป็น \"เฉพาะงานที่ต้องส่ง\" · จำค่าไว้", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/id="pinsw"/.test(html), "ต้องมีปุ่มสวิตช์บนแผนที่");
+  assert.ok(/var pinsAll=false;/.test(html), "ตั้งต้นต้องเป็นเฉพาะงานที่ต้องส่ง");
+  assert.ok(/localStorage\.setItem\("dp_pins_all"/.test(html), "ต้องจำค่าที่เลือกไว้");
+  assert.ok(/\.pinsw\{position:absolute;right:/.test(html), "ปุ่มต้องลอยอยู่มุมขวาของแผนที่");
+});
+
+ok("ยาม: \"เส้นทางเที่ยวนี้\" พับได้ และจำสถานะไว้", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(/id="stopsHd"/.test(html) && /sub2 fold/.test(html), "หัวข้อต้องกดพับได้");
+  assert.ok(/id="stops" class="foldbody"/.test(html), "ตัวรายการต้องพับตามหัวข้อ");
+  assert.ok(/localStorage\.setItem\("dp_stops_closed"/.test(html), "ต้องจำว่าพับไว้หรือกางไว้");
+});
+
+ok("🪤 ยาม: รายการซ้ายมือห้ามผูกหมุดด้วยลำดับอีก", () => {
+  /* พอแผนที่โชว์ไม่ครบทุกหมุด ลำดับใน pins กับลำดับหมุดจะไม่ตรงกัน ⇒ กดแถวแล้วเปิดป้ายผิดจุด */
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(!/pins\.indexOf\(p\)/.test(html), "ห้ามใช้ pins.indexOf เป็นคีย์ของหมุด");
+  assert.ok(/function pinKey\(p\)/.test(html), "ต้องผูกด้วยคีย์ของหมุด");
+  assert.ok(/markers\[pinKey\(p\)\]=m/.test(html), "เก็บหมุดด้วยคีย์");
+});
+
 console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
 process.exit(fail ? 1 : 0);

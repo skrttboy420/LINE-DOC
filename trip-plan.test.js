@@ -579,5 +579,28 @@ ok("ของที่ require ได้ ต้องเท่ากับขอ
   assert.deepEqual(b, a, "ฝั่ง server กับฝั่งจอต้องได้ของชุดเดียวกัน");
 });
 
+// ── ⑪ การ์ดจุดส่งในเที่ยวพับได้ (ภูม 2026-11-25) ────────────────────────
+//
+// ภูม: *"ไม่ใช่แค่ให้เพิ่ม dropdown ตรงนี้ แต่ให้เพิ่มตรง PR ของลูกค้า เหมือนชุดด้านบนด้วยไง"*
+// ⇒ ยกทรงมาจากการ์ดงานด้านบน (.prcard) ให้เหมือนกันทั้ง 2 ชุด · ตั้งต้น "พับ" เหมือนกัน
+
+ok("การ์ดจุดส่งพับได้ ทรงเดียวกับการ์ดงานด้านบน", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(html.includes('card.className="stopcard"+(sop?" open":"")'), "การ์ดต้องมีคลาส open ตามสถานะ");
+  assert.ok(html.indexOf('<div class="stophead"><svg class="i cv"') >= 0, "หัวการ์ดต้องมีลูกศรเหมือน .prhead");
+  assert.ok(html.includes(".sitems{padding:2px 0;display:none}"), "พับอยู่ = ซ่อนรายการแทรค");
+  assert.ok(html.includes(".stopcard.open .sitems{display:block}"), "กางแล้วต้องโชว์");
+  assert.ok(html.includes(".stopcard.open .stophead .cv{transform:rotate(180deg)}"), "ลูกศรต้องหมุนตอนกาง");
+  assert.ok(html.includes("var sopen={};"), "ต้องจำว่าการ์ดใบไหนกางอยู่");
+});
+
+ok("🪤 กดหัวการ์ดแล้วพับ แต่ปุ่ม ↑ ↓ ✕ ต้องยังทำงานของมัน", () => {
+  /* ปุ่มเลื่อนลำดับ/ลบจุด อยู่ใน .stophead ⇒ ถ้าไม่กันไว้ กดแล้วการ์ดจะพับไปด้วย
+     (แพทเทินเดียวกับ .prall ของการ์ดงานด้านบน) */
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  assert.ok(html.includes('if(e.target.closest(".ctl"))return; sopen[sk]=!sop;'),
+    "ต้องข้ามการพับเมื่อกดปุ่มในกลุ่ม .ctl");
+});
+
 console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
 process.exit(fail ? 1 : 0);

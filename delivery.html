@@ -134,12 +134,18 @@
   .trk .tag{font-size:9.5px;font-weight:800;color:var(--amber);background:var(--amber-soft);padding:2px 6px;border-radius:10px}
   /* เส้นทาง: การ์ดต่อ "จุดส่ง" (1 จุด = PR เดียว/ที่เดียว มีได้หลายแทรค) */
   .stopcard{border:1px solid var(--line);border-radius:12px;margin:8px 10px;overflow:hidden;background:#fff}
-  .stophead{display:flex;align-items:center;gap:9px;padding:9px 11px;background:#f2fbf8}
+  /* 🔽 การ์ดจุดส่งพับได้ — ทรงเดียวกับการ์ดงานด้านบน (ภูม 2026-11-25:
+     *"ไม่ใช่แค่ให้เพิ่ม dropdown ตรงนี้ แต่ให้เพิ่มตรง PR ของลูกค้า เหมือนชุดด้านบนด้วย"*) */
+  .stophead{display:flex;align-items:center;gap:9px;padding:9px 11px;background:#f2fbf8;cursor:pointer}
+  .stophead:hover{background:#eaf7f2}
+  .stophead .cv{color:var(--faint);font-size:16px;transition:.2s;flex:0 0 auto}
+  .stopcard.open .stophead .cv{transform:rotate(180deg)}
   .stophead .n{min-width:0;flex:1}
   .stophead .pr{font-weight:800;font-size:13px}
   .stophead .pr .cust{font-weight:400;color:var(--muted);font-size:11px}
   .stophead .meta{font-size:11px;color:var(--muted)}
-  .sitems{padding:2px 0}
+  .sitems{padding:2px 0;display:none}
+  .stopcard.open .sitems{display:block}
   .sitem{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 44px;font-size:11.5px;border-top:1px solid #f4f5f7}
   .sitem:first-child{border-top:0}
   .sitem .tk{font-weight:700}
@@ -621,13 +627,16 @@
       el.appendChild(card);
     });
   }
+  /* จำว่าการ์ดจุดส่งใบไหนกางอยู่ — ตั้งต้น "พับ" เหมือนการ์ดงานด้านบน */
+  var sopen={};
   function renderStops(){
     var el=$("stops"); el.innerHTML=""; $("stopN").textContent=route.length?("· "+route.length+" จุด"):"";
     renderPins();   /* งานที่เข้า/ออกเที่ยว = หมุดฟ้าบนแผนที่ต้องตามทันที */
     if(!route.length){el.innerHTML='<div class="empty">ยังไม่มีจุดส่ง — กด + ที่งานด้านบน (ระบบจัดเส้นทางให้เอง)</div>';renderRoute();renderCap();return;}
     route.forEach(function(s,i){
-      var card=document.createElement("div"); card.className="stopcard";
-      var h='<div class="stophead"><div class="seq'+(hasGeo(s)?'':' nogeo')+'">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+(hasGeo(s)?(geoRough(s.geo)?' <span class="rough">'+esc(geoTxt(s.geo))+'</span>':''):' <span class="nopin">ไม่มีหมุด</span>')+'</div><div class="meta">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง · '+n2(stopKg(s))+' กก. · '+n3(stopCbm(s))+' คิว</div></div>'+
+      var sk=s.pr||("#"+i), sop=!!sopen[sk];
+      var card=document.createElement("div"); card.className="stopcard"+(sop?" open":"");
+      var h='<div class="stophead"><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><div class="seq'+(hasGeo(s)?'':' nogeo')+'">'+(i+1)+'</div><div class="n"><div class="pr">'+esc(s.pr||"จุด")+(s.customer?' <span class="cust">'+esc(s.customer)+'</span>':'')+(hasGeo(s)?(geoRough(s.geo)?' <span class="rough">'+esc(geoTxt(s.geo))+'</span>':''):' <span class="nopin">ไม่มีหมุด</span>')+'</div><div class="meta">'+s.items.length+' แทรค · '+stopBoxes(s)+' กล่อง · '+n2(stopKg(s))+' กก. · '+n3(stopCbm(s))+' คิว</div></div>'+
         '<div class="ctl"><button data-up '+(i===0?"disabled":"")+'>↑</button><button data-dn '+(i===route.length-1?"disabled":"")+'>↓</button><button data-rm title="ลบทั้งจุด">✕</button></div></div>';
       var items=""; s.items.forEach(function(it){ items+='<div class="sitem"><span class="tk">'+esc(it.tracking||"")+'</span><span class="m">'+(it.boxes||1)+' กล่อง · '+n2(it.weightKg)+' กก. · '+n3(it.cbm)+' คิว</span><span class="xx" data-rmtk="'+esc(it.tracking)+'">×</span></div>'; });
       card.innerHTML=h+'<div class="sitems">'+items+'</div>';
@@ -635,6 +644,8 @@
       card.querySelector("[data-dn]").addEventListener("click",function(){if(i<route.length-1){var t=route[i+1];route[i+1]=route[i];route[i]=t;renderStops();}});
       card.querySelector("[data-rm]").addEventListener("click",function(){route.splice(i,1);renderStops();renderJobs();});
       card.querySelectorAll("[data-rmtk]").forEach(function(x){x.addEventListener("click",function(){removeTracking(x.getAttribute("data-rmtk"));});});
+      /* กดหัวการ์ด = พับ/กาง · แต่ปุ่ม ↑ ↓ ✕ ต้องทำงานของมันตามเดิม (แพทเทินเดียวกับ .prall) */
+      card.querySelector(".stophead").addEventListener("click",function(e){ if(e.target.closest(".ctl"))return; sopen[sk]=!sop; renderStops(); });
       el.appendChild(card);
     });
     renderRoute(); renderCap();

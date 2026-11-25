@@ -442,10 +442,14 @@ function createWarehouse(supabase, pacredGet) {
    * 🔒 อ่านอย่างเดียว · อ่านไม่ได้ = บอกตรงๆ ไม่เดาว่า "ไม่มีงานมอบ"
    *    (เดาแบบนั้น = จัดรถซ้ำกับของที่ออกไปแล้ว = รถ 2 คันไปจุดเดียวกัน)
    */
-  async function driverRunsFromPacred(day) {
+  async function driverRunsFromPacred(day, runId) {
     try {
-      const r = await pacredGet("driver-runs", day ? { day: day } : undefined);
-      return { ok: true, day: (r && r.day) || null, runs: (r && r.runs) || [], assigned: (r && r.assigned) || [] };
+      const q = {};
+      if (day) q.day = day;
+      /* 🔒 run= = รอบที่กำลังเปิดดู ⇒ ได้ที่อยู่+หมุดของในรอบนั้น (กติกาเดียวกับ d= ของท่อโกดัง) */
+      if (runId) q.run = runId;
+      const r = await pacredGet("driver-runs", Object.keys(q).length ? q : undefined);
+      return { ok: true, day: (r && r.day) || null, runs: (r && r.runs) || [], assigned: (r && r.assigned) || [], items: (r && r.items) || null };
     } catch (e) {
       return { ok: false, runs: [], assigned: null, error: e.message };
     }

@@ -131,7 +131,17 @@ function mountDelivery(app, delivery) {
   /* งานพร้อมส่ง (จากท่อ pacred เดิม — แค่อ่าน) */
   api("get", "/delivery/api/jobs", async () => delivery.readyJobs());
   /* 📋 รอบมอบงานคนขับของวันนั้น (ภูม 2026-11-25) — ?day=YYYY-MM-DD · ไม่ส่ง = วันนี้ */
-  api("get", "/delivery/api/runs", async (req) => delivery.driverRuns(String(req.query.day || "").trim() || null));
+  api("get", "/delivery/api/runs", async (req) =>
+    delivery.driverRuns(String(req.query.day || "").trim() || null, Number(req.query.run) || null));
+  /* 🔗 ลิงก์ให้คนขับของรอบที่มอบในระบบ Pacred แล้ว (ภูม 2026-11-25)
+     🔑 ประกอบ url ด้วยสูตรเดียวกับปุ่มลิงก์ของเที่ยวปกติ — ไม่มีรูปลิงก์ที่สอง */
+  api("post", "/delivery/api/runs/link", async (req) => {
+    const r = await delivery.linkForRun(req.body && req.body.run, req.body && req.body.name);
+    const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
+    return Object.assign({}, r, {
+      url: base ? base + "/delivery/driver?trip=" + encodeURIComponent(String(r.tripId)) + "&t=" + r.token : "",
+    });
+  });
 
   /* ── หน้าคนขับ + ติดตามรถ (เฟส 4) ─────────────────────────────── */
   /* แอดมิน (ต้องมีคีย์): ตำแหน่งรถล่าสุด + ขอลิงก์ให้คนขับของเที่ยว */

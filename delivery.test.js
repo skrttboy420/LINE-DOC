@@ -193,6 +193,57 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     assert.equal(r.skipped.assignedUnknown, true);
   });
 
+  // ── 🔗 ลิงก์ให้คนขับ ของรอบที่มอบในระบบ Pacred ไปแล้ว (ภูม 2026-11-25) ──
+  //
+  // ภูม: *"เพิ่มปุ่มส่งลิงค์ให้คนขับด้วยสิ งานที่มอบหมายในระบบไปแล้ว ไม่ใช่จะมีปุ่มให้แค่ที่
+  //        บันทึกแพลนในระบบวางแผนจัดส่งเอง … ถ้ามันยังดูใช้งานไม่ได้จริง ต้องแก้ไขด้วยนะ"*
+
+  const RUN_ITEMS = [
+    { pr: "PR863", tracking: "TK1", boxes: 2, done: false, address: "บ้าน ก", lat: 13.7, lng: 100.5, geo: "driver" },
+    { pr: "PR863", tracking: "TK2", boxes: 1, done: true,  address: "บ้าน ก", lat: 13.7, lng: 100.5, geo: "driver" },
+    { pr: "PR900", tracking: "TK3", boxes: 4, done: false, address: null, lat: null, lng: null, geo: null },
+  ];
+  const whRun = (items) => ({
+    jobsFromPacred: async () => ({ ok: true, jobs: [] }),
+    driverRunsFromPacred: async () => ({ ok: true, runs: [], assigned: [], items: items }),
+  });
+
+  await ok("🔗 รอบที่มอบแล้ว ขอลิงก์คนขับได้ — ยุบเป็นจุดต่อ PR", async () => {
+    const db = mk({ rows: [], row: { id: "id-1", share_token: "tok-1" } });
+    const r = await createDelivery(db, whRun(RUN_ITEMS)).linkForRun(6637, "2026-11-25-11-AD033");
+    assert.equal(r.ok, true);
+    assert.equal(r.stops, 2, "PR863 มี 2 แทรค = 1 จุด · รวม PR900 เป็น 2 จุด");
+    assert.equal(r.token, "tok-1");
+    const ins = db.calls.find((c) => c.table === "dp_stop" && c.op === "insert");
+    assert.equal(ins.payload.length, 2);
+    assert.equal(ins.payload[0].pr, "PR863");
+  });
+
+  await ok("🪤 กดซ้ำต้องได้ลิงก์เดิม ไม่ใช่สร้างเที่ยวใหม่ทุกครั้ง", async () => {
+    /* ลิงก์ที่ส่งให้คนขับไปแล้วต้องไม่ตาย · และต้องไม่มีเที่ยวซ้ำกองในระบบ */
+    const db = mk({ rows: [{ id: "t-9" }], row: { id: "t-9", share_token: "tok-เดิม" } });
+    const r = await createDelivery(db, whRun(RUN_ITEMS)).linkForRun(6637, "2026-11-25-11-AD033");
+    assert.equal(r.tripId, "t-9");
+    assert.equal(r.token, "tok-เดิม");
+    assert.ok(!db.calls.some((c) => c.table === "dp_trip" && c.op === "insert"), "ห้ามสร้างเที่ยวใหม่");
+  });
+
+  await ok("🪤 รอบว่าง / ไม่รู้ว่ารอบไหน = บอกตรงๆ ไม่สร้างเที่ยวเปล่า", async () => {
+    const db = mk({ rows: [], row: null });
+    const d = createDelivery(db, whRun([]));
+    await assert.rejects(() => d.linkForRun(6637, "2026-11-25-11-AD033"), /ยังไม่มีของ/);
+    await assert.rejects(() => d.linkForRun(0, ""), /ไม่รู้ว่าเป็นรอบไหน/);
+    assert.ok(!db.calls.some((c) => c.table === "dp_trip" && c.op === "insert"), "ห้ามสร้างเที่ยวเปล่าทิ้งไว้");
+  });
+
+  await ok("🪤 อ่านรอบไม่ได้ = ไม่แตะฐานเลย", async () => {
+    const db = mk({ rows: [], row: null });
+    const wh = { jobsFromPacred: async () => ({ ok: true, jobs: [] }),
+      driverRunsFromPacred: async () => ({ ok: false, runs: [], error: "เน็ตหลุด" }) };
+    await assert.rejects(() => createDelivery(db, wh).linkForRun(1, "รอบ"), /เน็ตหลุด/);
+    assert.equal(db.calls.length, 0);
+  });
+
   await ok("readyJobs: ไม่มีท่อโกดัง = บอกตรงๆ (ไม่พัง)", async () => {
     const r = await createDelivery(mk({}), null).readyJobs();
     assert.equal(r.ok, false);

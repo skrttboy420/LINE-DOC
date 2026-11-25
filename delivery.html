@@ -153,6 +153,21 @@
   .runcard.s1 .st{background:var(--amber)} .runcard.s2 .st{background:var(--green)} .runcard.s3 .st{background:var(--danger)}
   .runcard .m{font-size:11px;color:var(--muted);margin-top:3px}
   .runcard .dv{font-size:11.5px;color:var(--ink);font-weight:700}
+  .runcard .hd{cursor:pointer}
+  .runcard .cv{color:var(--faint);font-size:16px;transition:.2s;flex:0 0 auto}
+  .runcard.open .cv{transform:rotate(180deg)}
+  .runcard .bd{display:none;margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
+  .runcard.open .bd{display:block}
+  .runcard .ri{display:flex;align-items:center;gap:7px;padding:4px 0;font-size:11.5px;border-bottom:1px solid #f6f7f9}
+  .runcard .ri:last-child{border-bottom:0}
+  .runcard .ri .pr{font-weight:800;min-width:62px}
+  .runcard .ri .tk{font-family:ui-monospace,monospace;color:var(--muted);min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis}
+  .runcard .ri .fl{font-size:9.5px;font-weight:800;padding:2px 6px;border-radius:8px;white-space:nowrap}
+  .runcard .ri .fl.no{color:#fff;background:var(--danger)}
+  .runcard .ri .fl.ok{color:var(--green);background:var(--green-soft)}
+  .runcard .ri .fl.ru{color:var(--amber);background:var(--amber-soft)}
+  .runcard .lk{margin-top:8px;width:100%}
+  .runcard .nopin{margin-top:6px;font-size:11px;color:var(--danger);font-weight:700}
   .stopcard.open .sitems{display:block}
   .sitem{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 44px;font-size:11.5px;border-top:1px solid #f4f5f7}
   .sitem:first-child{border-top:0}
@@ -992,6 +1007,7 @@
       document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on")}); $("view-"+b.dataset.v).classList.add("on");
       if(b.dataset.v==="trip"&&!jobs.length&&!route.length)loadJobs();
       if(b.dataset.v==="runs"&&!$("runs").querySelector(".runcard"))loadRuns();
+      if(b.dataset.v!=="runs")clearRunPins();   /* ออกจากแท็บ = เก็บหมุดของรอบ ไม่ให้ค้างทับงานอื่น */
       setTimeout(function(){map.invalidateSize()},60);
     });
   });
@@ -1027,15 +1043,82 @@
     $("runN").textContent=list.length?("· "+list.length+" รอบ"):"";
     if(!list.length){ el.innerHTML='<div class="empty">วันนี้ยังไม่มีรอบที่มอบให้คนขับ</div>'; return; }
     list.forEach(function(x){
-      var c=document.createElement("div"); c.className="runcard s"+esc(String(x.status||""));
-      c.innerHTML='<div class="t"><span class="nm">'+esc(x.name||"")+'</span><span class="st">'+esc(x.statusText||"")+'</span></div>'+
+      var c=document.createElement("div"); c.className="runcard s"+esc(String(x.status||""))+(runOpen[x.id]?" open":"");
+      c.innerHTML='<div class="hd">'+
+        '<div class="t"><svg class="i cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>'+
+        '<span class="nm">'+esc(x.name||"")+'</span><span class="st">'+esc(x.statusText||"")+'</span></div>'+
         '<div class="m"><span class="dv">'+esc(x.driver||x.driverCode||"— ไม่ระบุคนขับ")+'</span>'+
         ' · ส่งแล้ว '+(x.doneStops||0)+'/'+(x.stops||0)+' จุด</div>'+
-        '<div class="m">'+(x.trackings||0)+' แทรค · '+(x.boxes||0)+' กล่อง</div>';
+        '<div class="m">'+(x.trackings||0)+' แทรค · '+(x.boxes||0)+' กล่อง</div></div>'+
+        '<div class="bd"><div class="empty">กำลังดึงของในรอบ…</div></div>'+
+        '<button class="btn btn-line sm lk" type="button">🔗 ลิงก์ให้คนขับ</button>';
+      /* กดหัวการ์ด = กาง/พับ · กางแล้วดึงของในรอบ + ปักหมุดบนแผนที่ */
+      c.querySelector(".hd").addEventListener("click",function(){
+        var now=!runOpen[x.id]; runOpen[x.id]=now;
+        c.classList.toggle("open",now);
+        if(now) openRun(x,c.querySelector(".bd")); else clearRunPins();
+      });
+      c.querySelector(".lk").addEventListener("click",function(ev){ ev.stopPropagation(); linkRun(x,this); });
       el.appendChild(c);
+      if(runOpen[x.id]) openRun(x,c.querySelector(".bd"));
     });
   }
+  /* 📍 หมุดของรอบที่กำลังเปิดดู — แยก layer จากหมุดงาน จะได้ล้างได้โดยไม่กวนของเดิม */
+  var runLayers=[], runOpen={};
+  function clearRunPins(){ runLayers.forEach(function(l){map.removeLayer(l)}); runLayers=[]; }
+  function runPinIcon(done){ return L.divIcon({className:"",html:'<div class="stopnum" style="background:'+(done?"#17a66a":"#7c3aed")+'">●</div>',iconSize:[22,22],iconAnchor:[11,11]}); }
+
+  /**
+   * เปิดดูของในรอบ (ภูม 2026-11-25)
+   * *"กดดูได้ว่ารอบส่งนี้มีของ PR อะไร แทรคไหนบ้าง … พอกดไปแล้วก็ขึ้นแมพให้เห็นว่ามีไปส่งจุดไหนบ้าง
+   *   ส่วนจุดไหนที่ยังไม่เคยปักหมุด จะได้ให้คนขับปักหมุดมาไว้ด้วยเลย"*
+   */
+  function openRun(x,bd){
+    clearRunPins();
+    bd.innerHTML='<div class="empty">กำลังดึงของในรอบ…</div>';
+    api("/runs?run="+encodeURIComponent(x.id)).then(function(r){
+      var items=(r&&r.items)||[];
+      if(!items.length){ bd.innerHTML='<div class="empty">รอบนี้ยังไม่มีของ</div>'; return; }
+      var noPin=0;
+      bd.innerHTML=items.map(function(it){
+        if(!hasGeo(it))noPin++;
+        var fl = it.done ? '<span class="fl ok">ส่งแล้ว</span>'
+               : (!hasGeo(it) ? '<span class="fl no">ยังไม่มีหมุด</span>'
+               : (it.geo!=="driver" ? '<span class="fl ru">หมุดคร่าวๆ</span>' : ''));
+        return '<div class="ri"><span class="pr">'+esc(it.pr||"—")+'</span>'+
+               '<span class="tk">'+esc(it.tracking||"")+'</span>'+
+               '<span>'+(it.boxes||0)+' กล่อง</span>'+fl+'</div>';
+      }).join("");
+      /* 🔴 จุดที่ยังไม่มีหมุด = สิ่งที่ภูมอยากเห็น เพื่อไปให้คนขับปักมาให้ */
+      if(noPin) bd.innerHTML+='<div class="nopin">⚠ '+noPin+' รายการยังไม่มีหมุด — ให้คนขับเปิดลิงก์แล้วปักหมุดหน้าบ้านลูกค้ามาไว้</div>';
+      /* ปักจุดที่มีหมุดลงแผนที่ + ซูมให้เห็นทั้งรอบ */
+      var pts=[];
+      items.forEach(function(it){
+        if(!hasGeo(it))return;
+        var m=L.marker([it.lat,it.lng],{icon:runPinIcon(it.done),zIndexOffset:800})
+          .bindPopup('<div class="pop"><b>'+esc(it.pr||"")+'</b><div class="a">'+esc(it.tracking||"")+
+            (it.address?'<br>'+esc(it.address):'')+'<br>'+(it.done?'ส่งแล้ว':'ยังไม่ส่ง')+' · '+esc(geoTxt(it.geo))+'</div></div>');
+        m.addTo(map); runLayers.push(m); pts.push([it.lat,it.lng]);
+      });
+      if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(.25),{maxZoom:14});
+    }).catch(function(e){ bd.innerHTML='<div class="empty">ดึงของในรอบไม่ได้ — '+esc(errMsg(e))+'</div>'; });
+  }
+
+  /** 🔗 ลิงก์ให้คนขับของรอบที่มอบในระบบ Pacred ไปแล้ว — ใช้กลไกลิงก์ตัวเดียวกับเที่ยวปกติ */
+  function linkRun(x,btn){
+    btn.disabled=true; var old=btn.textContent; btn.textContent="กำลังทำลิงก์…";
+    api("/runs/link",{run:x.id,name:x.name}).then(function(r){
+      btn.disabled=false; btn.textContent=old;
+      var url=r.url||"";
+      if(!url){ toast("ยังไม่มีที่อยู่เว็บ (ตั้ง RENDER_EXTERNAL_URL)"); return; }
+      if(navigator.clipboard&&navigator.clipboard.writeText)
+        navigator.clipboard.writeText(url).then(function(){toast("ก๊อปลิงก์แล้ว — "+r.stops+" จุด ส่งให้คนขับได้เลย")},function(){prompt("ลิงก์คนขับ:",url)});
+      else prompt("ลิงก์คนขับ:",url);
+    }).catch(function(e){ btn.disabled=false; btn.textContent=old; toast(errMsg(e)); });
+  }
+
   function loadRuns(){
+    clearRunPins(); runOpen={};
     $("runs").innerHTML='<div class="empty">กำลังดึงรอบมอบงาน…</div>';
     var d=$("runDay").value||"";
     api("/runs"+(d?("?day="+encodeURIComponent(d)):"")).then(renderRuns)

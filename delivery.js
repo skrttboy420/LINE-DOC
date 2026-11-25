@@ -179,9 +179,54 @@ function createDelivery(supabase, warehouse) {
 
   /* ── งานพร้อมส่ง (ดึงท่อเดิมของโกดัง แล้วกรอง "พร้อมส่ง") ──────────── */
   /** 📋 รอบมอบงานคนขับ (ภูม 2026-11-25) — แท็บใหม่บนหน้าวางแผนอ่านตัวนี้ */
-  async function driverRuns(day) {
+  async function driverRuns(day, runId) {
     if (!warehouse || !warehouse.driverRunsFromPacred) return { ok: false, runs: [], error: "ไม่ได้ต่อท่อโกดัง" };
-    return warehouse.driverRunsFromPacred(day);
+    return warehouse.driverRunsFromPacred(day, runId);
+  }
+
+  /**
+   * 🔗 ลิงก์ให้คนขับ ของ **รอบที่มอบในระบบ Pacred ไปแล้ว** (ภูม 2026-11-25)
+   *
+   * ภูม: *"เพิ่มปุ่มส่งลิงค์ให้คนขับด้วยสิ งานที่มอบหมายในระบบไปแล้ว ไม่ใช่จะมีปุ่มให้แค่ที่
+   *        บันทึกแพลนในระบบวางแผนจัดส่งเอง"*
+   *
+   * 🔑 ไม่สร้างกลไกลิงก์ชุดที่สอง — ทำ "เที่ยว" ของรอบนั้นขึ้นมา แล้วใช้ลิงก์/การติดตามรถตัวเดิมทุกอย่าง
+   * 🪤 กดซ้ำต้องได้ลิงก์เดิม ไม่ใช่เที่ยวใหม่ทุกครั้ง ⇒ หาเที่ยวที่ชื่อตรงกับรอบก่อนเสมอ
+   *    (ชื่อรอบของ Pacred คือ YYYY-MM-DD-HH-ADxxx ซึ่งไม่ซ้ำกับชื่อที่คนตั้งเอง)
+   */
+  async function linkForRun(runId, runName) {
+    const rid = Number(runId);
+    const name = String(runName || "").trim();
+    if (!rid || !name) throw new Error("ไม่รู้ว่าเป็นรอบไหน");
+    if (!warehouse || !warehouse.driverRunsFromPacred) throw new Error("ไม่ได้ต่อท่อโกดัง");
+
+    const r = await warehouse.driverRunsFromPacred(null, rid);
+    if (r.ok === false) throw new Error(r.error || "อ่านรอบมอบงานไม่ได้");
+    const items = r.items || [];
+    if (!items.length) throw new Error("รอบนี้ยังไม่มีของ");
+
+    /* หาเที่ยวเดิมของรอบนี้ก่อน (กดซ้ำ = ลิงก์เดิม) */
+    const found = await supabase.from("dp_trip").select("id").eq("name", clip(name, 60)).limit(1);
+    if (found.error) boom(found.error);
+    const trip = (found.data && found.data[0])
+      ? found.data[0]
+      : await createTrip({ name: name, note: "มาจากรอบมอบงานในระบบ Pacred (#" + rid + ")" });
+
+    /* ยุบเป็นจุดต่อ PR — รูปเดียวกับที่หน้าวางแผนใช้ */
+    const byPr = new Map();
+    for (const it of items) {
+      const pr = String(it.pr || "").trim() || ("TK" + it.tracking);
+      if (!byPr.has(pr)) byPr.set(pr, { pr: pr, lat: it.lat, lng: it.lng, address: it.address || null, boxes: 0, items: [] });
+      const s = byPr.get(pr);
+      s.boxes += Number(it.boxes) || 0;
+      s.items.push({ tracking: it.tracking, boxes: Number(it.boxes) || 0 });
+      if (s.lat == null && it.lat != null) { s.lat = it.lat; s.lng = it.lng; }
+      if (!s.address && it.address) s.address = it.address;
+    }
+    await setStops(trip.id, [...byPr.values()]);
+    /* driverTripToken คืนโทเคนเป็นข้อความ และกดซ้ำได้โทเคนเดิม (ลิงก์ที่ส่งไปแล้วไม่ตาย) */
+    const token = await driverTripToken(trip.id);
+    return { ok: true, tripId: trip.id, name: name, stops: byPr.size, token: token };
   }
 
   async function readyJobs() {
@@ -329,7 +374,7 @@ function createDelivery(supabase, warehouse) {
     getSetting, setSetting, getOrigin, setOrigin,
     listTrucks, addTruck, updateTruck, deleteTruck,
     listTrips, getTrip, createTrip, updateTrip, deleteTrip, setStops,
-    readyJobs, placedTrackings, driverRuns,
+    readyJobs, placedTrackings, driverRuns, linkForRun,
     driverTripToken, getTripForDriver, driverPing, listTripPositions,
   };
 }

@@ -540,5 +540,44 @@ ok("🪤 ยาม: รายการซ้ายมือห้ามผูก
   assert.ok(/markers\[pinKey\(p\)\]=m/.test(html), "เก็บหมุดด้วยคีย์");
 });
 
+// ── ⑩ 🔴 ของที่เบราว์เซอร์ได้จริง ต้องครบทุกตัวที่จอเรียก (ภูม 2026-11-25) ──────
+//
+// เคสจริงที่หลุดขึ้น prod วันนี้: ภูม *"กดอะไรไม่ได้เลยอะ มันค้างหรือว่ายังไง"*
+//   ไฟล์นี้รันได้ 2 ที่ — ฝั่ง server `require()` ตรงๆ · ฝั่งจอถูก **ฝังซอร์สลงหน้าเว็บ**
+//   แล้วแปะเป็น `window.DP_PLAN` โดย delivery-page.js
+//   เดิมตรงนั้นเป็น **ลิสต์ชื่อที่พิมพ์มือ** ⇒ เพิ่ม pinsForMap ที่นี่แต่ลืมเติมที่นั่น
+//   ⇒ จอได้ undefined ⇒ โยน TypeError กลางขั้นตอนเปิดหน้า ⇒ **ทั้งหน้าตายเงียบ**
+//      (เทสเดิมจับไม่ได้ เพราะมันเรียกผ่าน require ซึ่งได้ครบอยู่แล้ว)
+
+ok("🔴 ทุก PLAN.x ที่จอเรียก ต้องมีใน window.DP_PLAN จริง", () => {
+  const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+  const { planBrowserSource } = require("./delivery-page.js");
+  /* รันตัวสร้างของจริง แล้วดูว่าเบราว์เซอร์ได้ชื่ออะไรบ้าง */
+  const built = planBrowserSource();
+  const win = {};
+  new Function("window", built)(win);
+  assert.ok(win.DP_PLAN, "ตัวสร้างต้องแปะ window.DP_PLAN");
+
+  const used = [...new Set([...html.matchAll(/PLAN\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]))];
+  assert.ok(used.length > 5, "หา PLAN.x ในจอไม่เจอ — regex เพี้ยนหรือจอเปลี่ยนรูป");
+  const missing = used.filter((n) => win.DP_PLAN[n] === undefined);
+  assert.deepEqual(missing, [], "จอเรียกของที่เบราว์เซอร์ไม่มี: " + missing.join(", "));
+});
+
+ok("ยาม: ห้ามกลับไปพิมพ์ลิสต์ชื่อมือ — ต้องยกจาก module.exports", () => {
+  const dp = fs.readFileSync(path.join(__dirname, "delivery-page.js"), "utf8");
+  assert.ok(/window\.DP_PLAN = \" \+ line\.replace/.test(dp),
+    "ต้องยกวงเล็บของ module.exports มาตรงๆ ไม่ใช่พิมพ์ชื่อเอง");
+  assert.ok(!/DP_PLAN = \{ VEHICLES,/.test(dp), "เจอลิสต์พิมพ์มือกลับมาอีกแล้ว");
+});
+
+ok("ของที่ require ได้ ต้องเท่ากับของที่เบราว์เซอร์ได้ (ไม่มีฝั่งไหนขาด)", () => {
+  const { planBrowserSource } = require("./delivery-page.js");
+  const win = {};
+  new Function("window", planBrowserSource())(win);
+  const a = Object.keys(P).sort(), b = Object.keys(win.DP_PLAN).sort();
+  assert.deepEqual(b, a, "ฝั่ง server กับฝั่งจอต้องได้ของชุดเดียวกัน");
+});
+
 console.log("\n  " + pass + " ผ่าน · " + fail + " ไม่ผ่าน\n");
 process.exit(fail ? 1 : 0);

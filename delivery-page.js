@@ -45,9 +45,15 @@ function planBrowserSource() {
   if (!EXPORT_LINE.test(src)) {
     throw new Error("trip-plan.js: หาบรรทัด module.exports ไม่เจอ — แปลงเป็นสคริปต์เบราว์เซอร์ไม่ได้");
   }
-  const body = src.replace(EXPORT_LINE,
-    "window.DP_PLAN = { VEHICLES, PLAN_DEFAULTS, recommendVehicle, hasGeo, haversineKm, " +
-    "orderByNearest, routeKm, planTrips, truckCaps, assignTrucks };");
+  /* 🔴 ภูม 2026-11-25 — หน้าวางแผน **ค้างทั้งหน้า กดอะไรไม่ได้เลย** บน prod
+     เหตุ: บรรทัดนี้เคยเป็น **ลิสต์ชื่อที่พิมพ์มือ** ⇒ เพิ่มฟังก์ชันใหม่ใน trip-plan.js
+     แล้วลืมมาเติมที่นี่ ⇒ เบราว์เซอร์ได้ `PLAN.pinsForMap === undefined`
+     ⇒ โยน TypeError กลางขั้นตอนเปิดหน้า ⇒ ทั้งหน้าตายเงียบ (ไม่มี error ให้เห็นบนจอ)
+
+     ⇒ เลิกพิมพ์มือ: **ยกวงเล็บของ `module.exports` มาตรงๆ** ⇒ เพิ่มอะไรใน trip-plan.js
+        เบราว์เซอร์ได้ตามเสมอ ไม่มีอะไรให้ลืมอีก (ยาม `plan-exports` ล็อกไว้ด้วย) */
+  const body = src.replace(EXPORT_LINE, (line) =>
+    "window.DP_PLAN = " + line.replace(/^module\.exports\s*=\s*/, ""));
   return "(function(){\n" + body + "\n})();";
 }
 
@@ -160,4 +166,4 @@ function deliveryLink() {
   return base + "/delivery?key=" + encodeURIComponent(key);
 }
 
-module.exports = { mountDelivery, deliveryLink, checkKey };
+module.exports = { mountDelivery, deliveryLink, checkKey, planBrowserSource };

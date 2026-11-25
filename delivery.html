@@ -1066,7 +1066,9 @@
   /* 📍 หมุดของรอบที่กำลังเปิดดู — แยก layer จากหมุดงาน จะได้ล้างได้โดยไม่กวนของเดิม */
   var runLayers=[], runOpen={};
   function clearRunPins(){ runLayers.forEach(function(l){map.removeLayer(l)}); runLayers=[]; }
-  function runPinIcon(done){ return L.divIcon({className:"",html:'<div class="stopnum" style="background:'+(done?"#17a66a":"#7c3aed")+'">●</div>',iconSize:[22,22],iconAnchor:[11,11]}); }
+  /* 🎨 แดง = ยังไม่ส่ง · เขียว = ส่งแล้ว (ภูม 2026-11-25 ขอเปลี่ยนจากม่วงเป็นแดง)
+     ใช้ --danger (#d8352a) ไม่ใช่ --red ของโกดัง (#B30000) — คนละหมุด ต้องแยกออกจากกันได้ */
+  function runPinIcon(done){ return L.divIcon({className:"",html:'<div class="stopnum" style="background:'+(done?"#17a66a":"#d8352a")+'">●</div>',iconSize:[22,22],iconAnchor:[11,11]}); }
 
   /**
    * เปิดดูของในรอบ (ภูม 2026-11-25)

@@ -32,7 +32,15 @@ function createDelivery(supabase, warehouse) {
   function boom(error) { throw new Error(isMissingSchema(error) ? SCHEMA_MSG : error.message); }
 
   const clip = (s, n) => String(s == null ? "" : s).trim().slice(0, n);
-  const numOrNull = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+  /* 🔴 ภูม 2026-11-26 — เดิม `Number(null)` = 0 ⇒ จุดที่ยังไม่มีหมุดถูกบันทึกเป็น
+     lat/lng = 0,0 (กลางทะเลนอกชายฝั่งแอฟริกา) แทนที่จะเป็น "ไม่มีหมุด"
+     ที่ผ่านมาไม่โผล่เพราะจอเช็ค `if(s.lat)` ซึ่ง 0 เป็นเท็จพอดี — แต่ค่าในฐานผิดมาตลอด
+     ⇒ ว่าง/null/undefined = null จริงๆ (ช่องน้ำหนัก/คิว/พิกัด ใช้ตัวนี้ร่วมกัน) */
+  const numOrNull = (v) => {
+    if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   const inThai = (lat, lng) => lat > 5 && lat < 21 && lng > 96 && lng < 106;
 
   /* 🏭 จุดโกดัง PACRED ค่าตั้งต้น — ติดโกดัง PCS (ภูมส่งลิงก์แมพมา 2026-11-22)
@@ -212,21 +220,41 @@ function createDelivery(supabase, warehouse) {
       ? found.data[0]
       : await createTrip({ name: name, note: "มาจากรอบมอบงานในระบบ Pacred (#" + rid + ")" });
 
-    /* ยุบเป็นจุดต่อ PR — รูปเดียวกับที่หน้าวางแผนใช้ */
-    const byPr = new Map();
+    /**
+     * ยุบเป็น "จุดส่ง" ตามตัวตัดสินของระบบ Pacred (`stopKey`) ไม่ใช่ตาม PR
+     *
+     * 🔴 ภูม 2026-11-26 (ภาพจอรอบ AD034): *"อันนี้ไกลเกิน มันไม่ใช่เหมาๆมั้ยหละ มันคือ
+     *    งานที่ต้องไปส่งตามขนส่งที่แจ้งมาในระบบไง … ไม่งั้นเหมือนคนขับต้องขับไปต่างจังหวัด"*
+     *
+     * 📏 วัด prod รอบ #6656: 46 ชิ้น ปลายทางเชียงใหม่/พิษณุโลก/สตูล/อุบล แต่เป็น
+     *    **4 จุด** = สาขาขนส่ง 4 เจ้า · ยุบตาม PR จะได้ 40 กว่าจุดกระจายทั่วประเทศ
+     *
+     * 🔑 ขนส่งเอกชน: ทุกลูกค้าที่ใช้เจ้าเดียวกัน = จุดเดียว · ชื่อจุด = "📦 สาขา <ขนส่ง>"
+     *    และ **ไม่มีหมุด** (ที่อยู่บนงานคือบ้านที่ขนส่งจะไปส่งต่อ ไม่ใช่จุดที่คนขับไป)
+     */
+    const byStop = new Map();
     for (const it of items) {
-      const pr = String(it.pr || "").trim() || ("TK" + it.tracking);
-      if (!byPr.has(pr)) byPr.set(pr, { pr: pr, lat: it.lat, lng: it.lng, address: it.address || null, boxes: 0, items: [] });
-      const s = byPr.get(pr);
+      const key = String(it.stopKey || "").trim() || String(it.pr || "").trim() || ("TK" + it.tracking);
+      if (!byStop.has(key)) {
+        byStop.set(key, {
+          pr: it.carrier ? ("📦 สาขา " + it.carrier) : (String(it.pr || "").trim() || ("TK" + it.tracking)),
+          lat: it.carrier ? null : it.lat,
+          lng: it.carrier ? null : it.lng,
+          address: it.address || null,
+          boxes: 0,
+          items: [],
+        });
+      }
+      const s = byStop.get(key);
       s.boxes += Number(it.boxes) || 0;
       s.items.push({ tracking: it.tracking, boxes: Number(it.boxes) || 0 });
-      if (s.lat == null && it.lat != null) { s.lat = it.lat; s.lng = it.lng; }
+      if (!it.carrier && s.lat == null && it.lat != null) { s.lat = it.lat; s.lng = it.lng; }
       if (!s.address && it.address) s.address = it.address;
     }
-    await setStops(trip.id, [...byPr.values()]);
+    await setStops(trip.id, [...byStop.values()]);
     /* driverTripToken คืนโทเคนเป็นข้อความ และกดซ้ำได้โทเคนเดิม (ลิงก์ที่ส่งไปแล้วไม่ตาย) */
     const token = await driverTripToken(trip.id);
-    return { ok: true, tripId: trip.id, name: name, stops: byPr.size, token: token };
+    return { ok: true, tripId: trip.id, name: name, stops: byStop.size, token: token };
   }
 
   async function readyJobs() {

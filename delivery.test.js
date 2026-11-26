@@ -304,6 +304,59 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     assert.equal(ins.payload[0].pr, "PR863");
   });
 
+  // ── 📦 งานที่ส่งผ่านขนส่งเอกชน (ภูม 2026-11-26) ──
+  //
+  // ภูม (ภาพจอรอบ AD034 · หมุดขึ้นเชียงใหม่/พิษณุโลก/อุบล): *"อันนี้ไกลเกิน มันไม่ใช่
+  //   เหมาๆมั้ยหละ มันคืองานที่ต้องไปส่งตามขนส่งที่แจ้งมาในระบบไง พวกขนส่ง พีที พาร์ท
+  //   อะไรงี้อะ ไม่งั้นถ้าดูจากในรูปคือเหมือนคนขับ ต้องขับไปต่างจังหวัดเลยนะนั่น"*
+  //
+  // 📏 วัด prod รอบ #6656: 46 ชิ้น ปลายทาง 4 จังหวัด แต่ระบบนับเป็น **4 จุด**
+  //    = สาขาขนส่ง 4 เจ้า ⇒ ยุบตาม PR จะได้ 40 กว่าจุดกระจายทั่วประเทศ = แผนที่โกหก
+
+  await ok("📦 ขนส่งเอกชน = ยุบเป็นจุดเดียวต่อเจ้า · ไม่มีหมุดบ้านลูกค้า", async () => {
+    const CARRIER_ITEMS = [
+      { pr: "PR9903", tracking: "JT1", boxes: 1, done: false, address: "สาขา KPN", lat: null, lng: null, geo: null, carrier: "KPN", stopKey: "CARRIER|KPN" },
+      { pr: "PR850",  tracking: "JT2", boxes: 2, done: false, address: "สาขา KPN", lat: null, lng: null, geo: null, carrier: "KPN", stopKey: "CARRIER|KPN" },
+      { pr: "PR777",  tracking: "JT3", boxes: 1, done: false, address: "สาขา ธนามัย", lat: null, lng: null, geo: null, carrier: "ธนามัย", stopKey: "CARRIER|TNM" },
+      { pr: "PR863",  tracking: "TK9", boxes: 3, done: false, address: "88/1 สีลม", lat: 13.7, lng: 100.5, geo: "driver", carrier: null, stopKey: "PR863|OWN|88/1" },
+    ];
+    const db = mk({ rows: [], row: { id: "t-1", share_token: "tok-1" } });
+    const wh = {
+      jobsFromPacred: async () => ({ ok: true, jobs: [] }),
+      driverRunsFromPacred: async () => ({ ok: true, runs: [], assigned: [], items: CARRIER_ITEMS }),
+    };
+    const r = await createDelivery(db, wh).linkForRun(6656, "2026-11-26-12-AD034");
+    assert.equal(r.ok, true);
+    assert.equal(r.stops, 3, "KPN 2 ชิ้น = 1 จุด · ธนามัย 1 จุด · บ้านลูกค้า 1 จุด");
+    const ins = db.calls.find((c) => c.table === "dp_stop" && c.op === "insert");
+    const kpn = ins.payload.find((x) => /KPN/.test(x.pr));
+    assert.ok(kpn, "ต้องมีจุดของ KPN");
+    assert.equal(kpn.boxes, 3, "กล่องของทุกลูกค้าในกองนั้นรวมกัน");
+    assert.equal(kpn.lat, null, "🔴 กองขนส่งห้ามมีหมุดบ้านลูกค้า — ไม่งั้นแผนที่พาคนขับไปต่างจังหวัด");
+    assert.equal(kpn.lng, null);
+    const own = ins.payload.find((x) => x.pr === "PR863");
+    assert.equal(own.lat, 13.7, "ของที่รถเราเองไปส่ง ยังมีหมุดเหมือนเดิม");
+  });
+
+  await ok("🪤 ท่อรุ่นเก่าที่ยังไม่ส่ง stopKey/carrier = ยุบตาม PR เหมือนเดิม", async () => {
+    /* เว็บ Pacred ยังไม่ deploy = items ไม่มีช่องใหม่ ⇒ ต้องไม่พังและไม่เปลี่ยนพฤติกรรม */
+    const db = mk({ rows: [], row: { id: "t-2", share_token: "tok-2" } });
+    const wh = {
+      jobsFromPacred: async () => ({ ok: true, jobs: [] }),
+      driverRunsFromPacred: async () => ({ ok: true, runs: [], assigned: [], items: RUN_ITEMS }),
+    };
+    const r = await createDelivery(db, wh).linkForRun(6637, "2026-11-25-11-AD033");
+    assert.equal(r.stops, 2, "PR863 2 แทรค = 1 จุด · PR900 อีก 1 จุด");
+  });
+
+  await ok("🔒 ยาม: จอวางแผนต้องยุบกองขนส่ง ไม่แจงรายชิ้น + ไม่นับว่าไม่มีหมุด", async () => {
+    const html = fs.readFileSync(path.join(__dirname, "delivery.html"), "utf8");
+    assert.ok(html.includes("📦 ส่งที่สาขา "), "ต้องมีหัวกองขนส่งบนจอ");
+    const at = html.indexOf("var noPin=0, html=");
+    assert.ok(at > 0, "ตัวนับหมุดต้องนับทีหลัง ไม่ใช่นับทุกชิ้น");
+    const body = html.slice(at, at + 2000);
+    assert.ok(/items\.filter\(function\(it\)\{return !it\.carrier\}\)/.test(body), "ของที่แจงรายชิ้นต้องเป็นของรถเราเองเท่านั้น");
+  });
   await ok("🪤 กดซ้ำต้องได้ลิงก์เดิม ไม่ใช่สร้างเที่ยวใหม่ทุกครั้ง", async () => {
     /* ลิงก์ที่ส่งให้คนขับไปแล้วต้องไม่ตาย · และต้องไม่มีเที่ยวซ้ำกองในระบบ */
     const db = mk({ rows: [{ id: "t-9" }], row: { id: "t-9", share_token: "tok-เดิม" } });

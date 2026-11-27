@@ -129,17 +129,47 @@ function createCount(supabase, warehouse) {
     const code = s(o.code).toUpperCase();
     if (!code) throw new Error("ไม่มีเลขที่ยิงมา");
     if (code.length > 100) throw new Error("เลขยาวเกินไป (เกิน 100 ตัวอักษร) — น่าจะยิงผิดอัน");
-    const qRaw = Math.trunc(Number(o.qty));
-    const qty = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
-    if (qty > 5000) throw new Error("จำนวนกล่องเยอะผิดปกติ (" + qty + ") — พิมพ์ผิดหรือเปล่า");
     const method = METHODS.has(s(o.method)) ? s(o.method) : "scan";
+    const by = s(o.by) || "warehouse";
 
     const sess = await openSession(o.wh);
     if (!sess) throw new Error("ยังไม่ได้เปิดรอบนับ — กดปุ่ม \"เปิดรอบนับ\" ก่อน");
 
+    /**
+     * 🔴 หลายคนนับพร้อมกันได้ (ภูม 2026-11-27) ⇒ ส่วนต่างต้องคิดที่ **เซิร์ฟเวอร์** เสมอ
+     *
+     * `toTotal` = "กองนี้นับได้ทั้งหมด N กล่อง" (ปุ่มครบ / พิมพ์จำนวน)
+     *   ถ้าให้จอคิดส่วนต่างเอง แล้วระหว่างนั้นเพื่อนอีกคนนับใบเดียวกันไปแล้ว
+     *   ตัวเลขบนจอจะเก่า ⇒ บวกเกิน (นับ 19 → กลายเป็น 38)
+     * `qty` = เพิ่มอีกกี่กล่อง (ยิงทีละใบ = 1) — ทางนี้ปลอดภัยอยู่แล้ว
+     */
+    const before = await report(sess.id);
+    const rowBefore = before.result.rows.find((r) =>
+      r.tracking.toUpperCase() === code || keyFormsOf(r.tracking).includes(code));
+    const already = rowBefore ? rowBefore.scanned : 0;
+
+    let qty;
+    const toTotal = Math.trunc(Number(o.toTotal));
+    if (Number.isFinite(toTotal) && toTotal > 0) {
+      qty = toTotal - already;
+      if (qty <= 0) {
+        /* คนอื่น (หรือเราเอง) นับถึงจำนวนนั้นไปแล้ว — บอกตรงๆ ดีกว่าบวกซ้ำเงียบๆ */
+        const e = new Error(
+          "กองนี้นับไปแล้ว " + already + " กล่อง (เท่ากับหรือมากกว่า " + toTotal + " ที่ใส่มา) — " +
+          "ถ้าเพื่อนนับไปแล้วก็ข้ามได้เลย · ถ้าใส่ผิดให้กดยกเลิกอันล่าสุดของตัวเอง",
+        );
+        e.code = "ALREADY_COUNTED";
+        throw e;
+      }
+    } else {
+      const qRaw = Math.trunc(Number(o.qty));
+      qty = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+    }
+    if (qty > 5000) throw new Error("จำนวนกล่องเยอะผิดปกติ (" + qty + ") — พิมพ์ผิดหรือเปล่า");
+
     const { error } = await supabase.from("wh_count_scan").insert({
       session_id: sess.id, code, qty, method,
-      slot: s(o.slot) || null, scanned_by: s(o.by) || "warehouse",
+      slot: s(o.slot) || null, scanned_by: by,
     });
     if (error) { if (isMissingSchema(error)) throw new Error(SCHEMA_MSG); throw new Error(error.message); }
 
@@ -150,11 +180,17 @@ function createCount(supabase, warehouse) {
       r.tracking.toUpperCase() === code ||
       keyFormsOf(r.tracking).includes(code));
     const extra = state.result.extra.find((e) => e.code === code) || null;
+    /* 🤝 ใครนับใบนี้ไปแล้วบ้าง — กันเดินซ้ำทางกัน (เอาเฉพาะคนอื่น ไม่นับตัวเอง) */
+    const others = state.scans
+      .filter((x) => keyFormsOf(x.code).some((k) => keyFormsOf(code).includes(k)) && s(x.scanned_by) !== by)
+      .map((x) => ({ by: x.scanned_by, qty: Number(x.qty) || 1, at: x.scanned_at }));
     return {
       sessionId: sess.id,
       code,
       qty,
       method,
+      by,
+      others,
       known: !!row,
       tracking: row ? row.tracking : null,
       memberCode: row ? row.memberCode : null,
@@ -165,16 +201,25 @@ function createCount(supabase, warehouse) {
     };
   }
 
-  /** ยกเลิกการยิงครั้งล่าสุด — ยิงพลาดต้องแก้ได้ ไม่งั้นคนจะเลี่ยงไม่ใช้ระบบ */
+  /**
+   * ยกเลิกรายการล่าสุด **ของตัวเอง** — ยิงพลาดต้องแก้ได้ ไม่งั้นคนจะเลี่ยงไม่ใช้ระบบ
+   *
+   * 🔴 ต้องกรองด้วยชื่อคนนับ (ภูม 2026-11-27 ถามเรื่องนับหลายคนพร้อมกัน)
+   *    ของเดิมลบ "รายการล่าสุดของทั้งรอบ" ⇒ คนหนึ่งกดยกเลิก ไปลบงานของเพื่อนที่เพิ่งยิง
+   *    = ของหายจากผลนับโดยไม่มีใครรู้ ซึ่งแย่กว่าปัญหาที่เรากำลังแก้
+   */
   async function undoLast(opts) {
-    const sess = await openSession((opts || {}).wh);
+    const o = opts || {};
+    const by = s(o.by) || "warehouse";
+    const sess = await openSession(o.wh);
     if (!sess) throw new Error("ยังไม่ได้เปิดรอบนับ");
     const { data, error } = await supabase
-      .from("wh_count_scan").select("id, code, qty").eq("session_id", sess.id)
+      .from("wh_count_scan").select("id, code, qty")
+      .eq("session_id", sess.id).eq("scanned_by", by)
       .order("scanned_at", { ascending: false }).limit(1);
     if (error) throw new Error(error.message);
     const last = (data || [])[0];
-    if (!last) throw new Error("ยังไม่มีรายการที่ยิงในรอบนี้");
+    if (!last) throw new Error("คุณยังไม่ได้บันทึกอะไรในรอบนี้ (ยกเลิกได้เฉพาะรายการของตัวเอง)");
     const { error: delErr } = await supabase.from("wh_count_scan").delete().eq("id", last.id);
     if (delErr) throw new Error(delErr.message);
     const state = await report(sess.id);
@@ -203,7 +248,18 @@ function createCount(supabase, warehouse) {
       })),
       scans.map((x) => ({ code: x.code, qty: x.qty, method: x.method })),
     );
-    return { session, result, scanCount: scans.length };
+    /* 🤝 ใครนับไปเท่าไหร่ — ภูมต้องตอบพี่ป๊อปได้ว่าใครทำอะไร และกันเดินซ้ำทางกัน */
+    const byPerson = new Map();
+    for (const x of scans) {
+      const who = s(x.scanned_by) || "warehouse";
+      const c = byPerson.get(who) || { by: who, boxes: 0, entries: 0, last: null };
+      c.boxes += Number(x.qty) || 1;
+      c.entries += 1;
+      if (!c.last || String(x.scanned_at) > String(c.last)) c.last = x.scanned_at;
+      byPerson.set(who, c);
+    }
+    const people = [...byPerson.values()].sort((a, b) => b.boxes - a.boxes);
+    return { session, result, scanCount: scans.length, scans, people };
   }
 
   /** ④ ปิดรอบ — แช่สรุปไว้ในแถวรอบ ให้หน้าประวัติโหลดเร็วและผลไม่เปลี่ยนอีก */

@@ -4,7 +4,10 @@
 //   ระบบ + MOMO ตรงกันว่ามี 387 กล่อง · ยิงรับเข้าโกดังจริง 422 · ของบนชั้นเหลือ ~160
 //   ⇒ ~227 กล่องออกไปโดยไม่มีใครบันทึก · ร่องรอย: ใบมอบงานคนขับ 0 แถว · รูป 3/161 แทรค
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { reconcileCount, shipmentOf, baseOf, digitsCore, keyFormsOf } = require("./warehouse-count-core");
+const read = (f) => fs.readFileSync(path.join(__dirname, f), "utf8");
 
 let n = 0;
 function ok(name, fn) { fn(); n++; console.log("  ✓ " + name); }
@@ -234,6 +237,54 @@ ok("ยิงเลขที่ระบบไม่รู้จัก = ไม�
   const r = reconcileCount([{ tracking: "A", boxes: 1 }], []);
   assert.equal(shipmentOf(r, "ZZZ999"), null);
   assert.equal(shipmentOf(null, "A"), null);
+});
+
+
+// ══ 🤝 นับพร้อมกันหลายคน (ภูม 2026-11-27: *"ทำให้ตรวจนับหลายคนพร้อมกันได้ไหม"*) ══
+//
+// ได้ — ทุกคนยิงเข้ารอบเดียวกัน (1 โกดัง = 1 รอบ) แต่มี 3 จุดที่ต้องกันไว้
+// ไม่งั้นยิ่งหลายคนยิ่งพัง:
+
+ok("🔴 ยกเลิกอันล่าสุด ต้องลบเฉพาะของคนที่กด — ไม่ใช่ของเพื่อน", () => {
+  const src = read("warehouse-count.js");
+  assert.ok(
+    /\.eq\("session_id", sess\.id\)\.eq\("scanned_by", by\)/.test(src),
+    "undoLast ต้องกรองด้วยชื่อคนนับ — ของเดิมลบรายการล่าสุดของทั้งรอบ = ไปลบงานเพื่อนที่เพิ่งยิง",
+  );
+});
+
+ok("🔴 ส่วนต่างของปุ่ม ครบ/ใส่เลข ต้องคิดที่เซิร์ฟเวอร์ ไม่ใช่ที่จอ", () => {
+  const srv = read("warehouse-count.js");
+  assert.ok(srv.includes("qty = toTotal - already"), "server ต้องลบเองจากค่าที่อ่านสดในฐาน");
+  const page = read("warehouse-count.html");
+  assert.ok(
+    !/const add = want - hitNow\.scanned/.test(page),
+    "จอห้ามคิดส่วนต่างเอง — ตัวเลขบนจออาจเก่าถ้าเพื่อนเพิ่งนับกองเดียวกัน ⇒ บวกเกิน",
+  );
+  assert.ok(page.includes("toTotal: want"), "จอต้องส่งยอดรวมที่นับได้ ให้ server ลบเอง");
+});
+
+ok("🔴 นับซ้ำกองเดิม ต้องบอกตรงๆ ไม่ใช่บวกทับเงียบๆ", () => {
+  const src = read("warehouse-count.js");
+  assert.ok(src.includes("ALREADY_COUNTED"), "ต้องมีรหัสบอกว่านับไปแล้ว");
+  assert.ok(
+    /if \(qty <= 0\)/.test(src),
+    "ส่วนต่าง ≤ 0 = เพื่อนนับไปแล้ว ⇒ ต้องหยุด ไม่ใช่เขียนแถวเปล่า",
+  );
+  const page = read("warehouse-page.js");
+  assert.ok(page.includes("ALREADY_COUNTED"), "route ต้องตอบ 409 ให้จอรู้ว่าเป็นการนับซ้ำ ไม่ใช่ error ทั่วไป");
+});
+
+ok("🤝 จอต้องโชว์ว่าใครนับไปเท่าไหร่ + รีเฟรชเองโดยไม่แย่งโฟกัสช่องยิง", () => {
+  const srv = read("warehouse-count.js");
+  assert.ok(srv.includes("people"), "report ต้องคืนสรุปรายคน");
+  const page = read("warehouse-count.html");
+  assert.ok(page.includes("paintWho"), "จอต้องมีแถวบอกว่าใครกำลังนับ");
+  assert.ok(/setInterval\(function \(\) \{ if \(cur\) refresh\(true\); \}/.test(page), "ต้องรีเฟรชเองตอนมีรอบเปิด");
+  assert.ok(
+    /if \(!quiet\) setTimeout\(function \(\) \{ \$\("code"\)\.focus\(\); \}/.test(page),
+    "รีเฟรชเงียบห้ามดึงโฟกัส — ไม่งั้นเครื่องยิงพิมพ์ลงที่ว่างกลางคัน",
+  );
 });
 
 console.log("\n✅ ผ่าน " + n + " ข้อ");

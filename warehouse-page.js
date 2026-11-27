@@ -276,8 +276,11 @@ function mountWarehouse(app, warehouse, whoOf, count) {
     try {
       if (!(await requireCountTables(res))) return;
       const b = req.body || {};
-      res.json(await count.scan({ wh: b.wh, code: b.code, qty: b.qty, method: b.method, slot: b.slot, by: who(req) }));
-    } catch (e) { res.status(400).json({ error: e.message }); }
+      res.json(await count.scan({
+        wh: b.wh, code: b.code, qty: b.qty, toTotal: b.toTotal,
+        method: b.method, slot: b.slot, by: who(req),
+      }));
+    } catch (e) { res.status(e.code === "ALREADY_COUNTED" ? 409 : 400).json({ error: e.message }); }
   });
 
   /** ยิงพลาดต้องแก้ได้ — ไม่งั้นพนักงานจะเลี่ยงไม่ใช้ */
@@ -285,7 +288,7 @@ function mountWarehouse(app, warehouse, whoOf, count) {
     if (!guard(req, res)) return;
     try {
       if (!(await requireCountTables(res))) return;
-      res.json(await count.undoLast({ wh: req.body && req.body.wh }));
+      res.json(await count.undoLast({ wh: req.body && req.body.wh, by: who(req) }));
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 

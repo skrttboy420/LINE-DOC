@@ -134,6 +134,8 @@
       <div class="n bad"><b id="nMiss">0</b><span>ยังไม่เจอ</span></div>
     </div>
     <div class="bar"><i id="barFill"></i></div>
+    <!-- 🤝 นับพร้อมกันได้หลายคน — โชว์ให้เห็นว่าใครอยู่ในรอบนี้บ้าง -->
+    <div class="muted" id="who" style="margin-top:7px"></div>
 
     <div class="row" style="margin-top:12px">
       <input id="code" placeholder="ยิงบาร์โค้ด หรือพิมพ์เลขแทรค" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -141,7 +143,7 @@
     <div class="row" style="margin-top:8px">
       <button class="p" id="btnScan">บันทึก 1 กล่อง</button>
       <button id="btnCam">📷 เปิดกล้องมือถือ</button>
-      <button id="btnUndo">↩ ยกเลิกอันล่าสุด</button>
+      <button id="btnUndo" title="ยกเลิกได้เฉพาะรายการที่คุณบันทึกเอง">↩ ยกเลิกอันล่าสุดของฉัน</button>
       <span class="sp" style="flex:1"></span>
       <button class="g" id="btnClose">ปิดรอบ + ดูผล</button>
     </div>
@@ -234,22 +236,40 @@ function paintLive(t) {
   $("barFill").style.width = pct.toFixed(1) + "%";
 }
 
-async function refresh() {
-  showErr("");
+function paintWho(people) {
+  const el = $("who");
+  if (!el) return;
+  const list = (people || []).filter(function (p) { return p.boxes > 0; });
+  el.innerHTML = list.length
+    ? "🤝 กำลังนับรอบนี้: " + list.map(function (p) {
+        return "<b>" + esc(p.by) + "</b> " + nf(p.boxes) + " กล่อง";
+      }).join(" · ")
+    : "ยังไม่มีใครบันทึกในรอบนี้";
+}
+
+async function refresh(quiet) {
+  if (!quiet) showErr("");
   try {
     const j = await call("/warehouse/api/count/now");
     cur = j.open || null;
     if (!cur) { show("idle"); }
     else {
-      show("live");
+      /* 🔑 รีเฟรชเงียบตอนหลายคนนับ ต้องไม่แย่งโฟกัสช่องยิง ไม่งั้นเครื่องยิงพิมพ์ลงที่ว่าง */
+      const onResult = $("res").style.display === "block";
+      if (!onResult) show("live");
       $("liveHead").textContent = "รอบ #" + cur.id + " · เปิดโดย " + (cur.started_by || "-") +
         " · " + new Date(cur.started_at).toLocaleString("th-TH");
       paintLive(j.result.totals);
-      setTimeout(() => $("code").focus(), 50);
+      paintWho(j.people);
+      if (!quiet) setTimeout(function () { $("code").focus(); }, 50);
     }
-  } catch (e) { showErr(e.message); }
-  loadHistory();
+  } catch (e) { if (!quiet) showErr(e.message); }
+  if (!quiet) loadHistory();
 }
+
+/* 🤝 หลายคนนับพร้อมกัน ⇒ ตัวเลขของเพื่อนต้องขึ้นมาเองโดยไม่ต้องกดอะไร
+   (10 วินาทีพอ · ถี่กว่านี้เปลืองเน็ตในโกดังที่สัญญาณไม่ดี) */
+setInterval(function () { if (cur) refresh(true); }, 10000);
 
 /* ══ ① เปิดรอบ ════════════════════════════════════════════════════ */
 $("btnOpen").addEventListener("click", async () => {
@@ -284,11 +304,20 @@ function paintHit(j) {
   const left = Math.max(0, j.boxes - j.scanned);
   h.className = left === 0 ? "ok" : "warn";
 
+  /* 🤝 เพื่อนนับใบนี้ไปแล้ว — บอกก่อนเลย จะได้ไม่เดินซ้ำทางกัน (ภูม: นับหลายคนพร้อมกัน) */
+  let others = "";
+  if (j.others && j.others.length) {
+    const who = [...new Set(j.others.map(function (o) { return o.by; }))].join(" · ");
+    const sum = j.others.reduce(function (n, o) { return n + (o.qty || 1); }, 0);
+    others = '<div class="s" style="margin-top:5px;font-weight:700;color:#1d4ed8">🤝 ' +
+      esc(who) + " นับใบนี้ไปแล้ว " + nf(sum) + " กล่อง</div>";
+  }
+
   let html =
     '<div class="h">' + (left === 0 ? "✅ ครบแล้ว" : "📦 นับไปแล้ว " + nf(j.scanned) + " / " + nf(j.boxes) + " กล่อง") + "</div>" +
     '<div class="big m">' + esc(j.tracking) + "</div>" +
     '<div class="s">' + (j.memberCode ? "ลูกค้า " + esc(j.memberCode) + " · " : "") +
-    (left === 0 ? "แทรคนี้นับครบแล้ว" : "เหลืออีก " + nf(left) + " กล่อง") + "</div>";
+    (left === 0 ? "แทรคนี้นับครบแล้ว" : "เหลืออีก " + nf(left) + " กล่อง") + "</div>" + others;
 
   /* 🔴 ภูม: *"ถ้านับของแล้วมีครบ ก็ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้องมานั่งยิงทีละกล่อง"*
      ⇒ ยิงใบเดียวแล้วมองกองด้วยตา แล้วกด "ครบ" หรือพิมพ์จำนวนที่นับได้
@@ -335,10 +364,10 @@ async function topUp(method) {
   if (!hitNow || !hitNow.known) return;
   const want = method === "full" ? hitNow.boxes : Math.trunc(Number(($("qIn") || {}).value));
   if (!Number.isFinite(want) || want < 1) { showErr("ใส่จำนวนกล่องเป็นตัวเลขก่อนนะ"); return; }
-  const add = want - hitNow.scanned;
-  if (add <= 0) { showErr("นับไปแล้ว " + nf(hitNow.scanned) + " กล่อง — มากกว่าหรือเท่ากับที่ใส่มา (ถ้าใส่ผิดกด ↩ ยกเลิกอันล่าสุด)"); return; }
+  /* 🔑 ส่ง "นับได้ทั้งหมดเท่าไหร่" ไม่ใช่ส่วนต่าง — ให้ server ลบเอง
+     ถ้าจอคิดเอง แล้วเพื่อนอีกคนนับกองเดียวกันไปแล้ว ตัวเลขบนจอจะเก่า ⇒ บวกเกิน */
   try {
-    const j = await call("/warehouse/api/count/scan", { code: hitNow.code, qty: add, method: method });
+    const j = await call("/warehouse/api/count/scan", { code: hitNow.code, toTotal: want, method: method });
     paintHit(j); paintLive(j.totals); showErr("");
   } catch (e) { showErr(e.message); }
 }

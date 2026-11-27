@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตรวจนับสต็อก — โกดัง Pacred</title>
+<!--
+  📋 ตรวจนับสต็อกโกดัง — ภูม 2026-11-27
+
+  ภูม: *"ตอนนี้ภูมิต้องเดินเข้าไปนับของในโกดังอะ ว่าตรงกับในระบบไหม แต่มันก็ทำได้แค่
+         ปริ้นไฟล์แล้วเดินไปเทียบ"*  + *"ต้องเก็บประวัติดูย้อนหลังได้ … เอาไปรายงานพี่ป๊อป"*
+
+  วิธีใช้ (ภูมเลือกเอง — เดินยิงรัว):
+    ① กด "เปิดรอบนับ"  → ระบบถ่ายรายการของที่ควรอยู่บนชั้นเก็บไว้
+    ② เดินยิงทุกกล่องที่เห็น (เครื่องยิง หรือกล้องมือถือ) — **ยิงเลขเดิมซ้ำได้ = อีกกล่อง**
+    ③ กด "ปิดรอบ"      → ได้ผลเทียบ + ไฟล์ Excel
+
+  🔑 นับเป็น **กล่อง** ไม่ใช่แทรค — 1 แทรคมีได้ 19 กล่อง และทุกกล่องแปะป้ายเลขเดียวกัน
+  🔒 ไม่แก้อะไรในระบบ Pacred — บันทึกว่าเห็นอะไรจริง แล้วให้คนตัดสินต่อ
+-->
+<style>
+  :root{--red:#B30000;--line:#e5e7eb;--muted:#6b7280;--bg:#f8fafc;
+        --ok:#16a34a;--warn:#f59e0b;--bad:#dc2626;--blue:#2563eb}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:#0f172a;
+    font-family:-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif}
+  header{background:var(--red);color:#fff;padding:10px 14px;display:flex;
+    gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+  header b{font-size:16px}
+  header .sp{flex:1}
+  header a{color:#fff;text-decoration:none;background:rgba(255,255,255,.18);
+    border-radius:8px;padding:6px 11px;font-size:12px}
+  main{max-width:720px;margin:0 auto;padding:12px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 10px;font-size:14px}
+  button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);
+    background:#fff;padding:10px 14px;font-weight:600}
+  button.p{background:var(--red);color:#fff;border-color:var(--red)}
+  button.g{background:var(--ok);color:#fff;border-color:var(--ok)}
+  button:disabled{opacity:.5;cursor:default}
+  input{font:inherit;padding:11px 12px;border:1px solid var(--line);border-radius:10px;width:100%}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .muted{color:var(--muted);font-size:12px}
+
+  /* ── แถบตัวเลขใหญ่ ── */
+  .nums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .n{background:#f1f5f9;border-radius:12px;padding:10px;text-align:center}
+  .n b{display:block;font-size:26px;line-height:1.15}
+  .n span{font-size:11px;color:var(--muted)}
+  .n.ok b{color:var(--ok)} .n.bad b{color:var(--bad)} .n.warn b{color:var(--warn)}
+  .bar{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:10px}
+  .bar i{display:block;height:100%;background:var(--ok);width:0}
+
+  /* ── การ์ดผลยิงล่าสุด ── */
+  #hit{border-radius:12px;padding:12px;margin-top:10px;display:none;border:1px solid}
+  #hit.ok{background:#ecfdf5;border-color:#6ee7b7}
+  #hit.warn{background:#fffbeb;border-color:#fcd34d}
+  #hit.bad{background:#fef2f2;border-color:#fca5a5}
+  #hit .h{font-weight:800;font-size:15px}
+  #hit .s{font-size:12px;color:#334155;margin-top:3px}
+  .big{font-size:30px;font-weight:800;letter-spacing:.5px}
+
+  /* ── รายการ ── */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:6px 7px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#f8fafc;font-size:11.5px;color:var(--muted);position:sticky;top:0}
+  .scroll{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .tag{display:inline-block;border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700}
+  .tag.bad{background:#fee2e2;color:#991b1b}
+  .tag.warn{background:#fef3c7;color:#92400e}
+  .tag.ok{background:#dcfce7;color:#166534}
+  .m{font-family:ui-monospace,Menlo,Consolas,monospace}
+
+  /* ── กล้อง ── */
+  #cam{position:fixed;inset:0;background:#000;z-index:40;display:none;flex-direction:column}
+  #cam.on{display:flex}
+  #camView{flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+  #camView video{max-width:100%;max-height:100%}
+  #camBar{background:#111;color:#fff;padding:10px 12px}
+  #camMsg{font-size:13px;min-height:40px}
+  #camMsg.bad{color:#fca5a5} #camMsg.ok{color:#86efac}
+  #camMsg .sm{font-size:11px;opacity:.75;margin-top:3px}
+  .err{background:#fef2f2;border:1px solid #fca5a5;color:#991b1b;border-radius:10px;
+    padding:10px;font-size:13px;margin-bottom:10px;display:none}
+  @media(max-width:520px){ .nums{grid-template-columns:repeat(3,1fr)} .n b{font-size:22px} }
+</style>
+</head>
+<body>
+
+<header>
+  <b>📋 ตรวจนับสต็อก</b>
+  <span class="sp"></span>
+  <a id="to3d" href="#">🏭 โกดัง 3D</a>
+</header>
+
+<main>
+  <div class="err" id="err"></div>
+
+  <!-- ① ยังไม่เปิดรอบ -->
+  <div class="card" id="idle" style="display:none">
+    <h2>เริ่มรอบนับใหม่</h2>
+    <p class="muted" style="margin:0 0 10px">
+      ระบบจะถ่ายรายการ <b>ของที่ควรอยู่บนชั้นตอนนี้</b> เก็บไว้ แล้วให้เดินยิงทีละกล่อง
+      — ยิงเลขเดิมซ้ำได้ <b>ยิงกี่ครั้ง = เจอกี่กล่อง</b>
+    </p>
+    <div class="row">
+      <input id="meIdle" placeholder="ชื่อเล่นของคุณ (ไว้ลงประวัติ)" style="max-width:240px">
+      <button class="p" id="btnOpen">เปิดรอบนับ</button>
+    </div>
+  </div>
+
+  <!-- ② กำลังนับ -->
+  <div class="card" id="live" style="display:none">
+    <h2 id="liveHead">รอบนับ</h2>
+    <div class="nums">
+      <div class="n"><b id="nExp">0</b><span>ควรมี (กล่อง)</span></div>
+      <div class="n ok"><b id="nGot">0</b><span>นับได้แล้ว</span></div>
+      <div class="n bad"><b id="nMiss">0</b><span>ยังไม่เจอ</span></div>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+
+    <div class="row" style="margin-top:12px">
+      <input id="code" placeholder="ยิงบาร์โค้ด หรือพิมพ์เลขแทรค" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="p" id="btnScan">บันทึก 1 กล่อง</button>
+      <button id="btnCam">📷 เปิดกล้องมือถือ</button>
+      <button id="btnUndo">↩ ยกเลิกอันล่าสุด</button>
+      <span class="sp" style="flex:1"></span>
+      <button class="g" id="btnClose">ปิดรอบ + ดูผล</button>
+    </div>
+    <div id="hit"></div>
+    <div class="muted" style="margin-top:8px">
+      💡 กล่องทุกใบในชิปเม้นเดียวกันมักแปะป้ายเลขเดียวกัน — <b>ต้องยิงทีละกล่อง</b>
+    </div>
+  </div>
+
+  <!-- ③ ผลเทียบ -->
+  <div class="card" id="res" style="display:none">
+    <h2 id="resHead">ผลการนับ</h2>
+    <div class="nums">
+      <div class="n"><b id="rExp">0</b><span>ควรมี</span></div>
+      <div class="n ok"><b id="rGot">0</b><span>นับได้</span></div>
+      <div class="n bad"><b id="rMiss">0</b><span>ของหาย</span></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnCsv">⬇ ไฟล์สรุป (Excel)</button>
+      <button id="btnBack">← กลับ</button>
+    </div>
+    <div id="resBody"></div>
+  </div>
+
+  <!-- ④ ประวัติ -->
+  <div class="card">
+    <h2>ประวัติรอบนับ</h2>
+    <div id="hist" class="muted">กำลังโหลด…</div>
+  </div>
+</main>
+
+<!-- กล้อง -->
+<div id="cam">
+  <div id="camView"></div>
+  <div id="camBar">
+    <div id="camMsg"></div>
+    <button id="camClose" style="width:100%;margin-top:8px">✕ ปิดกล้อง</button>
+  </div>
+</div>
+
+<script>
+/* ══ พื้นฐาน ══════════════════════════════════════════════════════ */
+const $ = (id) => document.getElementById(id);
+const KEY = new URLSearchParams(location.search).get("key") || "";
+const WH = new URLSearchParams(location.search).get("wh") || "1";
+const api = (p) => p + (p.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(KEY) + "&wh=" + encodeURIComponent(WH);
+const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const nf = (n) => Number(n || 0).toLocaleString("th-TH");
+$("to3d").href = api("/warehouse");
+
+/* ชื่อคนนับ — จำไว้ในเครื่อง (หน้านี้เปิดด้วยลิงก์+คีย์ ไม่มีล็อกอิน) */
+const ME = "whoCount";
+function me() { try { return localStorage.getItem(ME) || ""; } catch { return ""; } }
+function setMe(v) { try { localStorage.setItem(ME, String(v || "").trim()); } catch { /* โหมดส่วนตัว */ } }
+$("meIdle").value = me();
+$("meIdle").addEventListener("change", (e) => setMe(e.target.value));
+
+function showErr(msg) { const e = $("err"); e.textContent = msg; e.style.display = msg ? "block" : "none"; }
+async function call(path, body) {
+  /* 🪤 เน็ตหลุด/เซิร์ฟเวอร์ไม่ตอบ จะได้ "TypeError: fetch failed" ซึ่งพนักงานโกดังอ่านไม่รู้เรื่อง
+     ⇒ แปลเป็นภาษาคน (จอนี้ใช้กลางโกดัง สัญญาณมักไม่ดี) */
+  let r;
+  try {
+    r = await fetch(api(path), body
+      ? { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(Object.assign({ wh: WH, by: me() }, body)) }
+      : undefined);
+  } catch {
+    throw new Error("ต่อเซิร์ฟเวอร์ไม่ได้ — เช็คสัญญาณเน็ตแล้วลองใหม่ (ของที่ยิงไปก่อนหน้านี้ไม่หาย)");
+  }
+  const j = await r.json().catch(() => ({ error: "เซิร์ฟเวอร์ตอบมาไม่ใช่ข้อมูลที่อ่านได้" }));
+  if (!r.ok) throw new Error(j.error || ("เซิร์ฟเวอร์ตอบ " + r.status));
+  return j;
+}
+
+/* ══ สถานะหน้า ════════════════════════════════════════════════════ */
+let cur = null;        // รอบที่เปิดอยู่
+let lastResult = null; // ผลล่าสุดที่โชว์
+
+function show(which) {
+  for (const id of ["idle", "live", "res"]) $(id).style.display = id === which ? "block" : "none";
+}
+
+function paintLive(t) {
+  $("nExp").textContent = nf(t.expectedBoxes);
+  $("nGot").textContent = nf(t.foundBoxes);
+  $("nMiss").textContent = nf(t.missingBoxes);
+  const pct = t.expectedBoxes ? Math.min(100, (t.foundBoxes / t.expectedBoxes) * 100) : 0;
+  $("barFill").style.width = pct.toFixed(1) + "%";
+}
+
+async function refresh() {
+  showErr("");
+  try {
+    const j = await call("/warehouse/api/count/now");
+    cur = j.open || null;
+    if (!cur) { show("idle"); }
+    else {
+      show("live");
+      $("liveHead").textContent = "รอบ #" + cur.id + " · เปิดโดย " + (cur.started_by || "-") +
+        " · " + new Date(cur.started_at).toLocaleString("th-TH");
+      paintLive(j.result.totals);
+      setTimeout(() => $("code").focus(), 50);
+    }
+  } catch (e) { showErr(e.message); }
+  loadHistory();
+}
+
+/* ══ ① เปิดรอบ ════════════════════════════════════════════════════ */
+$("btnOpen").addEventListener("click", async () => {
+  setMe($("meIdle").value);
+  $("btnOpen").disabled = true;
+  $("btnOpen").textContent = "⏳ กำลังถ่ายรายการ…";
+  try {
+    const j = await call("/warehouse/api/count/open", {});
+    showErr("");
+    alert("เปิดรอบนับ #" + j.session.id + " แล้ว\nของที่ควรมี " + nf(j.expectedBoxes) + " กล่อง (" + nf(j.expectedRows) + " แทรค)");
+    await refresh();
+  } catch (e) { showErr(e.message); }
+  $("btnOpen").disabled = false;
+  $("btnOpen").textContent = "เปิดรอบนับ";
+});
+
+/* ══ ② ยิง ════════════════════════════════════════════════════════ */
+function paintHit(j) {
+  const h = $("hit");
+  h.style.display = "block";
+  if (!j.known) {
+    h.className = "warn";
+    h.innerHTML = '<div class="h">🟡 ระบบไม่รู้จักเลขนี้</div>' +
+      '<div class="big m">' + esc(j.code) + "</div>" +
+      '<div class="s">ยิงไปแล้ว ' + nf(j.scanned) + " ครั้ง — ของอาจมาผิดโกดัง หรือยังไม่ได้นำเข้าระบบ (บันทึกไว้ให้แล้ว)</div>";
+    return;
+  }
+  const left = Math.max(0, j.boxes - j.scanned);
+  h.className = left === 0 ? "ok" : "warn";
+  h.innerHTML =
+    '<div class="h">' + (left === 0 ? "✅ ครบแล้ว" : "📦 นับไปแล้ว " + nf(j.scanned) + " / " + nf(j.boxes) + " กล่อง") + "</div>" +
+    '<div class="big m">' + esc(j.tracking) + "</div>" +
+    '<div class="s">' + (j.memberCode ? "ลูกค้า " + esc(j.memberCode) + " · " : "") +
+    (left === 0 ? "แทรคนี้นับครบแล้ว" : "เหลืออีก " + nf(left) + " กล่อง") + "</div>";
+}
+
+async function sendScan(code) {
+  const c = String(code || "").trim();
+  if (!c) return;
+  try {
+    const j = await call("/warehouse/api/count/scan", { code: c });
+    paintHit(j);
+    paintLive(j.totals);
+    showErr("");
+  } catch (e) { showErr(e.message); }
+}
+
+$("btnScan").addEventListener("click", () => { const v = $("code").value; $("code").value = ""; $("code").focus(); sendScan(v); });
+$("code").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const v = $("code").value; $("code").value = ""; sendScan(v);   // เครื่องยิงส่ง Enter ให้เอง ⇒ ยิงรัวได้
+});
+$("btnUndo").addEventListener("click", async () => {
+  try {
+    const j = await call("/warehouse/api/count/undo", {});
+    paintLive(j.totals);
+    $("hit").style.display = "block";
+    $("hit").className = "bad";
+    $("hit").innerHTML = '<div class="h">↩ ยกเลิกแล้ว</div><div class="big m">' + esc(j.undone) + "</div>";
+    showErr("");
+  } catch (e) { showErr(e.message); }
+});
+
+/* ══ ③ ปิดรอบ + ผล ════════════════════════════════════════════════ */
+function paintResult(session, result) {
+  lastResult = { session: session, result: result };
+  show("res");
+  const t = result.totals;
+  $("resHead").textContent = "ผลรอบ #" + session.id +
+    (session.finished_at ? " · ปิด " + new Date(session.finished_at).toLocaleString("th-TH") : " (ยังเปิดอยู่)");
+  $("rExp").textContent = nf(t.expectedBoxes);
+  $("rGot").textContent = nf(t.foundBoxes);
+  $("rMiss").textContent = nf(t.missingBoxes);
+
+  const rowsHtml = (list, kind) => list.map((r) => {
+    const short = r.boxes - Math.min(r.scanned, r.boxes);
+    return "<tr><td>" + (kind === "miss"
+      ? '<span class="tag bad">หายทั้งแถว</span>'
+      : '<span class="tag warn">ขาด ' + nf(short) + "</span>") +
+      '</td><td class="m">' + esc(r.tracking) + "</td><td>" + esc(r.memberCode || "") +
+      "</td><td>" + nf(r.boxes) + "</td><td>" + nf(Math.min(r.scanned, r.boxes)) + "</td></tr>";
+  }).join("");
+
+  let html = "";
+  const block = (title, body, n) => n
+    ? '<h2 style="margin:14px 0 6px;font-size:13px">' + title + " (" + nf(n) + ")</h2>" +
+      '<div class="scroll"><table>' + body + "</table></div>"
+    : "";
+
+  const head = "<tr><th>ผล</th><th>เลขแทรค</th><th>ลูกค้า</th><th>ควรมี</th><th>นับได้</th></tr>";
+  html += block("🔴 ของหาย — ระบบว่ามี แต่นับไม่เจอ",
+    head + rowsHtml(result.missing, "miss") + rowsHtml(result.partial, "part"),
+    result.missing.length + result.partial.length);
+  html += block("🟡 ยิงเจอ แต่ระบบไม่รู้จัก",
+    "<tr><th>เลขที่ยิง</th><th>จำนวนครั้ง</th></tr>" +
+    result.extra.map((e) => '<tr><td class="m">' + esc(e.code) + "</td><td>" + nf(e.scanned) + "</td></tr>").join(""),
+    result.extra.length);
+  html += block("✅ นับครบ", head.replace("<th>ผล</th>", "<th></th>") +
+    result.full.map((r) => '<tr><td><span class="tag ok">ครบ</span></td><td class="m">' + esc(r.tracking) +
+      "</td><td>" + esc(r.memberCode || "") + "</td><td>" + nf(r.boxes) + "</td><td>" + nf(r.boxes) + "</td></tr>").join(""),
+    result.full.length);
+  if (!html) html = '<p class="muted">รอบนี้ยังไม่มีข้อมูล</p>';
+  $("resBody").innerHTML = html;
+}
+
+$("btnClose").addEventListener("click", async () => {
+  if (!confirm("ปิดรอบนับนี้? ปิดแล้วจะยิงเพิ่มไม่ได้ (ผลจะถูกเก็บไว้ดูย้อนหลัง)")) return;
+  try {
+    await call("/warehouse/api/count/close", {});
+    const id = cur.id;
+    const r = await call("/warehouse/api/count/report?id=" + id);
+    paintResult(r.session, r.result);
+    cur = null;
+    loadHistory();
+    showErr("");
+  } catch (e) { showErr(e.message); }
+});
+$("btnBack").addEventListener("click", refresh);
+$("btnCsv").addEventListener("click", () => {
+  if (!lastResult) return;
+  location.href = api("/warehouse/api/count/export?id=" + lastResult.session.id);
+});
+
+/* ══ ④ ประวัติ ════════════════════════════════════════════════════ */
+async function loadHistory() {
+  try {
+    const j = await call("/warehouse/api/count/list?limit=30");
+    const rows = j.rows || [];
+    if (!rows.length) { $("hist").innerHTML = '<span class="muted">ยังไม่มีรอบนับ</span>'; return; }
+    $("hist").innerHTML = '<div class="scroll"><table>' +
+      "<tr><th>รอบ</th><th>เปิดเมื่อ</th><th>โดย</th><th>สถานะ</th><th>ควรมี</th><th>นับได้</th><th>หาย</th><th></th></tr>" +
+      rows.map((r) => {
+        const t = r.summary || {};
+        return "<tr><td>#" + r.id + "</td><td>" + new Date(r.started_at).toLocaleString("th-TH") +
+          "</td><td>" + esc(r.started_by || "") + "</td><td>" +
+          (r.status === "open" ? '<span class="tag warn">กำลังนับ</span>' : '<span class="tag ok">ปิดแล้ว</span>') +
+          "</td><td>" + nf(t.expectedBoxes) + "</td><td>" + nf(t.foundBoxes) + "</td><td>" +
+          (t.missingBoxes ? '<b style="color:var(--bad)">' + nf(t.missingBoxes) + "</b>" : nf(t.missingBoxes)) +
+          '</td><td><button data-id="' + r.id + '" class="openR" style="padding:4px 9px;font-size:11px">ดูผล</button></td></tr>';
+      }).join("") + "</table></div>";
+    for (const b of document.querySelectorAll(".openR")) {
+      b.addEventListener("click", async () => {
+        try {
+          const r = await call("/warehouse/api/count/report?id=" + b.dataset.id);
+          paintResult(r.session, r.result);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } catch (e) { showErr(e.message); }
+      });
+    }
+  } catch (e) { $("hist").innerHTML = '<span class="muted">' + esc(e.message) + "</span>"; }
+}
+
+/* ══ 📷 กล้องมือถือ ═══════════════════════════════════════════════
+   ยกแพทเทิร์นมาจากหน้า "ยิงรับเข้าชั้น" (warehouse-scan.html) ทั้งดุ้น
+   🪤 ต่างกันตรงเดียวที่สำคัญ: หน้านั้น "ยิงเลขเดิมซ้ำ = ข้าม" (กันบันทึกซ้ำ)
+      แต่หน้านี้ **ยิงซ้ำ = อีกกล่อง** ⇒ กันแค่กล้องอ่านรัว 10 ครั้ง/วินาที
+      ด้วยช่วงพักสั้นๆ แล้วโชว์ตัวนับให้เห็นว่าเพิ่มจริง */
+const CAM_LIB = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js";
+const SAME_CODE_MS = 1200;      // ยกกล่องใบถัดไปมาส่องใช้เวลามากกว่านี้อยู่แล้ว
+let camOn = false, reader = null, libReady = false, lastCode = "", lastAt = 0;
+
+function camSay(cls, html) { $("camMsg").className = cls || ""; $("camMsg").innerHTML = html; }
+function loadLib() {
+  if (libReady) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = CAM_LIB;
+    sc.onload = () => { libReady = true; res(); };
+    sc.onerror = () => rej(new Error("โหลดตัวอ่านกล้องไม่ได้ — ต้องต่อเน็ตตอนเปิดกล้องครั้งแรก"));
+    document.head.appendChild(sc);
+  });
+}
+function libApi() { const L = window.__Html5QrcodeLibrary__ || window; return { Html5Qrcode: L.Html5Qrcode, F: L.Html5QrcodeSupportedFormats }; }
+
+$("btnCam").addEventListener("click", openCam);
+$("camClose").addEventListener("click", closeCam);
+
+async function openCam() {
+  if (camOn) return;
+  if (!window.isSecureContext) { showErr("กล้องเปิดได้เฉพาะหน้าเว็บแบบ https — เปิดลิงก์ของบอทโดยตรงนะ"); return; }
+  camOn = true;
+  $("cam").classList.add("on");
+  camSay("", "⏳ กำลังเปิดกล้อง…");
+  try {
+    await loadLib();
+    const { Html5Qrcode, F } = libApi();
+    if (!Html5Qrcode) throw new Error("ตัวอ่านกล้องโหลดมาไม่ครบ — ลองรีเฟรชหน้า");
+    const formats = F ? [F.QR_CODE, F.CODE_128, F.CODE_39, F.EAN_13, F.ITF].filter((x) => x !== undefined) : undefined;
+    reader = new Html5Qrcode("camView", { formatsToSupport: formats, verbose: false });
+    await reader.start({ facingMode: "environment" },
+      { fps: 10, qrbox: (w, h) => ({ width: Math.max(140, Math.floor(w * 0.94)), height: Math.max(140, Math.floor(h * 0.8)) }) },
+      onDecode, () => {});
+    camSay("", "ส่องบาร์โค้ดบนกล่องได้เลย — <b>ยิงทีละกล่อง</b>" +
+      '<div class="sm">💡 บาร์โค้ดยาวๆ ต้องจ่อใกล้ให้เต็มกรอบ · กล่องถัดไปส่องต่อได้ไม่ต้องปิดกล้อง</div>');
+  } catch (e) {
+    camSay("bad", '<div class="h">เปิดกล้องไม่ได้</div><div class="sm">' + esc(camErr(e)) + "</div>");
+  }
+}
+function camErr(e) {
+  const n = String((e && e.name) || ""), m = String((e && e.message) || e || "");
+  if (n === "NotAllowedError" || /permission|denied|อนุญาต/i.test(m)) return "ยังไม่ได้อนุญาตให้ใช้กล้อง — กดอนุญาตในเบราว์เซอร์ แล้วเปิดใหม่";
+  if (n === "NotFoundError" || /no camera|not found|devices/i.test(m)) return "เครื่องนี้ไม่มีกล้อง — ใช้เครื่องยิงบาร์โค้ด หรือพิมพ์เองได้";
+  if (n === "NotReadableError") return "กล้องถูกโปรแกรมอื่นใช้อยู่ — ปิดแอปที่ใช้กล้องแล้วลองใหม่";
+  return m || "ไม่ทราบสาเหตุ";
+}
+async function closeCam() {
+  $("cam").classList.remove("on");
+  camOn = false; lastCode = ""; lastAt = 0;
+  try { if (reader) { await reader.stop(); await reader.clear(); } } catch { /* ปิดไม่สนิทไม่เป็นไร */ }
+  reader = null;
+  setTimeout(() => $("code").focus(), 50);
+}
+async function onDecode(text) {
+  const code = String(text || "").trim();
+  const now = Date.now();
+  if (code === lastCode && now - lastAt < SAME_CODE_MS) return;   // กล้องอ่านรัว ≠ กล่องใบใหม่
+  lastCode = code; lastAt = now;
+  try {
+    const j = await call("/warehouse/api/count/scan", { code: code });
+    paintHit(j);
+    paintLive(j.totals);
+    if (!j.known) camSay("bad", "🟡 ระบบไม่รู้จัก <b>" + esc(code) + "</b> (บันทึกไว้แล้ว)");
+    else camSay("ok", "📦 <b>" + esc(j.tracking) + "</b> — นับไปแล้ว " + nf(j.scanned) + " / " + nf(j.boxes) + " กล่อง");
+  } catch (e) { camSay("bad", esc(e.message)); }
+}
+
+refresh();
+</script>
+</body>
+</html>

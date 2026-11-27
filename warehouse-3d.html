@@ -323,6 +323,8 @@
     <button id="go" type="submit">ค้นหา</button>
   </form>
   <a class="btn" id="scanLink" href="#">📷 ยิงรับเข้า</a>
+  <!-- 📋 ตรวจนับสต็อก (ภูม 2026-11-27) — คนละเรื่องกับยิงรับเข้า: ตรวจนับไม่แก้ตำแหน่งของ -->
+  <a class="btn" id="countLink" href="#">📋 ตรวจนับ</a>
   <a class="btn" id="assignLink" href="#">📥 คีย์เอง</a>
   <a class="btn" id="bellLink" href="#" title="ต้องเช็ค — เปิด/ปิดรายการ">🔔<b id="bellN" style="margin-left:5px;color:#fff"></b></a>
 </header>
@@ -387,6 +389,7 @@ if (!WH_LIST.some((w) => w.id === WH)) WH = "WH1";
 function syncLinks() {
   $("assignLink").href = api("/warehouse/assign?wh=" + encodeURIComponent(WH));
   $("scanLink").href = api("/warehouse/scan?wh=" + encodeURIComponent(WH));
+  $("countLink").href = api("/warehouse/count?wh=" + encodeURIComponent(WH));
 }
 syncLinks();
 

@@ -55,7 +55,7 @@ function readPage(file) {
  * @param {object} warehouse ตัวที่ createWarehouse() คืนมา
  * @param {(req:object)=>string} whoOf คนที่กดคือใคร (ไว้ลงประวัติ)
  */
-function mountWarehouse(app, warehouse, whoOf) {
+function mountWarehouse(app, warehouse, whoOf, count) {
   const express = require("express");
   const json = express.json({ limit: "64kb" });
 
@@ -120,6 +120,10 @@ function mountWarehouse(app, warehouse, whoOf) {
   app.get("/warehouse/assign", servePage("warehouse-assign.html"));
   app.get("/warehouse/scan", servePage("warehouse-scan.html"));
   app.get("/warehouse/labels", servePage("warehouse-labels.html"));
+  /* 📋 ตรวจนับสต็อก — ภูม 2026-11-27: *"ต้องเดินเข้าไปนับของในโกดังว่าตรงกับในระบบไหม"*
+     🔑 คนละเรื่องกับ "ยิงเก็บเข้าชั้น" (ที่ย้ายไป Pacred แล้ว) — ตรวจนับ **ไม่แก้ตำแหน่งของ**
+        แค่บันทึกว่าเดินไปเห็นอะไรจริง แล้วเทียบกับที่ระบบบอก ⇒ อยู่ที่บอทได้ ไม่ขัดกติกา */
+  app.get("/warehouse/count", servePage("warehouse-count.html"));
 
   /* ── ท่อข้อมูล ─────────────────────────────────────────────── */
 
@@ -235,6 +239,108 @@ function mountWarehouse(app, warehouse, whoOf) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  /* ══ 📋 ตรวจนับสต็อก (ภูม 2026-11-27) ═══════════════════════════
+     เดินยิงรัวทุกกล่อง → ระบบเทียบกับ "ของที่ควรมี" ที่ถ่ายไว้ตอนเปิดรอบ
+     🔒 ไม่แก้อะไรในระบบ Pacred — เป็นหลักฐานให้คนตัดสิน ไม่ใช่ตัวสั่งแก้ */
+  /** ยังไม่ได้ลง SQL ของตรวจนับ = บอกให้ไปรัน (ไม่ใช่พังเงียบ) */
+  async function requireCountTables(res) {
+    if (await count.isReady()) return true;
+    res.status(503).json({ error: count.SCHEMA_MSG });
+    return false;
+  }
+
+  /** สถานะตอนนี้ — รอบที่เปิดอยู่ + ผลเทียบสด */
+  app.get("/warehouse/api/count/now", async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      const open = await count.openSession(req.query.wh);
+      if (!open) return res.json({ open: null });
+      const r = await count.report(open.id);
+      res.json({ open: r.session, result: r.result, scanCount: r.scanCount });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post("/warehouse/api/count/open", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      res.json(await count.open({ wh: req.body && req.body.wh, by: who(req), note: req.body && req.body.note }));
+    } catch (e) {
+      res.status(e.code === "ALREADY_OPEN" ? 409 : 500).json({ error: e.message, session: e.session || null });
+    }
+  });
+
+  app.post("/warehouse/api/count/scan", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      const b = req.body || {};
+      res.json(await count.scan({ wh: b.wh, code: b.code, slot: b.slot, by: who(req) }));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  /** ยิงพลาดต้องแก้ได้ — ไม่งั้นพนักงานจะเลี่ยงไม่ใช้ */
+  app.post("/warehouse/api/count/undo", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      res.json(await count.undoLast({ wh: req.body && req.body.wh }));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  app.post("/warehouse/api/count/close", json, async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      res.json(await count.close({ wh: req.body && req.body.wh, by: who(req) }));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  /** ประวัติรอบนับ */
+  app.get("/warehouse/api/count/list", async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      res.json({ rows: await count.list({ wh: req.query.wh, limit: req.query.limit }) });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  /** ผลของรอบใดรอบหนึ่ง (ดูย้อนหลัง) */
+  app.get("/warehouse/api/count/report", async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      res.json(await count.report(req.query.id));
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
+  /** ไฟล์สรุปส่งพี่ป๊อป — CSV เปิดด้วย Excel (BOM ให้ภาษาไทยไม่เพี้ยน) */
+  app.get("/warehouse/api/count/export", async (req, res) => {
+    if (!guard(req, res)) return;
+    try {
+      if (!(await requireCountTables(res))) return;
+      const { session, result } = await count.report(req.query.id);
+      const cell = (v) => {
+        const t = String(v == null ? "" : v);
+        return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      };
+      const lines = [["ผล", "เลขแทรค", "รหัสลูกค้า", "ช่อง", "สถานะงาน", "ควรมี(กล่อง)", "นับได้(กล่อง)", "ขาด(กล่อง)"]];
+      for (const r of result.rows) {
+        const short = r.boxes - Math.min(r.scanned, r.boxes);
+        lines.push([
+          short === 0 ? "ครบ" : r.scanned === 0 ? "หายทั้งแถว" : "ขาดบางส่วน",
+          r.tracking, r.memberCode || "", r.slot || "", r.statusTh || "", r.boxes, Math.min(r.scanned, r.boxes), short,
+        ]);
+      }
+      for (const e of result.extra) lines.push(["ระบบไม่รู้จัก", e.code, "", "", "", 0, e.scanned, 0]);
+      const csv = "\uFEFF" + lines.map((l) => l.map(cell).join(",")).join("\r\n");
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", 'attachment; filename="count-' + session.id + '.csv"');
+      res.send(csv);
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+
   /** ผังเปล่า (ไม่ต้องมีฐาน) — ไว้เช็คว่าหน้าเปิดได้ก่อนลง SQL */
   app.get("/warehouse/api/layout", (req, res) => {
     if (!guard(req, res)) return;
@@ -253,7 +359,7 @@ function warehouseLink(sub) {
   const base = String(process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "").replace(/[/]+$/, "");
   const key = keyOf("WAREHOUSE_KEY") || keyOf("ADMIN_KEY");
   if (!base || !key) return "";
-  const path = sub && ["assign", "scan", "labels"].includes(sub) ? "/" + sub : "";
+  const path = sub && ["assign", "scan", "labels", "count"].includes(sub) ? "/" + sub : "";
   return base + "/warehouse" + path + "?key=" + encodeURIComponent(key);
 }
 

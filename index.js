@@ -92,6 +92,7 @@ const { mountStaffAdmin } = require("./staff-admin");
       สถานะงานอ่านสดจากเว็บผ่าน /api/bot?q=warehouse · ไม่แตะระบบ Pacred */
 const { createWarehouse } = require("./warehouse");
 const { mountWarehouse, warehouseLink } = require("./warehouse-page");
+const { createCount } = require("./warehouse-count");
 /* 🧑‍💼 ศูนย์จัดการโกดัง (ภูม 2026-11-20) — แอปแยกของหัวหน้า เก็บในฐานของบอท (mgr_*) ไม่แตะ Pacred */
 const { createManager } = require("./manager");
 const { mountManager, managerLink } = require("./manager-page");
@@ -102,6 +103,9 @@ const manager = createManager(supabase);
 const { createDelivery } = require("./delivery");
 const { mountDelivery, deliveryLink } = require("./delivery-page");
 const delivery = createDelivery(supabase, warehouse);
+/* 📋 ตรวจนับสต็อก (ภูม 2026-11-27) — เดินยิงรัวทุกกล่อง แล้วระบบเทียบกับที่ควรมี
+   🔒 ไม่แก้อะไรในระบบ Pacred — บันทึกว่าเห็นอะไรจริง แล้วให้คนตัดสินต่อ */
+const warehouseCount = createCount(supabase, warehouse);
 /** ✏️ ข้อความแจ้งเตือนที่ภูมแก้เอง — อ่านไม่ได้ = ใช้ตัวสำรองในโค้ด (ไม่เคยทำให้แจ้งเตือนเงียบ) */
 const templateStore = createTemplateStore(supabase);
 
@@ -299,6 +303,10 @@ function buildMenuFlex(opts) {
     /* 📷 ยิงบาร์โค้ดรับเข้าชั้น (ภูม 2026-11-12) — ปุ่มที่พนักงานโกดังใช้บ่อยสุด */
     contents.push({ type: "button", style: "primary", color: "#b45309", height: "sm",
       action: { type: "uri", label: "📷 ยิงรับเข้าชั้น", uri: warehouseLink("scan") } });
+    /* 📋 ตรวจนับสต็อก (ภูม 2026-11-27) — เดินยิงรัวทุกกล่อง แล้วระบบเทียบกับที่ระบบว่ามี
+       *"พนักงานโกดังทำงานกันมั่วมาก ส่งขาด ส่งเกิน แล้วเราเช็คไม่ได้เลย"* */
+    contents.push({ type: "button", style: "primary", color: "#1d4ed8", height: "sm",
+      action: { type: "uri", label: "📋 ตรวจนับสต็อก", uri: warehouseLink("count") } });
     contents.push({ type: "button", style: "secondary", height: "sm",
       action: { type: "uri", label: "🖨 พิมพ์ป้ายโลเคชั่น", uri: warehouseLink("labels") } });
     contents.push({ type: "button", style: "secondary", height: "sm",
@@ -2353,7 +2361,7 @@ app.post("/webhook", middleware(lineConfig), (req, res) => {
 mountStaffAdmin(app, staffRegistry, templateStore, lineBudget, SAVER_ON ? notifySaver : null);
 
 // 🏭 หน้าโกดัง 3D (ภูม 2026-11-12) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
-mountWarehouse(app, warehouse);
+mountWarehouse(app, warehouse, null, warehouseCount);
 
 // 🧑‍💼 หน้าศูนย์จัดการโกดัง (ภูม 2026-11-20) — ต้องต่อหลัง /webhook เหตุผลเดียวกับข้างบน
 mountManager(app, manager);

@@ -15,7 +15,7 @@
 // 🔑 ตัวตัดสินการเทียบอยู่ที่ ./warehouse-count-core.js (PURE · มีเทส 14 ข้อ)
 // ============================================================
 
-const { reconcileCount, keyFormsOf } = require("./warehouse-count-core");
+const { reconcileCount, shipmentOf, keyFormsOf } = require("./warehouse-count-core");
 const LAYOUT = require("./warehouse-layout");
 
 /** ยังไม่ได้ลง SQL รอบนี้ — ฐานจะฟ้องรหัสพวกนี้ */
@@ -114,22 +114,37 @@ function createCount(supabase, warehouse) {
     return { session: made, expectedRows: rows.length, expectedBoxes: rows.reduce((n, r) => n + r.boxes, 0) };
   }
 
-  /** ② ยิง 1 ครั้ง = เห็นของ 1 กล่อง */
+  /**
+   * ② บันทึกว่าเห็นของ — ยิง 1 ใบ (qty 1) หรือ นับด้วยตาแล้วใส่จำนวน (qty N)
+   *
+   * 🔴 ภูม 2026-11-27: *"ถ้านับของแล้วมีครบ ก็ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้องมานั่งยิง
+   *    ทีละกล่อง … ถ้าต้องยกกล่องทั้งหมดในโกดังด้วยมันน่าจะไม่ไหวกัน"*
+   *
+   * @param method 'scan' ยิงจริง · 'typed' นับแล้วพิมพ์ · 'full' กดครบตามระบบ
+   *        ⇒ จดไว้เพื่อให้ดูออกว่ารอบไหน "กดครบ" รวดเดียวโดยไม่ได้นับ
+   */
+  const METHODS = new Set(["scan", "typed", "full"]);
   async function scan(opts) {
     const o = opts || {};
     const code = s(o.code).toUpperCase();
     if (!code) throw new Error("ไม่มีเลขที่ยิงมา");
     if (code.length > 100) throw new Error("เลขยาวเกินไป (เกิน 100 ตัวอักษร) — น่าจะยิงผิดอัน");
+    const qRaw = Math.trunc(Number(o.qty));
+    const qty = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+    if (qty > 5000) throw new Error("จำนวนกล่องเยอะผิดปกติ (" + qty + ") — พิมพ์ผิดหรือเปล่า");
+    const method = METHODS.has(s(o.method)) ? s(o.method) : "scan";
 
     const sess = await openSession(o.wh);
     if (!sess) throw new Error("ยังไม่ได้เปิดรอบนับ — กดปุ่ม \"เปิดรอบนับ\" ก่อน");
 
     const { error } = await supabase.from("wh_count_scan").insert({
-      session_id: sess.id, code, slot: s(o.slot) || null, scanned_by: s(o.by) || "warehouse",
+      session_id: sess.id, code, qty, method,
+      slot: s(o.slot) || null, scanned_by: s(o.by) || "warehouse",
     });
     if (error) { if (isMissingSchema(error)) throw new Error(SCHEMA_MSG); throw new Error(error.message); }
 
-    /* ตอบกลับให้จอบอกคนยิงได้ทันทีว่า ของชิ้นนี้ควรมีกี่กล่อง ยิงไปแล้วกี่กล่อง */
+    /* ตอบกลับให้จอบอกคนนับได้ทันที: ใบนี้ควรมีกี่กล่อง นับไปแล้วกี่กล่อง
+       + **แจงทั้งชิปเม้นว่าเหลือแทรคไหน** (ภูม: "ให้มันแจงด้วยว่าขาดแทรคไหนบ้าง") */
     const state = await report(sess.id);
     const row = state.result.rows.find((r) =>
       r.tracking.toUpperCase() === code ||
@@ -138,11 +153,14 @@ function createCount(supabase, warehouse) {
     return {
       sessionId: sess.id,
       code,
+      qty,
+      method,
       known: !!row,
       tracking: row ? row.tracking : null,
       memberCode: row ? row.memberCode : null,
       boxes: row ? row.boxes : null,
-      scanned: row ? row.scanned : (extra ? extra.scanned : 1),
+      scanned: row ? row.scanned : (extra ? extra.scanned : qty),
+      shipment: row ? shipmentOf(state.result, code) : null,
       totals: state.result.totals,
     };
   }
@@ -152,7 +170,7 @@ function createCount(supabase, warehouse) {
     const sess = await openSession((opts || {}).wh);
     if (!sess) throw new Error("ยังไม่ได้เปิดรอบนับ");
     const { data, error } = await supabase
-      .from("wh_count_scan").select("id, code").eq("session_id", sess.id)
+      .from("wh_count_scan").select("id, code, qty").eq("session_id", sess.id)
       .order("scanned_at", { ascending: false }).limit(1);
     if (error) throw new Error(error.message);
     const last = (data || [])[0];
@@ -160,7 +178,7 @@ function createCount(supabase, warehouse) {
     const { error: delErr } = await supabase.from("wh_count_scan").delete().eq("id", last.id);
     if (delErr) throw new Error(delErr.message);
     const state = await report(sess.id);
-    return { undone: last.code, totals: state.result.totals };
+    return { undone: last.code, qty: Number(last.qty) || 1, totals: state.result.totals };
   }
 
   /** ③ ผลเทียบของรอบหนึ่ง (เปิดอยู่หรือปิดแล้วก็ดูได้) */
@@ -176,14 +194,14 @@ function createCount(supabase, warehouse) {
     const expected = await pageAll("wh_count_expected", (q) =>
       q.select("tracking, boxes, member_code, slot, status_th").eq("session_id", id).order("id"));
     const scans = await pageAll("wh_count_scan", (q) =>
-      q.select("code, scanned_at, scanned_by").eq("session_id", id).order("scanned_at"));
+      q.select("code, qty, method, scanned_at, scanned_by").eq("session_id", id).order("scanned_at"));
 
     const result = reconcileCount(
       expected.map((e) => ({
         tracking: e.tracking, boxes: e.boxes, memberCode: e.member_code,
         slot: e.slot, statusTh: e.status_th,
       })),
-      scans.map((x) => ({ code: x.code })),
+      scans.map((x) => ({ code: x.code, qty: x.qty, method: x.method })),
     );
     return { session, result, scanCount: scans.length };
   }

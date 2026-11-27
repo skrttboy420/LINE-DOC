@@ -17,7 +17,13 @@
 //
 // 🔑 กติกาสำคัญ: **นับเป็น "กล่อง" ไม่ใช่ "แทรค"**
 //    1 เลขแทรคมีได้หลายกล่อง (PR179: แทรคเดียว 19 กล่อง) และกล่องทุกใบในแทรคนั้น
-//    แปะป้ายเลขเดียวกัน ⇒ พนักงานต้องยิงซ้ำเลขเดิมทีละกล่อง · ยิงกี่ครั้ง = เจอกี่กล่อง
+//    แปะป้ายเลขเดียวกัน
+//
+// 🔴 รอบ 2 (ภูม 2026-11-27): *"ถ้านับของแล้วมีครบ ก็ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้อง
+//    มานั่งยิงทีละกล่อง … ถ้าต้องยกกล่องทั้งหมดในโกดังด้วยมันน่าจะไม่ไหวกัน"*
+//    ⇒ 1 ครั้งที่บันทึก มี `qty` ได้ (ยิง 1 ใบ = qty 1 · นับด้วยตาแล้วพิมพ์ = qty N)
+//    ⇒ และมี `method` ว่าตัวเลขนั้นได้มายังไง: scan (ยิงจริง) · typed (นับแล้วพิมพ์) · full (กดครบ)
+//       **สำคัญกับความน่าเชื่อถือ** — ถ้ารอบไหนกด full เกือบหมด = ไม่ได้นับจริง ต้องดูออก
 //
 // 🔒 ไม่แตะเงิน ไม่แตะสถานะงาน — ตรวจนับคือ "บันทึกว่าเห็นอะไรจริง" เท่านั้น
 //    การแก้ตัวเลขในระบบต้องให้คนตัดสินทีหลัง (ไฟล์นี้ไม่สั่งแก้อะไรทั้งสิ้น)
@@ -79,7 +85,8 @@ function boxesOf(row) {
  * @param {Array<{tracking:string, boxes?:number, memberCode?:string|null,
  *                slot?:string|null, statusTh?:string|null}>} expected
  *        ของที่ระบบบอกว่า "ควรอยู่ในโกดังตอนนี้" (ถ่ายไว้ตอนเปิดรอบนับ)
- * @param {Array<{code:string}|string>} scans ทุกครั้งที่ยิง (ยิงซ้ำเลขเดิม = อีก 1 กล่อง)
+ * @param {Array<{code:string, qty?:number, method?:string}|string>} scans
+ *        ทุกครั้งที่บันทึก · ไม่ใส่ qty = 1 กล่อง · ใส่ qty = นับมาแล้ว N กล่อง
  * @returns {{
  *   rows: Array<object>, missing: Array<object>, partial: Array<object>,
  *   full: Array<object>, extra: Array<{code:string, scanned:number}>,
@@ -121,30 +128,35 @@ function reconcileCount(expected, scans) {
 
   /* ③ เดินทีละการยิง */
   const extraBy = new Map();
+  const methodBoxes = Object.create(null);   // ตัวเลขที่ได้มาจากวิธีไหนบ้าง
   let matchedScans = 0;
   for (const raw of list) {
-    const code = norm(typeof raw === "string" ? raw : raw && raw.code);
+    const isObj = raw && typeof raw === "object";
+    const code = norm(isObj ? raw.code : raw);
     if (!code) continue;
+    /* qty = จำนวนกล่องที่บันทึกครั้งนั้น (ไม่ใส่/เพี้ยน = 1 — ปลอดภัยไว้ก่อน ไม่เดาให้เยอะ) */
+    const qRaw = isObj ? Math.trunc(Number(raw.qty)) : 1;
+    const qty = Number.isFinite(qRaw) && qRaw > 0 ? qRaw : 1;
+    const method = isObj && raw.method ? String(raw.method) : "scan";
+    methodBoxes[method] = (methodBoxes[method] || 0) + qty;
 
-    let placed = false;
-    for (const k of keyFormsOf(code)) {
-      const hit = byKey.get(k);
-      if (!hit) continue;
-      /* แถวที่ตรงที่สุดก่อน — ถ้าแถวนั้นเต็มแล้ว ไล่หาพี่น้องที่ยังขาด
-         (เพราะกล่องทุกใบในชิปเม้นมักแปะป้ายเลขหลักเหมือนกัน) */
-      const order = [hit.idx, ...(family.get(baseOf(rows[hit.idx].tracking)) || [])];
+    /* หาแถวปลายทางครั้งเดียว แล้วค่อยจ่ายทีละกล่อง (qty 19 = เหมือนยิง 19 ครั้ง) */
+    let hit = null;
+    for (const k of keyFormsOf(code)) { hit = byKey.get(k); if (hit) break; }
+    if (!hit) { extraBy.set(code, (extraBy.get(code) || 0) + qty); continue; }
+
+    matchedScans += 1;
+    const order = [hit.idx, ...(family.get(baseOf(rows[hit.idx].tracking)) || [])];
+    for (let left = qty; left > 0; left--) {
+      /* แถวที่ตรงที่สุดก่อน — เต็มแล้วไล่หาพี่น้องที่ยังขาด
+         (กล่องทุกใบในชิปเม้นมักแปะป้ายเลขหลักเหมือนกัน) */
+      let put = false;
       for (const idx of order) {
-        if (rows[idx].scanned < rows[idx].boxes) { rows[idx].scanned += 1; placed = true; break; }
+        if (rows[idx].scanned < rows[idx].boxes) { rows[idx].scanned += 1; put = true; break; }
       }
-      if (!placed) {
-        /* ทุกแถวของตระกูลนี้เต็มหมดแล้ว แต่ยังยิงมาอีก = เกินจากที่ระบบคิด */
-        rows[hit.idx].over = (rows[hit.idx].over || 0) + 1;
-        placed = true;
-      }
-      break;
+      /* ทุกแถวของตระกูลนี้เต็มหมดแล้ว แต่ยังบันทึกมาอีก = เกินจากที่ระบบคิด */
+      if (!put) { rows[hit.idx].over = (rows[hit.idx].over || 0) + left; break; }
     }
-    if (placed) { matchedScans += 1; continue; }
-    extraBy.set(code, (extraBy.get(code) || 0) + 1);
   }
 
   /* ④ แยกกอง */
@@ -181,8 +193,50 @@ function reconcileCount(expected, scans) {
       extraScans: sum(extra, (e) => e.scanned),
       totalScans: list.length,
       matchedScans,
+      /** 🔴 กล่องที่นับได้ แยกตามวิธี — full เยอะ = ไม่ได้นับจริง (ดูหัวไฟล์) */
+      /* สะสมบนออบเจ็กต์ไร้ prototype (กันชื่อวิธีแปลกๆ เช่น __proto__) แล้วคืนเป็นออบเจ็กต์ธรรมดา */
+      methodBoxes: Object.assign({}, methodBoxes),
     },
   };
 }
 
-module.exports = { reconcileCount, baseOf, digitsCore, keyFormsOf, boxesOf, norm };
+/**
+ * 📦 แจงทั้งชิปเม้นของเลขที่เพิ่งบันทึก — ภูม 2026-11-27
+ *
+ * ภูม: *"ถ้ายิงแล้วแทรคนั้นมันเป็นแทรคย่อย หรือมีหลายแทรค ก็ให้มันแจงด้วยว่าขาดแทรคไหนบ้าง"*
+ *
+ * ⇒ รู้แค่ใบที่เพิ่งยิงไม่พอ · ต้องเห็นทั้งกองว่าเหลืออะไรให้ตามอีก
+ *   ไม่งั้นพนักงานเดินวนหาแบบไม่มีเป้า แล้วก็ยอมแพ้กลางทาง
+ *
+ * @param {ReturnType<typeof reconcileCount>} result ผลเทียบ
+ * @param {string} code เลขที่เพิ่งบันทึก
+ * @returns {null|{base:string, rows:Array, boxes:number, found:number, left:number,
+ *                 doneRows:number, leftRows:number}}
+ */
+function shipmentOf(result, code) {
+  const rows = (result && result.rows) || [];
+  const want = keyFormsOf(code);
+  const hit = rows.find((r) => {
+    const forms = keyFormsOf(r.tracking);
+    return want.some((w) => forms.includes(w));
+  });
+  if (!hit) return null;
+  const base = baseOf(hit.tracking);
+  const members = rows.filter((r) => baseOf(r.tracking) === base);
+  if (!members.length) return null;
+  const sum = (f) => members.reduce((n, r) => n + f(r), 0);
+  const found = sum((r) => Math.min(r.scanned, r.boxes));
+  const boxes = sum((r) => r.boxes);
+  return {
+    base,
+    /* เรียงให้ "ที่ยังขาด" ขึ้นก่อน — คนกำลังเดินหาของ ไม่ได้มานั่งอ่านรายงาน */
+    rows: members.slice().sort((a, b) => (b.boxes - b.scanned) - (a.boxes - a.scanned)),
+    boxes,
+    found,
+    left: boxes - found,
+    doneRows: members.filter((r) => r.scanned >= r.boxes).length,
+    leftRows: members.filter((r) => r.scanned < r.boxes).length,
+  };
+}
+
+module.exports = { reconcileCount, shipmentOf, baseOf, digitsCore, keyFormsOf, boxesOf, norm };

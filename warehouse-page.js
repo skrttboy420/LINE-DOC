@@ -276,7 +276,7 @@ function mountWarehouse(app, warehouse, whoOf, count) {
     try {
       if (!(await requireCountTables(res))) return;
       const b = req.body || {};
-      res.json(await count.scan({ wh: b.wh, code: b.code, slot: b.slot, by: who(req) }));
+      res.json(await count.scan({ wh: b.wh, code: b.code, qty: b.qty, method: b.method, slot: b.slot, by: who(req) }));
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
 

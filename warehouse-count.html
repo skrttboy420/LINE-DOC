@@ -59,6 +59,21 @@
   #hit .h{font-weight:800;font-size:15px}
   #hit .s{font-size:12px;color:#334155;margin-top:3px}
   .big{font-size:30px;font-weight:800;letter-spacing:.5px}
+  /* แผงใส่จำนวน — ภูม: *"ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้องยิงทีละกล่อง"* */
+  .qty{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .qty input{width:84px;text-align:center;font-size:18px;font-weight:800;padding:8px}
+  .qty button{padding:9px 13px}
+  .qty .full{background:var(--ok);color:#fff;border-color:var(--ok)}
+  /* แผงชิปเม้น — *"ให้มันแจงด้วยว่าขาดแทรคไหนบ้าง"* */
+  .ship{margin-top:10px;border-top:1px dashed var(--line);padding-top:9px}
+  .ship .hd{font-size:12px;font-weight:800;margin-bottom:6px}
+  .ship ul{list-style:none;margin:0;padding:0;max-height:190px;overflow:auto}
+  .ship li{display:flex;gap:7px;align-items:center;padding:4px 0;border-bottom:1px solid #f1f5f9;font-size:12.5px}
+  .ship li .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:ui-monospace,Menlo,Consolas,monospace}
+  .ship li .c{font-weight:700;white-space:nowrap}
+  .ship li.done{opacity:.5}
+  .ship li.left .c{color:var(--bad)}
 
   /* ── รายการ ── */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -101,7 +116,8 @@
     <h2>เริ่มรอบนับใหม่</h2>
     <p class="muted" style="margin:0 0 10px">
       ระบบจะถ่ายรายการ <b>ของที่ควรอยู่บนชั้นตอนนี้</b> เก็บไว้ แล้วให้เดินยิงทีละกล่อง
-      — ยิงเลขเดิมซ้ำได้ <b>ยิงกี่ครั้ง = เจอกี่กล่อง</b>
+      — ยิงใบเดียวแล้ว <b>พิมพ์จำนวนที่นับได้</b> ก็ได้ (ไม่ต้องยกกล่องมายิงทุกใบ)
+      · หรือจะยิงทีละกล่องรัวๆ ก็ได้เหมือนกัน
     </p>
     <div class="row">
       <input id="meIdle" placeholder="ชื่อเล่นของคุณ (ไว้ลงประวัติ)" style="max-width:240px">
@@ -131,7 +147,7 @@
     </div>
     <div id="hit"></div>
     <div class="muted" style="margin-top:8px">
-      💡 กล่องทุกใบในชิปเม้นเดียวกันมักแปะป้ายเลขเดียวกัน — <b>ต้องยิงทีละกล่อง</b>
+      💡 <b>ไม่ต้องยกกล่องมายิงทุกใบ</b> — ยิงใบเดียวพอ แล้วมองกองด้วยตา กด <b>“ครบ”</b> หรือพิมพ์จำนวนที่นับได้
     </div>
   </div>
 
@@ -251,23 +267,80 @@ $("btnOpen").addEventListener("click", async () => {
 });
 
 /* ══ ② ยิง ════════════════════════════════════════════════════════ */
+/** เลขที่การ์ดกำลังพูดถึง — ปุ่ม "ครบ"/"ใส่เลข" ต้องรู้ว่าทำกับใบไหน */
+let hitNow = null;
+
 function paintHit(j) {
+  hitNow = j;
   const h = $("hit");
   h.style.display = "block";
   if (!j.known) {
     h.className = "warn";
     h.innerHTML = '<div class="h">🟡 ระบบไม่รู้จักเลขนี้</div>' +
       '<div class="big m">' + esc(j.code) + "</div>" +
-      '<div class="s">ยิงไปแล้ว ' + nf(j.scanned) + " ครั้ง — ของอาจมาผิดโกดัง หรือยังไม่ได้นำเข้าระบบ (บันทึกไว้ให้แล้ว)</div>";
+      '<div class="s">นับไปแล้ว ' + nf(j.scanned) + " กล่อง — ของอาจมาผิดโกดัง หรือยังไม่ได้นำเข้าระบบ (บันทึกไว้ให้แล้ว)</div>";
     return;
   }
   const left = Math.max(0, j.boxes - j.scanned);
   h.className = left === 0 ? "ok" : "warn";
-  h.innerHTML =
+
+  let html =
     '<div class="h">' + (left === 0 ? "✅ ครบแล้ว" : "📦 นับไปแล้ว " + nf(j.scanned) + " / " + nf(j.boxes) + " กล่อง") + "</div>" +
     '<div class="big m">' + esc(j.tracking) + "</div>" +
     '<div class="s">' + (j.memberCode ? "ลูกค้า " + esc(j.memberCode) + " · " : "") +
     (left === 0 ? "แทรคนี้นับครบแล้ว" : "เหลืออีก " + nf(left) + " กล่อง") + "</div>";
+
+  /* 🔴 ภูม: *"ถ้านับของแล้วมีครบ ก็ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้องมานั่งยิงทีละกล่อง"*
+     ⇒ ยิงใบเดียวแล้วมองกองด้วยตา แล้วกด "ครบ" หรือพิมพ์จำนวนที่นับได้
+     🔑 ช่องพิมพ์คือ **จำนวนที่นับได้ทั้งหมด** ไม่ใช่ส่วนเพิ่ม — คนนับคิดแบบนี้ */
+  if (left > 0) {
+    html += '<div class="qty">' +
+      '<span style="font-size:12px">นับได้จริงทั้งหมด</span>' +
+      '<input id="qIn" type="number" inputmode="numeric" min="1" max="5000" value="' + j.boxes + '">' +
+      '<button id="qSave">บันทึกจำนวน</button>' +
+      '<button class="full" id="qFull">✅ ครบ ' + nf(j.boxes) + "</button></div>" +
+      '<div class="s">หรือยิงกล่องถัดไปทีละใบก็ได้ (ยิงกี่ครั้ง = เจอกี่กล่อง)</div>';
+  }
+
+  /* 📦 แจงทั้งชิปเม้น — ภูม: *"ถ้ามีหลายแทรค ก็ให้มันแจงด้วยว่าขาดแทรคไหนบ้าง"* */
+  const sh = j.shipment;
+  if (sh && sh.rows.length > 1) {
+    html += '<div class="ship"><div class="hd">📦 ชิปเม้น ' + esc(sh.base) + " — " +
+      nf(sh.found) + " / " + nf(sh.boxes) + " กล่อง" +
+      (sh.left > 0 ? ' · <span style="color:var(--bad)">ยังขาด ' + nf(sh.left) + " กล่อง จาก " + nf(sh.leftRows) + " แทรค</span>" : " · ครบทั้งชิปเม้น ✅") +
+      "</div><ul>" +
+      sh.rows.map(function (r) {
+        const l = Math.max(0, r.boxes - r.scanned);
+        return '<li class="' + (l === 0 ? "done" : "left") + '">' +
+          "<span>" + (l === 0 ? "✅" : "⬜") + '</span><span class="t">' + esc(r.tracking) + "</span>" +
+          '<span class="c">' + nf(Math.min(r.scanned, r.boxes)) + "/" + nf(r.boxes) + (l ? " (ขาด " + nf(l) + ")" : "") + "</span></li>";
+      }).join("") + "</ul></div>";
+  }
+  h.innerHTML = html;
+
+  /* ปุ่มในการ์ดถูกวาดใหม่ทุกครั้ง ⇒ ผูกเหตุการณ์หลังวาดเสมอ */
+  const qIn = $("qIn");
+  if (qIn) {
+    qIn.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); topUp("typed"); } });
+    $("qSave").addEventListener("click", function () { topUp("typed"); });
+    $("qFull").addEventListener("click", function () { topUp("full"); });
+  }
+}
+
+/**
+ * เติมให้ถึงจำนวนที่นับได้ — ส่งเฉพาะ "ส่วนที่ยังขาด"
+ * 🔑 คนนับคิดเป็น "ทั้งกองมีกี่กล่อง" ไม่ใช่ "เพิ่มอีกกี่กล่อง" ⇒ หน้าเว็บลบให้เอง
+ */
+async function topUp(method) {
+  if (!hitNow || !hitNow.known) return;
+  const want = method === "full" ? hitNow.boxes : Math.trunc(Number(($("qIn") || {}).value));
+  if (!Number.isFinite(want) || want < 1) { showErr("ใส่จำนวนกล่องเป็นตัวเลขก่อนนะ"); return; }
+  const add = want - hitNow.scanned;
+  if (add <= 0) { showErr("นับไปแล้ว " + nf(hitNow.scanned) + " กล่อง — มากกว่าหรือเท่ากับที่ใส่มา (ถ้าใส่ผิดกด ↩ ยกเลิกอันล่าสุด)"); return; }
+  try {
+    const j = await call("/warehouse/api/count/scan", { code: hitNow.code, qty: add, method: method });
+    paintHit(j); paintLive(j.totals); showErr("");
+  } catch (e) { showErr(e.message); }
 }
 
 async function sendScan(code) {
@@ -293,7 +366,9 @@ $("btnUndo").addEventListener("click", async () => {
     paintLive(j.totals);
     $("hit").style.display = "block";
     $("hit").className = "bad";
-    $("hit").innerHTML = '<div class="h">↩ ยกเลิกแล้ว</div><div class="big m">' + esc(j.undone) + "</div>";
+    hitNow = null;
+    $("hit").innerHTML = '<div class="h">↩ ยกเลิกแล้ว (' + nf(j.qty || 1) + ' กล่อง)</div>' +
+      '<div class="big m">' + esc(j.undone) + "</div>";
     showErr("");
   } catch (e) { showErr(e.message); }
 });

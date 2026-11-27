@@ -4,7 +4,7 @@
 //   ระบบ + MOMO ตรงกันว่ามี 387 กล่อง · ยิงรับเข้าโกดังจริง 422 · ของบนชั้นเหลือ ~160
 //   ⇒ ~227 กล่องออกไปโดยไม่มีใครบันทึก · ร่องรอย: ใบมอบงานคนขับ 0 แถว · รูป 3/161 แทรค
 const assert = require("node:assert/strict");
-const { reconcileCount, baseOf, digitsCore, keyFormsOf } = require("./warehouse-count-core");
+const { reconcileCount, shipmentOf, baseOf, digitsCore, keyFormsOf } = require("./warehouse-count-core");
 
 let n = 0;
 function ok(name, fn) { fn(); n++; console.log("  ✓ " + name); }
@@ -140,6 +140,100 @@ ok("รอบที่ยังไม่ยิงอะไรเลย = ทุ�
   assert.equal(r.missing.length, 1);
   assert.equal(r.full.length, 0);
   assert.equal(r.totals.missingBoxes, 2);
+});
+
+
+// ══ รอบ 2 — นับเป็นจำนวน ไม่ต้องยิงทีละกล่อง (ภูม 2026-11-27) ══
+//
+// ภูม: *"ถ้านับของแล้วมีครบ ก็ใส่เลขจำนวนกล่องไปเลย จะได้ไม่ต้องมานั่งยิงทีละกล่อง
+//        เพราะนอกจากคนต้องนับแล้ว ถ้าต้องยกกล่องทั้งหมดในโกดังด้วยมันน่าจะไม่ไหวกัน"*
+
+ok("📦 บันทึกทีเดียว qty 19 = เท่ากับยิง 19 ครั้ง", () => {
+  const one = reconcileCount([{ tracking: "T1", boxes: 19 }], [{ code: "T1", qty: 19 }]);
+  const many = reconcileCount([{ tracking: "T1", boxes: 19 }], Array(19).fill("T1"));
+  assert.equal(one.totals.foundBoxes, 19);
+  assert.equal(one.totals.foundBoxes, many.totals.foundBoxes, "2 ทางต้องได้ผลเท่ากันเป๊ะ");
+  assert.equal(one.totals.missingBoxes, 0);
+});
+
+ok("นับได้ไม่ครบ พิมพ์ 4 จาก 89 = ขาด 85 (เคสที่ภูมยกมา)", () => {
+  const r = reconcileCount([{ tracking: "1794460795", boxes: 89 }], [{ code: "1794460795", qty: 4 }]);
+  assert.equal(r.totals.foundBoxes, 4);
+  assert.equal(r.totals.missingBoxes, 85);
+  assert.equal(r.partial.length, 1);
+});
+
+ok("qty กระจายลงพี่น้องได้ เหมือนยิงทีละใบ", () => {
+  const r = reconcileCount(
+    [{ tracking: "B-1/3", boxes: 1 }, { tracking: "B-2/3", boxes: 1 }, { tracking: "B-3/3", boxes: 1 }],
+    [{ code: "B", qty: 3 }]);
+  assert.equal(r.totals.foundBoxes, 3);
+  assert.equal(r.missing.length, 0);
+});
+
+ok("qty เกินที่ควรมี = นับเป็น over ไม่ใช่ของหาย", () => {
+  const r = reconcileCount([{ tracking: "T1", boxes: 2 }], [{ code: "T1", qty: 7 }]);
+  assert.equal(r.totals.foundBoxes, 2);
+  assert.equal(r.totals.overBoxes, 5);
+  assert.equal(r.totals.missingBoxes, 0);
+});
+
+ok("qty เพี้ยน (0 / ติดลบ / ไม่ใช่ตัวเลข) = ถือว่า 1 ไม่ใช่ 0", () => {
+  for (const q of [0, -5, "abc", null, undefined]) {
+    const r = reconcileCount([{ tracking: "T1", boxes: 9 }], [{ code: "T1", qty: q }]);
+    assert.equal(r.totals.foundBoxes, 1, "qty=" + q + " ต้องได้ 1");
+  }
+});
+
+ok("🔴 จดด้วยว่าตัวเลขได้มายังไง — กด ครบ ทั้งโกดังต้องดูออก", () => {
+  const r = reconcileCount(
+    [{ tracking: "A", boxes: 10 }, { tracking: "B", boxes: 5 }, { tracking: "C", boxes: 3 }],
+    [{ code: "A", qty: 10, method: "full" }, { code: "B", qty: 5, method: "typed" }, { code: "C", qty: 3, method: "scan" }]);
+  assert.deepEqual(r.totals.methodBoxes, { full: 10, typed: 5, scan: 3 });
+  assert.equal(r.totals.foundBoxes, 18);
+});
+
+ok("ไม่บอก method = ถือว่ายิงจริง (เข้ากับของเก่าที่ไม่มีช่องนี้)", () => {
+  const r = reconcileCount([{ tracking: "A", boxes: 2 }], ["A", { code: "A" }]);
+  assert.deepEqual(r.totals.methodBoxes, { scan: 2 });
+});
+
+ok("ยิงเลขที่ระบบไม่รู้จัก พร้อม qty = นับครบจำนวนในกองเกิน", () => {
+  const r = reconcileCount([{ tracking: "A", boxes: 1 }], [{ code: "ZZ9", qty: 6 }]);
+  assert.deepEqual(r.extra, [{ code: "ZZ9", scanned: 6 }]);
+});
+
+// ══ แจงทั้งชิปเม้น — ภูม: *"ให้มันแจงด้วยว่าขาดแทรคไหนบ้าง"* ══
+ok("📦 ยิงแทรคย่อยใบเดียว ต้องแจงทั้งชิปเม้นว่าเหลืออะไร", () => {
+  const exp = [
+    { tracking: "1791256737-2", boxes: 19 },
+    { tracking: "1791256737-9", boxes: 17 },
+    { tracking: "1791256737-13", boxes: 7 },
+    { tracking: "9999999-1", boxes: 4 },
+  ];
+  const r = reconcileCount(exp, [{ code: "1791256737-2", qty: 19 }, { code: "1791256737-9", qty: 5 }]);
+  const sh = shipmentOf(r, "1791256737-2");
+  assert.equal(sh.base, "1791256737");
+  assert.equal(sh.rows.length, 3, "ต้องไม่ลากชิปเม้นอื่นเข้ามา");
+  assert.equal(sh.boxes, 43);
+  assert.equal(sh.found, 24);
+  assert.equal(sh.left, 19);
+  assert.equal(sh.doneRows, 1);
+  assert.equal(sh.leftRows, 2);
+  assert.equal(sh.rows[0].tracking, "1791256737-9", "ที่ขาดเยอะสุดต้องขึ้นก่อน — คนกำลังเดินหาของ");
+});
+
+ok("ยิงด้วยเลขหลัก ก็ต้องแจงทั้งชิปเม้นได้", () => {
+  const r = reconcileCount([{ tracking: "X-1/2", boxes: 1 }, { tracking: "X-2/2", boxes: 1 }], []);
+  const sh = shipmentOf(r, "X");
+  assert.equal(sh.rows.length, 2);
+  assert.equal(sh.left, 2);
+});
+
+ok("ยิงเลขที่ระบบไม่รู้จัก = ไม่มีชิปเม้นให้แจง (ไม่ล้ม)", () => {
+  const r = reconcileCount([{ tracking: "A", boxes: 1 }], []);
+  assert.equal(shipmentOf(r, "ZZZ999"), null);
+  assert.equal(shipmentOf(null, "A"), null);
 });
 
 console.log("\n✅ ผ่าน " + n + " ข้อ");

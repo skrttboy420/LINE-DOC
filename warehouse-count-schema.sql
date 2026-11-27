@@ -86,3 +86,33 @@ alter table public.wh_count_scan     enable row level security;
 -- เปิดซ้อน = พนักงาน 2 คนยิงคนละรอบ แล้วผลนับไม่มีความหมายทั้งคู่
 create unique index if not exists wh_count_one_open_per_wh
   on public.wh_count_session (wh) where status = 'open';
+
+-- ════════════════════════════════════════════════════════════════════
+-- ⑥ รอบ 2 — นับเป็นจำนวน ไม่ต้องยิงทีละกล่อง  (ภูม 2026-11-27)
+--
+-- ภูม: *"ถ้านับของแล้วมีครบ ก็ทำให้ใส่เลขจำนวนกล่องในชิปเม้นนั้นไปเลย จะได้ไม่ต้อง
+--        มานั่งยิงทีละกล่อง … ถ้าต้องยกกล่องทั้งหมดในโกดังด้วยมันน่าจะไม่ไหวกัน"*
+--
+-- 🔑 เติมช่องเฉยๆ ของเดิมไม่เสีย · รันซ้ำได้ (แถวเก่าถือเป็น qty=1 · method='scan')
+-- ════════════════════════════════════════════════════════════════════
+
+-- จำนวนกล่องที่บันทึกในครั้งนั้น (เดิม 1 แถว = 1 กล่อง ⇒ ค่าเริ่มต้น 1 จึงตรงของเก่าพอดี)
+alter table public.wh_count_scan
+  add column if not exists qty integer not null default 1;
+
+-- 🔴 ตัวเลขนี้ได้มายังไง — **สำคัญกับความน่าเชื่อถือของรอบนับ**
+--    'scan' = ยิงบาร์โค้ดจริงทีละกล่อง
+--    'typed' = คนนับด้วยตาแล้วพิมพ์จำนวนเอง
+--    'full'  = กดปุ่ม "ครบตามระบบ" (ไม่ได้นับ แค่ยืนยันว่าครบ)
+--  ⇒ ถ้ารอบไหนเป็น 'full' เกือบทั้งหมด = ไม่ได้นับจริง · พี่ป๊อปต้องดูออก
+alter table public.wh_count_scan
+  add column if not exists method text not null default 'scan';
+
+-- กัน qty เพี้ยน (ติดลบ / ใหญ่เกินจริง = พิมพ์พลาด)
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'wh_count_scan_qty_sane') then
+    alter table public.wh_count_scan
+      add constraint wh_count_scan_qty_sane check (qty >= 1 and qty <= 5000);
+  end if;
+end $$;

@@ -37,6 +37,8 @@ function mk(cfg) {
     const b = {
       select() { return b; }, eq(c, v) { st.filters[c] = v; return b; },
       in(c, v) { st.filters[c] = v; return b; },
+      not(c, op, v) { st.filters["not:" + c] = [op, v]; return b; },
+      gte(c, v) { st.filters["gte:" + c] = v; return b; },
       order() { return b; }, limit() { return result(false); },
       maybeSingle() { return result(true); }, single() { return result(true); },
       insert(row) { st.op = "insert"; st.payload = row; return b; },
@@ -386,6 +388,45 @@ const MISSING = { code: "42P01", message: 'relation "public.dp_setting" does not
     const r = await createDelivery(mk({}), null).readyJobs();
     assert.equal(r.ok, false);
     assert.equal(r.jobs.length, 0);
+  });
+
+  // ── ⏱ หมุดรถต้องหมดอายุ (ภูม 2026-11-28 · "มีหมุดค้างจากวันอื่นๆ") ──
+  await ok("pingAgeMin: ไม่มีเวลา/เวลาเพี้ยน = เก่าสุดเสมอ", async () => {
+    const d = createDelivery(mk({}), fakeWh());
+    const now = Date.UTC(2026, 10, 28, 3, 0, 0);
+    assert.equal(d.pingAgeMin(null, now), Infinity);
+    assert.equal(d.pingAgeMin("ไม่ใช่วันที่", now), Infinity);
+    assert.equal(d.pingAgeMin(new Date(now - 90 * 60000).toISOString(), now), 90);
+    assert.equal(d.pingAgeMin(new Date(now + 60 * 60000).toISOString(), now), 0, "เวลาอนาคต = 0 ไม่ติดลบ");
+  });
+
+  await ok("🪤 listTripPositions: หมุดเมื่อวานไม่โผล่ · ของสดโผล่ + ติดธง live", async () => {
+    const now = Date.now();
+    const at = (min) => new Date(now - min * 60000).toISOString();
+    const db = mk({ rows: [
+      { id: "t1", name: "วันนี้-วิ่งอยู่", truck_id: null, last_lat: 13.7, last_lng: 100.5, last_ping_at: at(3) },
+      { id: "t2", name: "วันนี้-เงียบไปชม.นึง", truck_id: null, last_lat: 13.8, last_lng: 100.6, last_ping_at: at(60) },
+      { id: "t3", name: "เมื่อวาน", truck_id: null, last_lat: 13.9, last_lng: 100.7, last_ping_at: at(24 * 60) },
+      { id: "t4", name: "เมื่อวานซืน", truck_id: null, last_lat: 13.6, last_lng: 100.3, last_ping_at: at(48 * 60) },
+    ] });
+    const out = await createDelivery(db, fakeWh()).listTripPositions();
+    assert.deepEqual(out.map((p) => p.id), ["t1", "t2"], "เกิน 2 ชม. ต้องไม่คืน");
+    assert.equal(out[0].live, true, "3 นาที = กำลังวิ่ง");
+    assert.equal(out[1].live, false, "1 ชม. = เงียบไปแล้ว");
+    assert.equal(out[1].ageMin, 60);
+    const q = db.calls.filter((c) => c.table === "dp_trip")[0];
+    assert.ok(q.filters["gte:last_ping_at"], "ต้องส่งด่านเวลาไปที่ฐานด้วย ไม่ใช่กรองทีหลังอย่างเดียว");
+  });
+
+  await ok("listTripPositions: ปรับหน้าต่างเวลาได้ (ไว้ดูย้อนหลังตอนสอบสวน)", async () => {
+    const now = Date.now();
+    const db = mk({ rows: [
+      { id: "t3", name: "เมื่อวาน", truck_id: null, last_lat: 13.9, last_lng: 100.7,
+        last_ping_at: new Date(now - 24 * 3600000).toISOString() },
+    ] });
+    const d = createDelivery(db, fakeWh());
+    assert.equal((await d.listTripPositions()).length, 0);
+    assert.equal((await d.listTripPositions({ freshMin: 48 * 60 })).length, 1);
   });
 
   console.log("\n✅ delivery: " + pass + " pass, " + fail + " fail\n");

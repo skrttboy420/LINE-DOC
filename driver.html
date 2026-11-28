@@ -221,19 +221,62 @@
     .catch(function(e){ $("list").innerHTML='<div class="mid">'+esc((e&&e.error)||"เปิดเที่ยวไม่ได้")+'</div>'; $("sub").textContent="เปิดไม่ได้"; });
 
   // ---- แชร์ GPS ----
-  var watch=null, meMarker=null, lastPing=0;
-  function stopGps(){ if(watch!=null){navigator.geolocation.clearWatch(watch);watch=null;} $("gps").classList.remove("on"); $("gpst").textContent="แชร์ตำแหน่งให้หัวหน้าเห็น"; $("gpshint").textContent="เปิดแล้วหัวหน้าจะเห็นรถคุณบนแผนที่ · ปิดได้ทุกเมื่อ"; }
+  /* 🔴 ภูม 2026-11-28: *"แชร์แล้วหมุดไม่เห็นขยับตามเลยอะ มันค้างที่จุดนั้นเลย"*
+     3 ต้นเหตุที่เจอตอนอ่านโค้ดเดิม:
+     ① error ของ watchPosition **ตัวไหนก็ได้** เรียก stopGps() ⇒ เข้าอุโมงค์/ใต้ตึก/สัญญาณหาย
+        ครบ timeout ครั้งเดียว (code 3) = หยุดแชร์ถาวร · มือถืออยู่ในกระเป๋า คนขับไม่มีทางรู้
+        ⇒ หยุดเฉพาะ "ไม่อนุญาต" (code 1) · นอกนั้นแค่บอกว่ากำลังหาสัญญาณ แล้วแชร์ต่อ
+     ② กันส่งถี่ 10 วิ เป็นแบบทิ้งอันที่มาเร็วเกิน และไม่มีตัวส่งตาม ⇒ จุดสุดท้ายหล่นหายประจำ
+        ⇒ เพิ่มหัวใจเต้น ส่งจุดล่าสุดซ้ำทุก 25 วิ (จอดไฟแดงนานๆ หัวหน้าก็ยังรู้ว่ารถยังอยู่)
+     ③ ส่งไม่ออกแล้ว .catch เงียบ ⇒ ไม่มีใครรู้ว่าพัง · ตอนนี้ขึ้นบนจอคนขับ + นับจำนวนครั้งที่ส่งแล้ว
+     🔋 ขอ Wake Lock ด้วย — จอดับเมื่อไหร่ ระบบพัก watchPosition ทันที (เครื่องไหนไม่รองรับก็ข้าม) */
+  var watch=null, meMarker=null, lastPing=0, lastFix=null, beat=null, sent=0, wake=null;
+  function gpsHint(t){ $("gpshint").textContent=t; }
+  function keepAwake(){
+    if(!(navigator.wakeLock&&navigator.wakeLock.request))return;
+    try{ navigator.wakeLock.request("screen").then(function(w){wake=w},function(){}); }catch(e){}
+  }
+  function sendFix(fix){
+    if(!fix)return;
+    lastPing=Date.now();
+    fetch("/delivery/api/driver/ping",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({trip:TRIP,t:TK,lat:fix.lat,lng:fix.lng})})
+      .then(function(r){ return r.ok?r.json():r.json().catch(function(){return{}}).then(function(j){return Promise.reject(j)}); })
+      .then(function(){ sent++; gpsHint("✓ ส่งตำแหน่งให้หัวหน้าแล้ว "+sent+" ครั้ง · ล่าสุดเมื่อกี้"); })
+      .catch(function(e){ gpsHint("⚠️ ส่งไม่ออก ("+((e&&e.error)||"เน็ตหลุด?")+") — ยังแชร์อยู่ เดี๋ยวลองใหม่ให้เอง"); });
+  }
+  function stopGps(){
+    if(watch!=null){navigator.geolocation.clearWatch(watch);watch=null;}
+    if(beat){clearInterval(beat);beat=null;}
+    if(wake&&wake.release){try{wake.release()}catch(e){} }
+    wake=null;
+    $("gps").classList.remove("on"); $("gpst").textContent="แชร์ตำแหน่งให้หัวหน้าเห็น";
+    gpsHint("เปิดแล้วหัวหน้าจะเห็นรถคุณบนแผนที่ · ปิดได้ทุกเมื่อ");
+  }
   function startGps(){
     if(!navigator.geolocation){toast("มือถือนี้ไม่รองรับ GPS");return;}
-    $("gps").classList.add("on"); $("gpst").textContent="กำลังแชร์ตำแหน่ง… (แตะเพื่อหยุด)"; $("gpshint").textContent="เปิดหน้านี้ค้างไว้ระหว่างขับ หัวหน้าจะเห็นตำแหน่งล่าสุด";
+    sent=0; lastFix=null; lastPing=0;
+    $("gps").classList.add("on"); $("gpst").textContent="กำลังแชร์ตำแหน่ง… (แตะเพื่อหยุด)";
+    gpsHint("กำลังหาสัญญาณ GPS…");
+    keepAwake();
     watch=navigator.geolocation.watchPosition(function(p){
-      var lat=p.coords.latitude, lng=p.coords.longitude;
-      if(!meMarker){meMarker=L.marker([lat,lng],{icon:L.divIcon({className:"",html:'<div class="me-ic"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1500}).addTo(map).bindPopup("ตำแหน่งคุณ");}
-      else meMarker.setLatLng([lat,lng]);
-      var now=Date.now(); if(now-lastPing<10000)return; lastPing=now; // ส่งไม่ถี่เกิน 10 วิ
-      fetch("/delivery/api/driver/ping",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({trip:TRIP,t:TK,lat:lat,lng:lng})}).catch(function(){});
-    },function(err){ stopGps(); toast(err&&err.code===1?"ไม่ได้อนุญาตให้ใช้ตำแหน่ง":"อ่านตำแหน่งไม่ได้"); },{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
+      var fix={lat:p.coords.latitude,lng:p.coords.longitude};
+      lastFix=fix;
+      if(!meMarker){meMarker=L.marker([fix.lat,fix.lng],{icon:L.divIcon({className:"",html:'<div class="me-ic"></div>',iconSize:[18,18],iconAnchor:[9,9]}),zIndexOffset:1500}).addTo(map).bindPopup("ตำแหน่งคุณ");}
+      else meMarker.setLatLng([fix.lat,fix.lng]);
+      if(Date.now()-lastPing<10000)return;   /* ไม่ส่งถี่เกิน 10 วิ — ที่ทิ้งไป หัวใจเต้นส่งตามให้ */
+      sendFix(fix);
+    },function(err){
+      /* ไม่อนุญาต = จบจริง · นอกนั้น (หมดเวลา/หาสัญญาณไม่เจอ) ห้ามหยุด เดี๋ยวสัญญาณกลับมาก็ไปต่อ */
+      if(err&&err.code===1){ stopGps(); toast("ไม่ได้อนุญาตให้ใช้ตำแหน่ง"); return; }
+      gpsHint("⚠️ สัญญาณ GPS หายชั่วคราว — ยังแชร์อยู่ กำลังหาใหม่"+(sent?" · ส่งไปแล้ว "+sent+" ครั้ง":""));
+    },{enableHighAccuracy:true,maximumAge:5000,timeout:20000});
+    /* 💓 หัวใจเต้น — จอดนิ่งนานๆ GPS ไม่ยิงจุดใหม่ ก็ส่งจุดเดิมซ้ำ ให้หัวหน้ารู้ว่ารถยังวิ่งงานอยู่ */
+    beat=setInterval(function(){ if(lastFix&&Date.now()-lastPing>=25000) sendFix(lastFix); },5000);
   }
+  /* สลับแอปแล้วกลับมา = ระบบคืน Wake Lock ให้เอง ต้องขอใหม่ */
+  document.addEventListener("visibilitychange",function(){
+    if(document.visibilityState==="visible"&&watch!=null&&!wake) keepAwake();
+  });
   $("gps").addEventListener("click",function(){ if(watch!=null)stopGps(); else startGps(); });
 })();
 </script>

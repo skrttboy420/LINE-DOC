@@ -254,7 +254,10 @@
   .top .trackbtn{margin-left:auto;background:rgba(255,255,255,.16);border:0;color:#fff;width:34px;height:34px;border-radius:9px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
   .top .trackbtn.on{background:#fff;color:var(--red)}
   .top .trackbtn svg{font-size:18px}
-  .truck-ic{display:grid;place-items:center;color:#fff;background:#2563c9;width:30px;height:30px;border-radius:9px;border:2px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.4);font-size:16px}
+  .truck-ic{display:grid;place-items:center;color:#fff;background:#2563c9;width:30px;height:30px;border-radius:9px;border:2px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.4);font-size:16px;transition:transform .5s linear}
+  /* 🚚 เงียบไปเกิน 10 นาที = ไม่ใช่ตำแหน่งสดแล้ว ทำให้ต่างจากรถที่กำลังวิ่ง */
+  .truck-ic.old{background:#9a6b00;opacity:.78}
+  .truck-ago{margin-top:2px;text-align:center;font-size:9px;font-weight:800;color:#fff;background:rgba(0,0,0,.6);border-radius:6px;padding:1px 4px;white-space:nowrap;transform:translateX(-50%);margin-left:15px;width:max-content}
   .pop b{color:var(--red)}
   .pop .a{color:var(--muted);font-size:12px;margin-top:3px;max-width:220px}
 
@@ -447,7 +450,8 @@
 
   var KEY=(new URLSearchParams(location.search)).get("key")||"";
   function api(path, body){
-    var opt={headers:{"x-delivery-key":KEY}};
+    /* 🚫 ห้ามอ่านจากแคชเบราว์เซอร์ — หน้านี้ดูของสด (ตำแหน่งรถ/งานพร้อมส่ง) ค้างแม้แต่รอบเดียวก็หลอกตา */
+    var opt={headers:{"x-delivery-key":KEY},cache:"no-store"};
     if(body!==undefined){opt.method="POST";opt.headers["content-type"]="application/json";opt.body=JSON.stringify(body);}
     return fetch("/delivery/api"+path,opt).then(function(r){return r.json().catch(function(){return {}}).then(function(j){return r.ok?j:Promise.reject(j||{})})});
   }
@@ -1001,22 +1005,35 @@
   });
 
   // ---- ติดตามตำแหน่งรถ (จาก GPS มือถือคนขับ) ----
-  var truckMarkers=[], trackTimer=null;
+  /* 🔴 ภูม 2026-11-28: *"มีหมุดค้างจากวันอื่นๆ หรือ รอบอื่นๆมาด้วย … แชร์แล้วหมุดไม่เห็นขยับตามเลย
+     มันค้างที่จุดนั้นเลย"* ⇒ แก้ 3 อย่างตรงนี้
+     ① หมุดเก่าหายเอง — server คืนเฉพาะพิกัด ≤ 2 ชม. แล้ว · ที่นี่ลบหมุดที่หลุดจากคำตอบออกจากแผนที่
+     ② หมุดเดิม "ขยับ" ด้วย setLatLng แทนลบทิ้งแล้วสร้างใหม่ ⇒ เห็นว่ามันเลื่อนจริง ไม่กระพริบ
+     ③ สีบอกความสด: น้ำเงิน = กำลังวิ่ง (≤ 10 นาที) · เหลืองเข้ม = เงียบไปแล้ว + เขียนอายุใต้หมุด */
+  var truckMarks={}, trackTimer=null, trackedOnce=false;
   function timeAgo(iso){ if(!iso)return""; var s=Math.floor((Date.now()-new Date(iso).getTime())/1000); if(s<60)return s+" วิที่แล้ว"; if(s<3600)return Math.floor(s/60)+" นาทีที่แล้ว"; return Math.floor(s/3600)+" ชม.ที่แล้ว"; }
-  function truckIcon(){return L.divIcon({className:"",html:'<div class="truck-ic">🚚</div>',iconSize:[30,30],iconAnchor:[15,15]});}
-  function clearTrucks(){ truckMarkers.forEach(function(m){map.removeLayer(m)}); truckMarkers=[]; }
+  function agoShort(iso){ if(!iso)return"?"; var s=Math.floor((Date.now()-new Date(iso).getTime())/1000); if(s<90)return"เมื่อกี้"; if(s<3600)return Math.floor(s/60)+" นาที"; return Math.floor(s/3600)+" ชม."; }
+  function truckIcon(live,iso){return L.divIcon({className:"",html:'<div class="truck-ic'+(live?"":" old")+'">🚚</div><div class="truck-ago">'+esc(agoShort(iso))+'</div>',iconSize:[30,30],iconAnchor:[15,15]});}
+  function truckPop(p,live){return '<div class="pop"><b style="color:'+(live?"#2563c9":"#9a6b00")+'">🚚 '+esc(p.truck||p.name||"รถ")+'</b><div class="a">'+(p.driver?esc(p.driver)+' · ':'')+esc(p.name||"")+'<br>'+(live?"กำลังวิ่ง · อัปเดต ":"⚠️ เงียบไป ")+esc(timeAgo(p.at))+'</div></div>';}
+  function clearTrucks(){ Object.keys(truckMarks).forEach(function(k){map.removeLayer(truckMarks[k])}); truckMarks={}; }
   function loadPositions(){
     api("/positions").then(function(r){
-      clearTrucks();
-      (r.positions||[]).forEach(function(p){
-        var m=L.marker([p.lat,p.lng],{icon:truckIcon(),zIndexOffset:2000}).addTo(map).bindPopup('<div class="pop"><b style="color:#2563c9">🚚 '+esc(p.truck||p.name||"รถ")+'</b><div class="a">'+(p.driver?esc(p.driver)+' · ':'')+esc(p.name||"")+'<br>อัปเดต '+esc(timeAgo(p.at))+'</div></div>');
-        truckMarkers.push(m);
+      var list=r.positions||[], seen={};
+      list.forEach(function(p){
+        var id=String(p.id), live=!!p.live, m=truckMarks[id];
+        seen[id]=1;
+        if(m){ m.setLatLng([p.lat,p.lng]); m.setIcon(truckIcon(live,p.at)); m.setPopupContent(truckPop(p,live)); }
+        else { truckMarks[id]=L.marker([p.lat,p.lng],{icon:truckIcon(live,p.at),zIndexOffset:2000}).addTo(map).bindPopup(truckPop(p,live)); }
       });
+      /* หลุดจากคำตอบ = เกินเวลาแล้ว เอาออกจากแผนที่ทันที (ไม่ต้องรอใครมากดล้าง) */
+      Object.keys(truckMarks).forEach(function(k){ if(!seen[k]){ map.removeLayer(truckMarks[k]); delete truckMarks[k]; } });
+      /* บอกตรงๆ ครั้งแรกว่าไม่มีรถไหนแชร์อยู่ — จะได้ไม่นั่งงงว่าทำไมแผนที่ว่าง */
+      if(!trackedOnce){ trackedOnce=true; if(!list.length) toast("ยังไม่มีรถที่แชร์ตำแหน่งใน 2 ชม.ล่าสุด — ให้คนขับเปิดลิงก์แล้วกดปุ่มแชร์ตำแหน่ง"); }
     }).catch(function(e){toast(errMsg(e))});
   }
   $("trackBtn").addEventListener("click",function(){
     if(trackTimer){ clearInterval(trackTimer); trackTimer=null; clearTrucks(); this.classList.remove("on"); toast("ปิดติดตามรถ"); }
-    else { this.classList.add("on"); loadPositions(); trackTimer=setInterval(loadPositions,20000); toast("ติดตามรถ: อัปเดตตำแหน่งทุก 20 วิ (ให้คนขับเปิดลิงก์+กดแชร์)"); }
+    else { this.classList.add("on"); trackedOnce=false; loadPositions(); trackTimer=setInterval(loadPositions,15000); toast("ติดตามรถ: อัปเดตทุก 15 วิ · โชว์เฉพาะรถที่แชร์ใน 2 ชม.ล่าสุด"); }
   });
 
   // ---- tabs ----

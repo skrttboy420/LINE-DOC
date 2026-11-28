@@ -43,6 +43,21 @@ function createDelivery(supabase, warehouse) {
   };
   const inThai = (lat, lng) => lat > 5 && lat < 21 && lng > 96 && lng < 106;
 
+  /* ⏱ อายุหมุดรถ — ตัวตัดสินเดียว (ภูม 2026-11-28)
+     🔴 เดิม listTripPositions คืน "ทุกเที่ยวที่เคยส่งพิกัด" ไม่จำกัดเวลา ⇒ หมุดของเมื่อวาน
+        (และเมื่อวานซืน) ค้างบนแผนที่ปนกับรถที่กำลังวิ่งจริง แยกไม่ออกว่าอันไหนของวันนี้
+     📏 วัดของจริง 28/11 เช้า: 4 หมุด อายุ 22.8 / 24.2 / 46.5 / 48.0 ชม. — ไม่มีสักตัวเป็นวันนี้
+     ⇒ เกินเวลา = ไม่คืนเลย หมุดหายเอง ไม่ต้องมีใครไปกดลบ */
+  const POSITION_FRESH_MIN = Math.max(5, Number(process.env.DP_POSITION_FRESH_MIN) || 120);
+  const POSITION_LIVE_MIN = 10;   /* ≤ 10 นาที = ยังวิ่งอยู่จริง · เกินนั้น = เงียบไปแล้ว */
+
+  /** อายุพิกัดเป็นนาที — ไม่มีเวลา/เวลาเพี้ยน = Infinity (ถือว่าเก่าสุด โดนตัดทิ้งเสมอ) */
+  function pingAgeMin(at, nowMs) {
+    const t = at ? new Date(at).getTime() : NaN;
+    if (!Number.isFinite(t)) return Infinity;
+    return Math.max(0, (Number(nowMs) || Date.now()) - t) / 60000;
+  }
+
   /* 🏭 จุดโกดัง PACRED ค่าตั้งต้น — ติดโกดัง PCS (ภูมส่งลิงก์แมพมา 2026-11-22)
      ยังไม่ตั้งเอง = ใช้จุดนี้ · ปักใหม่ในแอปได้ (เก็บทับใน dp_setting) */
   const DEFAULT_ORIGIN = { lat: 13.7109246, lng: 100.3241082, label: "โกดัง PACRED" };
@@ -447,18 +462,39 @@ function createDelivery(supabase, warehouse) {
     return { ok: true, lat: la, lng: ln, stops: sameStop.length };
   }
 
-  /** เที่ยวที่มีตำแหน่งรถล่าสุด — ไว้โชว์บนแผนที่แอดมิน */
-  async function listTripPositions() {
+  /**
+   * เที่ยวที่มีตำแหน่งรถล่าสุด — ไว้โชว์บนแผนที่แอดมิน
+   *
+   * 🔑 คืนเฉพาะพิกัดที่ยัง "สดพอจะเป็นรถคันที่วิ่งอยู่" (ตั้งต้น 2 ชม.) — ของเก่ากว่านั้นหายเอง
+   *    ⇒ หมุดเมื่อวาน/รอบก่อนไม่ค้างบนแผนที่อีก (ภูม 2026-11-28)
+   * 🔑 ติดธง live มาด้วย ให้จอแยกสีได้ว่า "กำลังวิ่ง" กับ "เงียบไปพักใหญ่"
+   */
+  async function listTripPositions(opts) {
+    const freshMin = Math.max(1, Number(opts && opts.freshMin) || POSITION_FRESH_MIN);
+    const nowMs = Number(opts && opts.nowMs) || Date.now();
+    const since = new Date(nowMs - freshMin * 60000).toISOString();
     const { data, error } = await supabase
-      .from("dp_trip").select("id,name,truck_id,last_lat,last_lng,last_ping_at").not("last_lat", "is", null).limit(100);
+      .from("dp_trip").select("id,name,truck_id,last_lat,last_lng,last_ping_at")
+      .not("last_lat", "is", null)
+      .gte("last_ping_at", since)        /* ⏱ ด่านเวลา — ของเก่าไม่ต้องอ่านมาเลย */
+      .limit(100);
     if (error) { if (isMissingSchema(error)) return []; boom(error); }
     const trucks = await listTrucks().catch(() => []);
     const byId = {}; trucks.forEach((t) => { byId[t.id] = t; });
-    return (data || []).map((r) => ({
-      id: r.id, name: r.name, lat: +r.last_lat, lng: +r.last_lng, at: r.last_ping_at,
-      truck: byId[r.truck_id] ? byId[r.truck_id].name : null,
-      driver: byId[r.truck_id] ? byId[r.truck_id].driver_name : null,
-    }));
+    return (data || [])
+      .map((r) => {
+        const ageMin = pingAgeMin(r.last_ping_at, nowMs);
+        return {
+          id: r.id, name: r.name, lat: +r.last_lat, lng: +r.last_lng, at: r.last_ping_at,
+          ageMin: Number.isFinite(ageMin) ? Math.round(ageMin) : null,
+          live: ageMin <= POSITION_LIVE_MIN,
+          truck: byId[r.truck_id] ? byId[r.truck_id].name : null,
+          driver: byId[r.truck_id] ? byId[r.truck_id].driver_name : null,
+        };
+      })
+      /* ย้ำอีกชั้นฝั่งเรา — ฐานไหนไม่รองรับ .gte ก็ยังไม่หลุดหมุดเก่าออกไป */
+      .filter((p) => pingAgeMin(p.at, nowMs) <= freshMin)
+      .sort((a, b) => (a.ageMin || 0) - (b.ageMin || 0));
   }
 
   return {
@@ -466,6 +502,7 @@ function createDelivery(supabase, warehouse) {
     getSetting, setSetting, getOrigin, setOrigin,
     listTrucks, addTruck, updateTruck, deleteTruck,
     listTrips, getTrip, createTrip, updateTrip, deleteTrip, setStops,
+    pingAgeMin, POSITION_FRESH_MIN, POSITION_LIVE_MIN,
     readyJobs, placedTrackings, driverRuns, linkForRun,
     driverTripToken, getTripForDriver, driverPing, driverPinStop, listTripPositions,
   };
